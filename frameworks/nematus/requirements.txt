@@ -1,0 +1,5 @@
+boto3
+paramiko
+requests
+scp
+theano==0.8.2

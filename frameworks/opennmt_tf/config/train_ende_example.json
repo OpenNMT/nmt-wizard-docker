@@ -1,0 +1,32 @@
+{
+    "source": "en",
+    "target": "de",
+    "options": {
+        "model": "${OPENNMT_TF_DIR}/config/models/nmt_small.py",
+        "config": {
+            "data": {
+                "source_words_vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+                "target_words_vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt"
+            },
+            "params": {
+                "optimizer": "GradientDescentOptimizer",
+                "learning_rate": 1,
+                "param_init": 0.1,
+                "clip_gradients": 5.0,
+                "beam_width": 5
+            },
+            "train": {
+                "batch_size": 64,
+                "bucket_width": 2,
+                "maximum_features_length": 50,
+                "maximum_labels_length": 50,
+                "save_checkpoints_steps": 5000,
+                "keep_checkpoint_max": 8,
+                "sample_buffer_size": 1000000
+            },
+            "infer": {
+                "batch_size": 32
+            }
+        }
+    }
+}

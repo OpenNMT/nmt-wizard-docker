@@ -1,0 +1,21 @@
+{
+    "source": "en",
+    "target": "de",
+    "options": {
+        "common": {},
+        "train": {
+            "layers": 2,
+            "rnn_size": 512,
+            "src_seq_length": 50,
+            "src_vocab": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "tgt_seq_length": 50,
+            "tgt_vocab": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "word_vec_size": 512
+        },
+        "trans": {
+            "batch_size": 32,
+            "max_sent_length": 80,
+            "replace_unk": 1
+        }
+    }
+}
