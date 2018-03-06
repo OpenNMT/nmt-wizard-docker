@@ -145,11 +145,9 @@ def _generate_distribution_file(path, metadata):
                 rule_file.write(' %s' % arg)
             rule_file.write('\n')
 
-def _build_cmd_line_options(options, filter_func=None):
+def _build_cmd_line_options(options):
     opts = []
     for key, value in six.iteritems(options):
-        if filter_func:
-            key = filter_func(key)
         if key is not None:
             opts.append('-%s' % key)
             opts.append(str(value))
