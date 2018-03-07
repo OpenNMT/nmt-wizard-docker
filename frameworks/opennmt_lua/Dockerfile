@@ -1,4 +1,4 @@
-FROM ubuntu:14.04 as opennmt_builder
+FROM ubuntu:16.04 as opennmt_builder
 
 RUN apt-get update && apt-get install -y \
         build-essential \
@@ -9,21 +9,9 @@ RUN apt-get update && apt-get install -y \
         libboost-python-dev \
         python-dev
 
-RUN wget http://www.cmake.org/files/v3.2/cmake-3.2.2.tar.gz && \
-	tar xf cmake-3.2.2.tar.gz && \
-	cd cmake-3.2.2 && \
-	./configure && \
-	make && \
-	make install
-
-ARG OPENNMT_LUA_URL
-ENV OPENNMT_LUA_URL=${OPENNMT_LUA_URL:-https://github.com/OpenNMT/OpenNMT.git}
-ARG OPENNMT_LUA_REF
-ENV OPENNMT_LUA_REF=${OPENNMT_LUA_REF:-master}
 ARG OPENNMT_TOKENIZER_REF
 ENV OPENNMT_TOKENIZER_REF=${OPENNMT_TOKENIZER_REF:-master}
 
-RUN git clone --depth 1 --branch ${OPENNMT_LUA_REF} --single-branch ${OPENNMT_LUA_URL} /root/opennmt
 RUN git clone --depth 1 --branch ${OPENNMT_TOKENIZER_REF} --single-branch https://github.com/OpenNMT/Tokenizer.git /root/tokenizer-git
 
 WORKDIR /root/tokenizer-git
@@ -53,7 +41,6 @@ ENV PYTHONPATH=/root/tokenizer/lib:$PYTHONPATH
 ENV LD_LIBRARY_PATH=/root/tokenizer/lib:$LD_LIBRARY_PATH
 
 COPY --from=opennmt_builder /root/tokenizer /root/tokenizer
-COPY --from=opennmt_builder /root/opennmt /root/opennmt
 
 ENV CORPUS_DIR=/root/corpus
 ENV MODELS_DIR=/root/models
