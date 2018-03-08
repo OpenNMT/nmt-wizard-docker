@@ -195,6 +195,7 @@ class Framework(object):
                 storage,
                 args.model_storage,
                 args.image,
+                parent_model=parent_model,
                 model_path=model_path,
                 gpuid=args.gpuid)
         elif args.cmd == 'trans':
@@ -219,6 +220,7 @@ class Framework(object):
                       storage,
                       model_storage,
                       image,
+                      parent_model=None,
                       model_path=None,
                       gpuid=0):
         logger.info('Starting training model %s', model_id)
@@ -239,6 +241,8 @@ class Framework(object):
         logger.info('Finished training model %s in %s seconds', model_id, str(end_time-start_time))
 
         # Fill training details.
+        if parent_model:
+            config['parent_model'] = parent_model
         config['model'] = model_id
         config['imageTag'] = image
         config['build'] = {
