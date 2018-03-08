@@ -4,6 +4,7 @@ The aim of this project is to encapsulate training frameworks in Docker containe
 
 * training
 * translating
+* data sampling and preprocessing - useful mainly for data preparation and vocabulary building
 * serving (*coming soon*)
 
 The training data are mounted at the container start and follow a specific directory structure (described later). Models and translation files can be fetched and pushed from various remote storage platform. Currently only SSH and Amazon S3 are supported.
@@ -53,8 +54,8 @@ The JSON configuration file contains the parameters necessary to run the command
     },
     "tokenization": {
         //  (optional) Tokenization options from OpenNMT/Tokenizer.
-        "source": {},
-        "target": {}
+        "source": {}, // source specific tokenization options
+        "target": {}  // target specific tokenization options
     },
     "options": {
         // (optional) Run options specific to each framework.
@@ -130,6 +131,16 @@ will select 10,000 training examples from `${CORPUS_DIR}/en_nl/train` and only f
 
 **Note:** If this section is not provided, all files from `${CORPUS_DIR}/train` will be used for the training.
 
+### Preprocessing
+
+Data sampling and tokenization are preparing corpus for the training process. It is possible to get access sampled and tokenized corpus using `preprocess` command and by mounting `/root/workspace` volume.
+
+The following command is sampling and tokenizing the corpus from `${PWD}/test/corpus` into `${PWD}/workspace`:
+
+```bash
+cat config.json | docker run -i --rm -v ${PWD}/test/corpus:/root/corpus -v ${PWD}/workspace:/root/workspace image -c - preprocess
+```
+
 ## Corpus structure
 
 The corpus directory should contain:
@@ -174,6 +185,7 @@ When running an image, the following mounting points can be used:
 
 * `/root/corpus`: Training corpus and resources.
 * `/root/models` (optional): Host repository of models.
+* `/root/workspace` (optional): internal workspace data used for corpus preparation. Has to be provided for `sample`.
 
 #### Example
 

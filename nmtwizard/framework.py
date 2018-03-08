@@ -130,7 +130,7 @@ class Framework(object):
         parser.add_argument('-s', '--storage_config', default=None,
                             help=('Configuration of available storages as a file or a JSON string. '
                                   'Setting "-" will read from the standard input.'))
-        parser.add_argument('-ms', '--model_storage', required=not self._stateless,
+        parser.add_argument('-ms', '--model_storage',
                             help='Model storage in the form <storage_id>:[<path>].')
         parser.add_argument('-m', '--model', default=None,
                             help='Model to load.')
@@ -155,9 +155,13 @@ class Framework(object):
         parser_trans.add_argument('-o', '--output', required=True,
                                   help='Output file.')
 
+        parser.build_vocab = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+
         args = parser.parse_args()
         if args.config is None and args.model is None:
             parser.error('at least one of --config or --model options must be set')
+        if not self._stateless and args.cmd != 'preprocess' and not args.model_storage:
+            parser.error('argument -ms/--model_storage is required')
         if args.task_id is None:
             args.task_id = str(uuid.uuid4())
 
@@ -193,9 +197,9 @@ class Framework(object):
                 args.image,
                 model_path=model_path,
                 gpuid=args.gpuid)
-        elif parent_model is None:
-            raise ValueError('translation requires a model')
         elif args.cmd == 'trans':
+            if parent_model is None:
+                raise ValueError('translation requires a model')
             self.trans_wrapper(
                 config,
                 model_path,
@@ -203,6 +207,11 @@ class Framework(object):
                 args.input,
                 args.output,
                 gpuid=args.gpuid)
+        elif args.cmd == 'preprocess':
+            self.preprocess(
+                config,
+                storage
+                )
 
     def train_wrapper(self,
                       model_id,
@@ -227,7 +236,7 @@ class Framework(object):
             gpuid=gpuid)
 
         end_time = time.time()
-        logger.info('Finished training model %s in %s seconds', model_id, str(end_time))
+        logger.info('Finished training model %s in %s seconds', model_id, str(end_time-start_time))
 
         # Fill training details.
         config['model'] = model_id
@@ -252,7 +261,9 @@ class Framework(object):
         path_input = os.path.join(self._data_dir, storage.split(input)[-1])
         path_output = os.path.join(self._output_dir, storage.split(output)[-1])
         storage.get_file(input, path_input)
-        logger.info('Translating %s to %s', path_input, path_output)
+        logger.info('Starting translation %s to %s', path_input, path_output)
+        start_time = time.time()
+
         local_config = resolve_environment_variables(config)
         path_input = self._preprocess_file(local_config, path_input)
         self.trans(local_config,
@@ -262,6 +273,21 @@ class Framework(object):
                    gpuid=gpuid)
         path_output = self._postprocess_file(local_config, path_output)
         storage.push(path_output, output)
+
+        end_time = time.time()
+        logger.info('Finished translation in %s seconds', str(end_time-start_time))
+
+    def preprocess(self, config, storage):
+        logger.info('Starting preprocessing data ')
+        start_time = time.time()
+
+        local_config = resolve_environment_variables(config)
+        data_dir, num_samples, distribution_summary, samples_metadata = (
+            self._generate_training_data(local_config))
+
+        end_time = time.time()
+        logger.info('Finished preprocessing data in %s seconds into %s', 
+                    str(end_time-start_time), data_dir)
 
     def _preprocess_file(self, config, input):
         if 'tokenization' in config:

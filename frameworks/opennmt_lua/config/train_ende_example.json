@@ -2,16 +2,9 @@
     "source": "en",
     "target": "de",
     "tokenization": {
-        "source": {
-            "mode": "aggressive",
-            "case_feature": true,
-            "joiner_annotate": true
-        },
-        "target": {
-            "mode": "aggressive",
-            "case_feature": false,
-            "joiner_annotate": true
-        }
+        "mode": "aggressive",
+        "case_feature": true,
+        "joiner_annotate": true
     },
     "options": {
         "common": {},
