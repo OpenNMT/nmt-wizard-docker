@@ -117,14 +117,13 @@ def sample(gsample, sample_dist, source_dir, target_dir, src_suffix, tgt_suffix)
     for (fp, f, ri) in allfiles:
         size = -1
         w = None
-        for pattern, value in six.iteritems(sample_dist[ri]['distribution']):
-            if isinstance(value, six.string_types):
-                field = re.split(r'\s+', value)
-                weight = float(field[0])
-                extra = field[1] if len(field) > 1 else None
-            else:
-                weight = float(value)
-                extra = None
+        # distribution is a list of ["pattern", weight, "options", ...]
+        for rule in sample_dist[ri]['distribution']:
+            pattern = rule[0]
+            weight = rule[1]
+            extra = rule[2:]
+            if weight != '*' and isinstance(weight, six.string_types):
+                weight = float(weight)
             if pattern == '*' or re.search(pattern, f):
                 size = _countLine((fp, f, ri))
                 w = {"pattern": pattern, "weight": weight, "extra": extra}
@@ -161,7 +160,7 @@ def sample(gsample, sample_dist, source_dir, target_dir, src_suffix, tgt_suffix)
         else:
             metadata[f[1]] = w["extra"]
             if w["weight"] == '*':
-                samplefile.append((f[0], f[1], c, c, w[1]))
+                samplefile.append((f[0], f[1], c, c, w["pattern"]))
                 summary_by_pattern[w["pattern"]] += c
                 summary_by_file[f[0]] = c
             else:
@@ -195,8 +194,12 @@ def main():
                         help='suffix of target language files')
     parser.add_argument('-g', '--gsample', type=int, required=True,
                         help='number of sentences to sample')
+    parser.add_argument('-l', '--log_level', default='INFO',
+                        help='log level')
 
     args = parser.parse_args()
+
+    logger.setLevel(args.log_level)
 
     if not os.path.exists(args.sample_dist) or not os.path.isfile(args.sample_dist):
         raise ValueError('distribution file %s does not exist or is not a file' % args.sample_dist)

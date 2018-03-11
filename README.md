@@ -116,10 +116,11 @@ For example:
 "data": {
     "sample_dist": [{
         "path": "train",
-        "distribution": {
-            "News": "0.7",
-            "IT": "0.3"
-        }
+        "distribution": [
+            ["News", 0.7],
+            ["IT", 0.3],
+            ["Dialog", "*"]
+        ]
     }],
     "version": "1",
     "sample": 10000,
