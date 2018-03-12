@@ -117,11 +117,13 @@ def sample(gsample, sample_dist, source_dir, target_dir, src_suffix, tgt_suffix)
     for (fp, f, ri) in allfiles:
         size = -1
         w = None
-        # distribution is a list of ["pattern", weight, "options", ...]
+        # distribution is a list of ["pattern", weight, "addtl options"]
         for rule in sample_dist[ri]['distribution']:
             pattern = rule[0]
             weight = rule[1]
-            extra = rule[2:]
+            extra = None
+            if len(rule) > 2:
+                extra = rule[2]
             if weight != '*' and isinstance(weight, six.string_types):
                 weight = float(weight)
             if pattern == '*' or re.search(pattern, f):
@@ -210,9 +212,11 @@ def main():
     if not isinstance(sample_dist, list):
         raise ValueError('sample_dist should a collection of {path, [sample_rules]}')
 
-    sample(args.gsample, sample_dist,
-           args.source_dir, args.target_dir,
-           args.src_suffix, args.tgt_suffix)
+    res, metadata = sample(args.gsample, sample_dist,
+                           args.source_dir, args.target_dir,
+                           args.src_suffix, args.tgt_suffix)
+    print('res=', json.dumps(res))
+    print('metadata=', json.dumps(metadata))
 
 if __name__ == "__main__":
     main()
