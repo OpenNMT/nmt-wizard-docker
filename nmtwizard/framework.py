@@ -227,8 +227,15 @@ class Framework(object):
         start_time = time.time()
 
         local_config = resolve_environment_variables(config)
-        data_dir, num_samples, distribution_summary, samples_metadata = (
+        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
+        if num_samples == 0:
+            raise RuntimeError('data sampling generated 0 sentences')
+
+        if not self._support_multi_training_files:
+            data_path = self._merge_multi_training_files(data_path, train_dir, 
+                                                         config['source'], config['target'])
+
         objects = self.train_multi_files(
             local_config,
             data_dir,
@@ -286,7 +293,7 @@ class Framework(object):
         start_time = time.time()
 
         local_config = resolve_environment_variables(config)
-        data_dir, num_samples, distribution_summary, samples_metadata = (
+        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
 
         end_time = time.time()
@@ -313,6 +320,20 @@ class Framework(object):
             return output
         return input
 
+    def _merge_multi_training_files(data_path, train_dir, source, target):
+        merged_dir = os.path.join(self._data_dir, 'merged')
+        if not os.path.exists(merged_dir):
+            os.mkdir(merged_dir)
+        merged_path = os.path.join(merged_dir, train_dir)
+        logger.info('Merging training data to %s/train.{%s,%s}',
+                    merged_path, source, target)
+        data.merge_files_in_directory(
+            data_path,
+            merged_path,
+            config['source'],
+            config['target'])
+        return merged_path
+
     def _generate_training_data(self, config):
         if 'data' in config and 'train_dir' in config['data']:
             train_dir = config['data']['train_dir']
@@ -337,8 +358,6 @@ class Framework(object):
                 config['source'],
                 config['target'])
             num_samples = sum(six.itervalues(summary['file']))
-            if num_samples == 0:
-                raise RuntimeError('data sampling generated 0 sentences')
             data_path = sample_path
         if 'tokenization' in config:
             tok_config = config['tokenization']
@@ -359,21 +378,8 @@ class Framework(object):
                 config['source'],
                 config['target'])
             data_path = tokenized_path
-        if not self._support_multi_training_files:
-            merged_dir = os.path.join(self._data_dir, 'merged')
-            if not os.path.exists(merged_dir):
-                os.mkdir(merged_dir)
-            merged_path = os.path.join(merged_dir, train_dir)
-            logger.info('Merging training data to %s/train.{%s,%s}',
-                        merged_path, config['source'], config['target'])
-            data.merge_files_in_directory(
-                data_path,
-                merged_path,
-                config['source'],
-                config['target'])
-            data_path = merged_path
 
-        return data_path, num_samples, summary, metadata
+        return data_path, train_dir, num_samples, summary, metadata
 
 
 def load_config(config_arg):
