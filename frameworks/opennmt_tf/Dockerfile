@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 ARG OPENNMT_TF_URL
 ENV OPENNMT_TF_URL=${OPENNMT_TF_URL:-https://github.com/OpenNMT/OpenNMT-tf.git}
 ARG OPENNMT_TF_REF
-ENV OPENNMT_TF_REF=${OPENNMT_TF_REF:-master}
+ENV OPENNMT_TF_REF=${OPENNMT_TF_REF:-v1.0.1}
 
 RUN git clone --recursive --depth 1 --branch ${OPENNMT_TF_REF} --single-branch ${OPENNMT_TF_URL} /root/opennmt-tf
 
