@@ -27,7 +27,7 @@ def start_beat_service(container_id, url, task_id, interval=30):
     }
 
     def _beat():
-        requests.get('%s/beat/%s' % (url, task_id), params=request_params)
+        requests.get('%s/task/beat/%s' % (url, task_id), params=request_params)
 
     def _beat_loop():
         while True:
