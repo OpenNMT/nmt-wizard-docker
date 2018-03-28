@@ -233,8 +233,8 @@ class Framework(object):
             raise RuntimeError('data sampling generated 0 sentences')
 
         if not self._support_multi_training_files:
-            data_path = self._merge_multi_training_files(data_path, train_dir, 
-                                                         config['source'], config['target'])
+            data_dir = self._merge_multi_training_files(
+                data_dir, train_dir, config['source'], config['target'])
 
         objects = self.train_multi_files(
             local_config,
@@ -320,18 +320,14 @@ class Framework(object):
             return output
         return input
 
-    def _merge_multi_training_files(data_path, train_dir, source, target):
+    def _merge_multi_training_files(self, data_path, train_dir, source, target):
         merged_dir = os.path.join(self._data_dir, 'merged')
         if not os.path.exists(merged_dir):
             os.mkdir(merged_dir)
         merged_path = os.path.join(merged_dir, train_dir)
         logger.info('Merging training data to %s/train.{%s,%s}',
                     merged_path, source, target)
-        data.merge_files_in_directory(
-            data_path,
-            merged_path,
-            config['source'],
-            config['target'])
+        data.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
     def _generate_training_data(self, config):
