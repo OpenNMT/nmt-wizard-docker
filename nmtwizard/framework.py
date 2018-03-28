@@ -16,6 +16,7 @@ from nmtwizard.logger import get_logger
 from nmtwizard.utils import md5files
 from nmtwizard.sampler import sample
 from nmtwizard.storage import StorageClient
+from nmtwizard import serving
 from nmtwizard import data
 from nmtwizard import tokenizer
 
@@ -87,6 +88,35 @@ class Framework(object):
         """
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def serve(self, config, model_path, gpuid=0):
+        """Start a framework dependent serving service in the background.
+
+        Args:
+          config: The run configuration.
+          model_path: The path to the model to serve.
+          gpuid: The GPU identifier.
+
+        Returns:
+          A tuple with the created process and a dictionary containing
+          information to reach the backend service (e.g. port number).
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def forward_request(self, batch_inputs, info, timeout=None):
+        """Forward a frontend translation request to the framework serving service.
+
+        Args:
+          batch_inputs: A list of inputs (usually tokens).
+          info: The backend service information returned by serve().
+          timeout: Timeout in seconds for the translation request.
+
+        Returns:
+          A list of list (batch x num. hypotheses) of serving.TranslationOutput.
+        """
+        raise NotImplementedError()
+
     def train_multi_files(self,
                           config,
                           data_dir,
@@ -155,6 +185,12 @@ class Framework(object):
         parser_trans.add_argument('-o', '--output', required=True,
                                   help='Output file.')
 
+        parser_serve = subparsers.add_parser('serve', help='Serve a model.')
+        parser_serve.add_argument('-hs', '--host', default="0.0.0.0",
+                                  help='Serving hostname.')
+        parser_serve.add_argument('-p', '--port', type=int, default=4000,
+                                  help='Serving port.')
+
         parser.build_vocab = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
 
         args = parser.parse_args()
@@ -208,6 +244,11 @@ class Framework(object):
                 args.input,
                 args.output,
                 gpuid=args.gpuid)
+        elif args.cmd == 'serve':
+            if parent_model is None:
+                raise ValueError('serving requires a model')
+            self.serve_wrapper(
+                config, model_path, args.host, args.port, gpuid=args.gpuid)
         elif args.cmd == 'preprocess':
             self.preprocess(
                 config,
@@ -288,6 +329,18 @@ class Framework(object):
         end_time = time.time()
         logger.info('Finished translation in %s seconds', str(end_time-start_time))
 
+    def serve_wrapper(self, config, model_path, host, port, gpuid=0):
+        local_config = resolve_environment_variables(config)
+        serving.start_server(
+            host,
+            port,
+            local_config.get('serving'),
+            self._serving_state(local_config),
+            lambda: self.serve(local_config, model_path, gpuid=gpuid),
+            self._preprocess_input,
+            self.forward_request,
+            self._postprocess_output)
+
     def preprocess(self, config, storage):
         logger.info('Starting preprocessing data ')
         start_time = time.time()
@@ -299,6 +352,38 @@ class Framework(object):
         end_time = time.time()
         logger.info('Finished preprocessing data in %s seconds into %s', 
                     str(end_time-start_time), data_dir)
+
+    def _serving_state(self, config):
+        state = {}
+        if 'tokenization' in config:
+            tok_config = config['tokenization']
+            state['src_tokenizer'] = tokenizer.build_tokenizer(
+                tok_config['source'] if 'source' in tok_config else tok_config)
+            state['tgt_tokenizer'] = tokenizer.build_tokenizer(
+                tok_config['target'] if 'target' in tok_config else tok_config)
+        return state
+
+    def _preprocess_input(self, state, input):
+        if isinstance(input, list):
+            tokens = input
+        elif 'src_tokenizer' in state:
+            input = input.encode('utf-8')
+            tokens, _ = state['src_tokenizer'].tokenize(input)
+            tokens = [token.decode('utf-8') for token in tokens]
+        else:
+            tokens = input.split()
+        return tokens
+
+    def _postprocess_output(self, state, output):
+        if not isinstance(output, list):
+            text = output
+        elif 'tgt_tokenizer' in state:
+            output = [out.encode('utf-8') for out in output]
+            text = state['tgt_tokenizer'].detokenize(output)
+            text.decode('utf-8')
+        else:
+            text = ' '.join(output)
+        return text
 
     def _preprocess_file(self, config, input):
         if 'tokenization' in config:

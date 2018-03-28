@@ -5,7 +5,7 @@ The aim of this project is to encapsulate training frameworks in Docker containe
 * training
 * translating
 * data sampling and preprocessing - useful mainly for data preparation and vocabulary building
-* serving (*coming soon*)
+* serving (for selected frameworks)
 
 The training data are mounted at the container start and follow a specific directory structure (described later). Models and translation files can be fetched and pushed from various remote storage platform. Currently only SSH and Amazon S3 are supported.
 
@@ -167,6 +167,122 @@ The models are saved in a directory named by their ID. This package contains all
 ```
 
 In the `config.json` file, the path to the model dependencies is prefixed by `${MODEL_DIR}` which is automatically set when a model is loaded.
+
+## Serving
+
+Compatible frameworks provide an uniform API for serving translation via the `serve` command, e.g.:
+
+```bash
+python frameworks/opennmt_lua/entrypoint.py
+    --model_storage s3_model: \
+    --model 952f4f9b-b446-4aa4-bfc0-28a510c6df73 \
+    --gpuid 1 \
+    serve --host 0.0.0.0 --port 5000
+```
+
+will fetch the model `952f4f9b-b446-4aa4-bfc0-28a510c6df73` from the storage `s3_model`, start a backend translation service on the first GPU, and serve translation on port 5000.
+
+Serving accepts additional run configurations:
+
+```json
+{
+    "serving": {
+        "timeout": 10.0,
+        "max_batch_size": 64
+    }
+}
+```
+
+where:
+
+* `timeout` is the maximum duration in seconds to wait for the translation to complete
+* `max_batch_size` is the maximum batch size to execute at once
+
+The `timeout` and `max_batch_size` values can be overriden for each request.
+
+### Interface
+
+#### `POST /translate`
+
+**Input:**
+
+```json
+{
+    "src": [
+        {"text": "Source sentence 1"},
+        {"text": "Source sentence 2"}
+    ],
+    "options": {
+        "timeout": 10.0
+    }
+}
+```
+
+(The `options` field is optional.)
+
+**Output:**
+
+```json
+{
+    "tgt": [
+        [{
+            "text": "Phrase cible 1",
+            "score": -2.16,
+            "align": [
+                {"tgt": [ {"range": [0, 5], "id": 0} ],
+                 "src": [ {"range": [9, 14], "id": 1} ]},
+                {"tgt": [ {"range": [7, 11], "id": 1} ],
+                 "src": [ {"range": [0, 5], "id": 0} ]},
+                {"tgt": [ {"range": [13, 13], "id": 2} ],
+                 "src": [ {"range": [16, 16], "id": 2} ]}
+             ]
+        }],
+        [{
+            "text": "Phrase cible 2",
+            "score": -2.17,
+            "align": [
+                {"tgt": [ {"range": [0, 5], "id": 0} ],
+                 "src": [ {"range": [9, 14], "id": 1} ]},
+                {"tgt": [ {"range": [7, 11], "id": 1} ],
+                 "src": [ {"range": [0, 5], "id": 0} ]},
+                {"tgt": [ {"range": [13, 13], "id": 2} ],
+                 "src": [ {"range": [16, 16], "id": 2} ]}
+             ]
+        }]
+    ]
+}
+```
+
+The `tgt` field is a list the size of the batch where each entry is a list listing all hypotheses (the N best list) ordered from best to worst (higher score means better prediction).
+
+Note that the `score` and `align` fields might not be set by all frameworks and model types.
+
+**Errors:**
+
+* **HTTP 400**
+  * The input data is missing.
+  * The input data is not a JSON object.
+  * The input data does not contain the `src` field.
+  * The `src` field is not a list.
+* **HTTP 503**
+  * The backend service is unavailable.
+* **HTTP 504**
+  * The translation request timed out.
+
+#### `POST /unload_model`
+
+Unload the model from the reserved resource. In its simplest form, this route will terminate the backend translation service.
+
+#### `POST /reload_model`
+
+Reload the model on the reserved resource. In its simplest form, this route will terminate the backend translation service if it is still running and start a new instance.
+
+### Supported frameworks
+
+Serving is currently supported by the following frameworks:
+
+* `google_transate`
+* `opennmt_lua`
 
 ## Usage
 

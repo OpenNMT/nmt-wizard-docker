@@ -1,10 +1,12 @@
 import os
-import subprocess
 import six
 import re
+import requests
 
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
+from nmtwizard.serving import pick_free_port, TranslationOutput
+from nmtwizard.utils import run_cmd
 
 logger = get_logger(__name__)
 
@@ -58,9 +60,42 @@ class OpenNMTLuaFramework(Framework):
 
     def trans(self, config, model_path, input, output, gpuid=0):
         model_file = os.path.join(model_path, 'model_released.t7')
-        options = self._get_translation_options(config, model_file, input, output, gpuid=gpuid)
+        options = self._get_translation_options(
+            config, model_file, input=input, output=output, gpuid=gpuid)
         options = _build_cmd_line_options(options)
         self._run_command(["th", "translate.lua"] + options)
+
+    def serve(self, config, model_path, gpuid=0):
+        model_file = os.path.join(model_path, 'model_released.t7')
+        host_ip = '127.0.0.1'
+        port = pick_free_port()
+        options = self._get_translation_options(config, model_file, gpuid=gpuid)
+        options['host'] = host_ip
+        options['port'] = port
+        options['withAttn'] = 'true'
+        options = _build_cmd_line_options(options)
+        process = self._run_command(
+            ['th', 'tools/rest_translation_server.lua'] + options, background=True)
+        info = {'endpoint': 'http://{}:{}/translator/translate'.format(host_ip, port)}
+        return process, info
+
+    def forward_request(self, batch_inputs, info, timeout=None):
+        batch_inputs = [{'src': ' '.join(tokens)} for tokens in batch_inputs]
+        try:
+            batch_results = requests.post(
+                info['endpoint'], json=batch_inputs, timeout=timeout).json()
+        except requests.exceptions.Timeout as e:
+            logger.error('%s', e)
+            return None
+        batch_outputs = []
+        for hypotheses in batch_results:
+            outputs = []
+            for hyp in hypotheses:
+                tokens = hyp['tgt'].split()
+                score = hyp['pred_score'] / len(tokens)
+                outputs.append(TranslationOutput(tokens, score=score, attention=hyp['attn']))
+            batch_outputs.append(outputs)
+        return batch_outputs
 
     def _get_training_options(self,
                               config,
@@ -91,15 +126,16 @@ class OpenNMTLuaFramework(Framework):
             options['gsample'] = num_samples
         return options
 
-    def _get_translation_options(self, config, model_file, input, output, gpuid=0):
+    def _get_translation_options(self, config, model_file, input=None, output=None, gpuid=0):
         options = {}
         options.update(config["options"].get("common", {}))
         options.update(config["options"].get("trans", {}))
-        options['detokenize_output'] = 1
         options['gpuid'] = gpuid
         options['model'] = model_file
-        options['output'] = output
-        options['src'] = input
+        if output is not None:
+            options['output'] = output
+        if input is not None:
+            options['src'] = input
         return options
 
     def _get_release_options(self, model_file, released_model_file, gpuid=0):
@@ -122,9 +158,8 @@ class OpenNMTLuaFramework(Framework):
                 i += 1
         return converted_vocab_file
 
-    def _run_command(self, cmd):
-        logger.debug("RUN %s", " ".join(cmd))
-        subprocess.call(cmd, cwd=self._onmt_dir)
+    def _run_command(self, cmd, background=False):
+        return run_cmd(cmd, cwd=self._onmt_dir, background=background)
 
 
 def _protect_characters(string, protected, protector='%'):
