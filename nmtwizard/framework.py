@@ -410,7 +410,7 @@ def resolve_environment_variables(config):
             new_config.append(resolve_environment_variables(config[i]))
         return new_config
     elif isinstance(config, six.string_types):
-            return ENVVAR_RE.sub(lambda m: os.getenv(m.group(1), ''), config)
+        return ENVVAR_RE.sub(lambda m: os.getenv(m.group(1), ''), config)
     return config
 
 def bundle_dependencies(objects, options):
