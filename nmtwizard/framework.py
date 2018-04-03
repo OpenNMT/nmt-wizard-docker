@@ -399,15 +399,19 @@ def merge_config(a, b):
 
 def resolve_environment_variables(config):
     """Returns a new configuration with all environment variables replaced."""
-    new_config = {}
-    for k, v in six.iteritems(config):
-        if isinstance(v, dict):
+    if isinstance(config, dict):    
+        new_config = {}
+        for k, v in six.iteritems(config):
             new_config[k] = resolve_environment_variables(v)
-        elif isinstance(v, six.string_types):
-            new_config[k] = ENVVAR_RE.sub(lambda m: os.getenv(m.group(1), ''), v)
-        else:
-            new_config[k] = v
-    return new_config
+        return new_config
+    elif isinstance(config, list):
+        new_config = []
+        for i in range (len(config)):
+            new_config.append(resolve_environment_variables(config[i]))
+        return new_config
+    elif isinstance(config, six.string_types):
+        return ENVVAR_RE.sub(lambda m: os.getenv(m.group(1), ''), config)
+    return config
 
 def bundle_dependencies(objects, options):
     """Bundles additional resources in the model package."""
