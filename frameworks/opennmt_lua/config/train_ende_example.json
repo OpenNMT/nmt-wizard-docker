@@ -3,7 +3,6 @@
     "target": "de",
     "tokenization": {
         "mode": "aggressive",
-        "case_feature": true,
         "joiner_annotate": true
     },
     "options": {

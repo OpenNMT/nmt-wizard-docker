@@ -1,6 +1,10 @@
 {
     "source": "en",
     "target": "de",
+    "tokenization": {
+        "mode": "aggressive",
+        "joiner_annotate": true
+    },
     "options": {
         "config": {
             "preprocess": {
