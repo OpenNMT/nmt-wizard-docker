@@ -14,11 +14,10 @@ pip install --upgrade tensorflow==1.4.1
 2\. Define local environment:
 
 ```bash
-export OPENNMT_TF_DIR=$HOME/dev/OpenNMT-tf
 export MODELS_DIR=/tmp/models
 export WORKSPACE_DIR=/tmp/workspace
 export CORPUS_DIR=$PWD/test/corpus/
-export PYTHONPATH=$PWD:$OPENNMT_TF_DIR:$PYTHONPATH
+export PYTHONPATH=$PWD:$PYTHONPATH
 ```
 
 3\. Run:
