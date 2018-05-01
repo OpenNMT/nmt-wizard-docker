@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 class StorageClient(object):
     """Client to get and push files to a storage."""
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, tmp_dir=None):
         """Initializes the client.
 
         Args:
@@ -25,6 +25,7 @@ class StorageClient(object):
             and its configuration.
         """
         self._config = config
+        self._tmp_dir = tmp_dir
 
     def _get_storage(self, path, storage_id=None):
         """Returns the storage implementation based on storage_id or infer it
@@ -93,11 +94,17 @@ class StorageClient(object):
         elif not directory and os.path.isfile(local_path):
             logger.warning('File %s already exists', local_path)
         else:
-            logger.info('Downloading %s to %s', remote_path, local_path)
+            tmp_path = os.path.join(self._tmp_dir, os.path.basename(local_path))
+            logger.info('Downloading %s to %s through tmp %s', remote_path, local_path, tmp_path)
             client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-            client.get(remote_path, local_path, directory=directory)
-            if not os.path.exists(local_path):
-                raise RuntimeError('download failed: %s not found' % local_path)
+            client.get(remote_path, tmp_path, directory=directory)
+            if not os.path.exists(tmp_path):
+                raise RuntimeError('download failed: %s not found' % tmp_path)
+            # in meantime, the file might have been copied
+            if os.path.exists(local_path):
+                logger.warning('File/Directory created while copying - taking copy')
+            else:
+                shutil.move(tmp_path, local_path)
 
     def push(self, local_path, remote_path, storage_id=None):
         if not os.path.exists(local_path):

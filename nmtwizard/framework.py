@@ -48,10 +48,13 @@ class Framework(object):
         workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
         self._output_dir = os.path.join(workspace_dir, 'output')
         self._data_dir = os.path.join(workspace_dir, 'data')
+        self._tmp_dir = os.path.join(workspace_dir, 'tmp')
         if not os.path.exists(self._output_dir):
             os.makedirs(self._output_dir)
         if not os.path.exists(self._data_dir):
             os.makedirs(self._data_dir)
+        if not os.path.exists(self._tmp_dir):
+            os.makedirs(self._tmp_dir)
 
     @abc.abstractmethod
     def train(self,
@@ -175,6 +178,7 @@ class Framework(object):
         parent_model = args.model or config.get('model')
 
         storage = StorageClient(
+            tmp_dir=self._tmp_dir,
             config=load_config(args.storage_config) if args.storage_config else None)
 
         if parent_model is not None and not self._stateless:
