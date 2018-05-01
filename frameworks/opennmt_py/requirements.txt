@@ -1,5 +1,6 @@
 boto3
 paramiko
+pyonmttok==1.*
 pyyaml
 requests
 scp

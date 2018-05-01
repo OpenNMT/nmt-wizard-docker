@@ -1,5 +1,6 @@
+OpenNMT-tf>=1.1.0,<2
 boto3
 paramiko
-pyyaml
+pyonmttok==1.*
 requests
 scp

@@ -1,6 +1,10 @@
 {
     "source": "en",
     "target": "de",
+    "tokenization": {
+        "mode": "aggressive",
+        "joiner_annotate": true
+    },
     "options": {
         "theano": {
             "mode": "FAST_RUN",
