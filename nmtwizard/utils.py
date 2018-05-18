@@ -1,7 +1,13 @@
 """Various utilities."""
 
-import six
 import hashlib
+import subprocess
+import six
+
+from nmtwizard.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def md5file(fp):
     """Returns the MD5 of the file fp."""
@@ -25,3 +31,30 @@ def md5files(lfp):
             for l in f.readlines():
                 m.update(l)
     return m.hexdigest()
+
+def run_cmd(cmd, cwd=None, background=False):
+    """Runs the command."""
+    logger.debug('RUN %s', ' '.join(cmd))
+    if background:
+        return subprocess.Popen(cmd, cwd=cwd)
+    else:
+        return subprocess.call(cmd, cwd=cwd)
+
+def pad_lists(lists, padding_value=None, max_length=None):
+  """Pads a list of lists.
+
+  Args:
+    lists: A list of lists.
+
+  Returns:
+    A tuple with the padded collection of lists and the original length of each
+    list.
+  """
+  if max_length is None:
+      max_length = max(len(lst) for lst in lists)
+  lengths = []
+  for lst in lists:
+    length = len(lst)
+    lst += [padding_value] * (max_length - length)
+    lengths.append(length)
+  return lists, lengths

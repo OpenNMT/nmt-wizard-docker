@@ -82,6 +82,12 @@ class OpenNMTPYFramework(Framework):
         self._run_command(
             None, ["python", " translate.py"] + _buildCommandLineOptions(options_trans))
 
+    def serve(self, *arg, **kwargs):
+        raise NotImplementedError('serving is not supported yet for OpenNMT-py')
+
+    def forward_request(self, *arg, **kwargs):
+        raise NotImplementedError()
+
     def _run_command(self, env, cmd, out_file = None):
         run_env = os.environ.copy()
         if env is not None:

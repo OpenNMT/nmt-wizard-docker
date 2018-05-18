@@ -51,6 +51,12 @@ class OpenNMTTFFramework(Framework):
             run_config['data'][k] = self._convert_vocab(v)
         onmt.Runner(model, run_config).infer(input, predictions_file=output)
 
+    def serve(self, *arg, **kwargs):
+        raise NotImplementedError('serving is not supported yet for OpenNMT-tf')
+
+    def forward_request(self, *arg, **kwargs):
+        raise NotImplementedError()
+
     def _convert_vocab(self, vocab_file):
         converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
         with open(vocab_file, "rb") as vocab, open(converted_vocab_file, "wb") as converted_vocab:

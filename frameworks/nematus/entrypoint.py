@@ -72,6 +72,12 @@ class NematusFramework(Framework):
         env, options = _buildCommandLineOptions(options)
         self._run_command(env, ["python", "nematus/translate.py"] + options)
 
+    def serve(self, *arg, **kwargs):
+        raise NotImplementedError('serving is not supported yet for Nematus')
+
+    def forward_request(self, *arg, **kwargs):
+        raise NotImplementedError()
+
     def _run_command(self, env, cmd):
         run_env = os.environ.copy()
         if env is not None:
