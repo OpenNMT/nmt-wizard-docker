@@ -73,6 +73,7 @@ class OpenNMTLuaFramework(Framework):
         options['host'] = host_ip
         options['port'] = port
         options['withAttn'] = 'true'
+        options['mode'] = 'space'
         options = _build_cmd_line_options(options)
         process = self._run_command(
             ['th', 'tools/rest_translation_server.lua'] + options, background=True)
