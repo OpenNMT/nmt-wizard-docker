@@ -41,7 +41,8 @@ class OpenNMTTFFramework(Framework):
             run_config['train']['train_steps'] = None
         if 'sample_buffer_size' not in run_config['train']:
             run_config['train']['sample_buffer_size'] = -1
-        onmt.Runner(model, run_config).train()
+        num_devices = len(os.getenv("NV_GPU", "0").split(","))
+        onmt.Runner(model, run_config, num_devices=num_devices).train()
         return self._list_model_files(model_dir)
 
     def trans(self, config, model_path, input, output, gpuid=0):
