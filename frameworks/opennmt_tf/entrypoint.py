@@ -3,18 +3,22 @@ import copy
 import shutil
 import six
 
-import opennmt as onmt
-import tensorflow as tf
-
-from opennmt.config import load_model
-
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
+import opennmt as onmt
+import tensorflow as tf
+
+from opennmt.config import load_model
+
 
 class OpenNMTTFFramework(Framework):
+
+    def __init__(self, *args, **kwargs):
+        super(OpenNMTTFFramework, self).__init__(*args, **kwargs)
+        tf.logging.set_verbosity(logger.level)
 
     def train(self,
               config,
