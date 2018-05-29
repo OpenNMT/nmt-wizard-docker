@@ -25,7 +25,7 @@ class OpenNMTLuaFramework(Framework):
                           samples_metadata=None,
                           gpuid=0):
         if isinstance(gpuid, list):
-            logger.error('no support of multi-gpu for opennmt_lua trans', e)
+            logger.warning('no support of multi-gpu for opennmt_lua train')
             gpuid = gpuid[0]
         options = self._get_training_options(
             config,
@@ -63,7 +63,7 @@ class OpenNMTLuaFramework(Framework):
 
     def trans(self, config, model_path, input, output, gpuid=0):
         if isinstance(gpuid, list):
-            logger.error('no support of multi-gpu for opennmt_lua trans', e)
+            logger.warning('no support of multi-gpu for opennmt_lua trans')
             gpuid = gpuid[0]
         model_file = os.path.join(model_path, 'model_released.t7')
         options = self._get_translation_options(
@@ -73,7 +73,7 @@ class OpenNMTLuaFramework(Framework):
 
     def serve(self, config, model_path, gpuid=0):
         if isinstance(gpuid, list):
-            logger.error('no support of multi-gpu for opennmt_lua serve', e)
+            logger.warning('no support of multi-gpu for opennmt_lua serve')
             gpuid = gpuid[0]
         model_file = os.path.join(model_path, 'model_released.t7')
         host_ip = '127.0.0.1'
