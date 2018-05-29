@@ -5,6 +5,7 @@ import six
 
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
+from nmtwizard.utils import count_devices
 
 logger = get_logger(__name__)
 
@@ -41,8 +42,7 @@ class OpenNMTTFFramework(Framework):
             run_config['train']['train_steps'] = None
         if 'sample_buffer_size' not in run_config['train']:
             run_config['train']['sample_buffer_size'] = -1
-        num_devices = len(os.getenv("NV_GPU", "0").split(","))
-        onmt.Runner(model, run_config, num_devices=num_devices).train()
+        onmt.Runner(model, run_config, num_devices=count_devices(gpuid)).train()
         return self._list_model_files(model_dir)
 
     def trans(self, config, model_path, input, output, gpuid=0):
