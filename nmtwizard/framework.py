@@ -167,8 +167,8 @@ class Framework(object):
                             help='Model storage in the form <storage_id>:[<path>].')
         parser.add_argument('-m', '--model', default=None,
                             help='Model to load.')
-        parser.add_argument('-g', '--gpuid', default='0', type=str,
-                            help="Comma-separated list of 1-indexed GPU identifier (0 for CPU).")
+        parser.add_argument('-g', '--gpuid', default="0",
+                            help="Comma-separated list of 1-indexed GPU identifiers (0 for CPU).")
         parser.add_argument('-t', '--task_id', default=None,
                             help="Identifier of this run.")
         parser.add_argument('-i', '--image', default="?",
@@ -203,10 +203,12 @@ class Framework(object):
             parser.error('argument -ms/--model_storage is required')
         if args.task_id is None:
             args.task_id = str(uuid.uuid4())
-        lgpu = [int(gpu_id) for gpu_id in gpuids.split(',')]
+
         # for backward compatibility - convert singleton in int
-        if len(lgpu) == 1:
-            lgpu = lgpu[0]
+        args.gpuid = args.gpuid.split(',')
+        args.gpuid = [int(g) for g in args.gpuid]
+        if len(args.gpuid) == 1:
+            args.gpuid = args.gpuid[0]
 
         start_beat_service(
             os.uname()[1],
@@ -241,7 +243,7 @@ class Framework(object):
                 args.image,
                 parent_model=parent_model,
                 model_path=model_path,
-                gpuid=lgpu)
+                gpuid=args.gpuid)
         elif args.cmd == 'trans':
             if parent_model is None:
                 raise ValueError('translation requires a model')
@@ -251,12 +253,12 @@ class Framework(object):
                 storage,
                 args.input,
                 args.output,
-                gpuid=lgpu)
+                gpuid=args.gpuid)
         elif args.cmd == 'serve':
             if parent_model is None:
                 raise ValueError('serving requires a model')
             self.serve_wrapper(
-                config, model_path, args.host, args.port, gpuid=lgpu)
+                config, model_path, args.host, args.port, gpuid=args.gpuid)
         elif args.cmd == 'preprocess':
             self.preprocess(
                 config,

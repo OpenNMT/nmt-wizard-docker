@@ -40,6 +40,12 @@ def run_cmd(cmd, cwd=None, background=False):
     else:
         return subprocess.call(cmd, cwd=cwd)
 
+def count_devices(gpuid):
+    if isinstance(gpuid, list):
+        return len(gpuid)
+    else:
+        return 1
+
 def pad_lists(lists, padding_value=None, max_length=None):
   """Pads a list of lists.
 
