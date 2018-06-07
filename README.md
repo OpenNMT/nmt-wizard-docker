@@ -283,6 +283,7 @@ Serving is currently supported by the following frameworks:
 
 * `google_transate`
 * `opennmt_lua`
+* `opennmt_tf`
 
 ## Usage
 
