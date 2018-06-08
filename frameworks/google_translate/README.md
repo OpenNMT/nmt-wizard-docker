@@ -25,7 +25,7 @@ export PYTHONPATH=$PWD
 ### Translation
 
 ```bash
-echo "Hello world!" > /tmp/test.txt
+echo 'Hello world!'' > /tmp/test.txt
 python frameworks/google_translate/entrypoint.py \
     -c frameworks/google_translate/config/trans_ende_example.json \
     trans -i /tmp/test.txt -o /tmp/test.txt.out
@@ -36,7 +36,7 @@ cat /tmp/test.txt.out
 
 ```bash
 mkdir /tmp/google_translate
-echo "Hello world!" > /tmp/google_translate/test.txt
+echo 'Hello world!' > /tmp/google_translate/test.txt
 
 cat frameworks/google_translate/config/trans_ende_example.json | docker run -i --rm \
     -v /tmp/google_translate:/root/mount
@@ -52,7 +52,7 @@ Credentials can also be directly passed by value:
 ```bash
 cat frameworks/google_translate/config/trans_ende_example.json | docker run -i --rm \
     -v /tmp/google_translate:/root/mount
-    -e GOOGLE_APPLICATION_CREDENTIALS="{...}" \
+    -e GOOGLE_APPLICATION_CREDENTIALS="$(cat $HOME/credentials/Gateway-Translate-API.json)" \
     nmtwizard/google-translate \
     -c - trans -i /root/mount/test.txt -o /root/mount/test.txt.out
 ```
