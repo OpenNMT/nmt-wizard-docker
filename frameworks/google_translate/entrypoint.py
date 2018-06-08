@@ -3,6 +3,7 @@ from google.cloud import translate
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
 from nmtwizard.serving import TranslationOutput
+import os
 
 logger = get_logger(__name__)
 
@@ -11,6 +12,12 @@ class GoogleTranslateFramework(Framework):
 
     def __init__(self):
         super(GoogleTranslateFramework, self).__init__(stateless=True)
+        credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        assert isinstance(credentials, str), "missing credentials"
+        if credentials.startswith('{'):
+            with open('/root/Gateway-Translate-API.json', 'w') as f:
+                f.write(credentials)
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/root/Gateway-Translate-API.json'
 
     def trans(self, config, model_path, input, output, gpuid=0):
         with open(input, 'rb') as fi, open(output, 'wb') as fo:
