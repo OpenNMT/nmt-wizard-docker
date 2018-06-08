@@ -1,5 +1,6 @@
 {
-    "source": "en",
-    "target": "de",
-    "model": "google"
+    "source": "{{SRC}}",
+    "target": "{{TGT}}",
+    "model": "google-translate",
+    "name": "Google Translate API"
 }
