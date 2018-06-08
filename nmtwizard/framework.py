@@ -541,8 +541,11 @@ def build_model_dir(model_dir, objects, config):
 def check_model_dir(model_dir):
     """Compares model package MD5."""
     logger.info("Checking integrity of model package %s", model_dir)
+    md5_file = os.path.join(model_dir, "checksum.md5")
+    if not os.path.exists(md5_file):
+        return True
     md5ref = None
-    with open(os.path.join(model_dir, "checksum.md5"), "r") as f:
+    with open(md5_file, "r") as f:
         md5ref = f.read().strip()
     files = os.listdir(model_dir)
     md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if f != "checksum.md5"])
