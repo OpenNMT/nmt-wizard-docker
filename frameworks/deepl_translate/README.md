@@ -1,6 +1,6 @@
 # DeepL Translate framework
 
-This a translation only framework that requires a [DeepL API key](https://www.deepl.com/pro.html). 
+This a translation only framework that requires a [DeepL API key](https://www.deepl.com/pro.html) `<<MYCREDENTIAL>>`.
 
 ## Direct run
 

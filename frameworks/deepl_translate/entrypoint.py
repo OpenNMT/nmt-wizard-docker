@@ -5,6 +5,7 @@ import requests
 import os
 import re
 import json
+import time
 
 logger = get_logger(__name__)
 
@@ -53,18 +54,26 @@ def translate_list(credentials, texts, source_language, target_language):
 
     i = 0
     while i < len(texts):
-        nexti = i + 50
+        nexti = i + 10
         if nexti > len(texts):
             nexti = len(texts)
-        logger.debug('Translating range [%d:%d]', i, nexti)
+        logger.info('Translating range [%d:%d]', i, nexti)
         params = { 
           "text": texts[i:nexti],
           "source_lang": source_language.upper(),
           "target_lang": target_language.upper(),
+          "split_sentences": 0,
           "auth_key": credentials
         }
 
-        r = requests.get(entrypoint, params=params)
+        retry = 0
+        while retry < 10:
+            r = requests.get(entrypoint, params=params)
+            if r.status_code == 429:
+                retry += 1
+                time.sleep(5)
+            else:
+                break
 
         if r.status_code != 200 or 'translations' not in r.json():
             raise RuntimeError('incorrect result from \'translate\' service: %s' % r.text)
