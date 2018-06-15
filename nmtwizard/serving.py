@@ -70,7 +70,7 @@ def start_server(host,
 
         def translate(self):
             global backend_process
-            if not _process_is_running(backend_process):
+            if backend_process is not None and not _process_is_running(backend_process):
                 self.send_error(503, 'backend service is unavailable')
                 return
             content_len = int(self.headers.getheader('content-length', 0))
@@ -87,15 +87,17 @@ def start_server(host,
 
         def unload_model(self):
             global backend_process
-            if _process_is_running(backend_process):
+            global backend_info
+            if backend_process is not None and _process_is_running(backend_process):
                 backend_process.terminate()
             backend_process = None
+            backend_info = None
             self.send_response(200)
 
         def reload_model(self):
             global backend_process
             global backend_info
-            if _process_is_running(backend_process):
+            if backend_process is not None and _process_is_running(backend_process):
                 backend_process.terminate()
             backend_process, backend_info = backend_service_fn()
             self.send_response(200)
