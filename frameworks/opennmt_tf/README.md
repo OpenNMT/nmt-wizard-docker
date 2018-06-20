@@ -8,7 +8,6 @@
 virtualenv frameworks/opennmt_tf/env
 source frameworks/opennmt_tf/env/bin/activate
 pip install -r frameworks/opennmt_tf/requirements.txt
-pip install --upgrade tensorflow==1.4.1
 ```
 
 2\. Define local environment:
