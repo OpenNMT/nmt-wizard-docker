@@ -3,6 +3,7 @@
 import hashlib
 import subprocess
 import six
+import os
 
 from nmtwizard.logger import get_logger
 
@@ -27,9 +28,12 @@ def md5files(lfp):
     sorted_lfp = sorted(lfp, key=lambda ab: ab[0])
     for ab in sorted_lfp:
         m.update(six.b(ab[0]))
-        with open(ab[1], 'rb') as f:
-            for l in f.readlines():
-                m.update(l)
+        if os.path.isdir(ab[1]):
+          m.update(md5files([(os.path.join(ab[0],f),os.path.join(ab[1],f)) for f in os.listdir(ab[1])]))
+        else:
+          with open(ab[1], 'rb') as f:
+              for l in f.readlines():
+                  m.update(l)
     return m.hexdigest()
 
 def run_cmd(cmd, cwd=None, background=False):

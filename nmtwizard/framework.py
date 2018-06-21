@@ -311,9 +311,7 @@ class Framework(object):
         }
 
         # Build and push the model package.
-        objects = bundle_dependencies(objects, config["options"])
-        if 'tokenization' in config:
-            objects = bundle_dependencies(objects, config['tokenization'])
+        bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
         storage.push(objects_dir, storage.join(model_storage, model_id))
@@ -510,16 +508,22 @@ def resolve_environment_variables(config):
 
 def bundle_dependencies(objects, options):
     """Bundles additional resources in the model package."""
-    for k, v in six.iteritems(options):
-        if isinstance(v, dict):
-            bundle_dependencies(objects, v)
-        elif isinstance(v, six.string_types):
-            m = ENVVAR_ABS_RE.match(v)
-            if m:
-                options[k] = '${MODEL_DIR}/%s' % m.group(2)
-                objects[m.group(2)] = ENVVAR_RE.sub(
-                    lambda m: os.getenv(m.group(1), ''), str(v))
-    return objects
+    if isinstance(options, list):
+        for i in xrange(len(options)):
+            options[i] = bundle_dependencies(objects, options[i])
+        return options
+    elif isinstance(options, dict):
+        for k, v in six.iteritems(options):
+            options[k] = bundle_dependencies(objects, v)
+        return options
+    elif isinstance(options, six.string_types):
+        m = ENVVAR_ABS_RE.match(options)
+        if m and m.group(1) != "TRAIN_DIR":
+            path = ENVVAR_RE.sub(
+                lambda m: os.getenv(m.group(1), ''), str(options))
+            objects[m.group(2)] = path
+            return '${MODEL_DIR}/%s' % m.group(2)
+    return options
 
 def build_model_dir(model_dir, objects, config):
     """Prepares the model directory based on the model package."""
@@ -532,7 +536,13 @@ def build_model_dir(model_dir, objects, config):
     with open(config_path, 'w') as config_file:
         json.dump(config, config_file)
     for target, source in six.iteritems(objects):
-        shutil.copyfile(source, os.path.join(model_dir, target))
+        if os.path.isdir(source):
+            if not os.path.exists(os.path.join(model_dir, target)):
+                os.makedirs(os.path.join(model_dir, target))
+            for f in os.listdir(source):
+                shutil.copy(os.path.join(source, f), os.path.join(model_dir, target))
+        else:
+            shutil.copyfile(source, os.path.join(model_dir, target))
     objects['config.json'] = config_path
     md5 = md5files(six.iteritems(objects))
     with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
