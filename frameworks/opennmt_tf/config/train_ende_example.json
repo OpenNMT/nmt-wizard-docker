@@ -2,16 +2,20 @@
     "source": "en",
     "target": "de",
     "tokenization": {
-        "mode": "aggressive",
-        "joiner_annotate": true
+        "source": {
+            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        },
+        "target": {
+            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        }
     },
     "options": {
         "model_type": "NMTSmall",
         "config": {
-            "data": {
-                "source_words_vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
-                "target_words_vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt"
-            },
             "params": {
                 "optimizer": "GradientDescentOptimizer",
                 "learning_rate": 1,

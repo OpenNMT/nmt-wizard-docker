@@ -365,10 +365,8 @@ class Framework(object):
         state = {}
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            state['src_tokenizer'] = tokenizer.build_tokenizer(
-                tok_config['source'] if 'source' in tok_config else tok_config)
-            state['tgt_tokenizer'] = tokenizer.build_tokenizer(
-                tok_config['target'] if 'target' in tok_config else tok_config)
+            state['src_tokenizer'] = tokenizer.build_tokenizer(tok_config['source'])
+            state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
         return state
 
     def _preprocess_input(self, state, input):
@@ -396,8 +394,7 @@ class Framework(object):
     def _preprocess_file(self, config, input):
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            src_tokenizer = tokenizer.build_tokenizer(
-                tok_config['source'] if 'source' in tok_config else tok_config)
+            src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
             output = "%s.tok" % input
             tokenizer.tokenize_file(src_tokenizer, input, output)
             return output
@@ -406,8 +403,7 @@ class Framework(object):
     def _postprocess_file(self, config, input):
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            tgt_tokenizer = tokenizer.build_tokenizer(
-                tok_config['target'] if 'target' in tok_config else tok_config)
+            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
             output = "%s.detok" % input
             tokenizer.detokenize_file(tgt_tokenizer, input, output)
             return output
@@ -450,10 +446,8 @@ class Framework(object):
             data_path = sample_path
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            src_tokenizer = tokenizer.build_tokenizer(
-                tok_config['source'] if 'source' in tok_config else tok_config)
-            tgt_tokenizer = tokenizer.build_tokenizer(
-                tok_config['target'] if 'target' in tok_config else tok_config)
+            src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
+            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
             tokenized_dir = os.path.join(self._data_dir, 'tokenized')
             if not os.path.exists(tokenized_dir):
                 os.mkdir(tokenized_dir)
