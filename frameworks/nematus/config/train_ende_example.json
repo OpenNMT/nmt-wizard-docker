@@ -2,8 +2,16 @@
     "source": "en",
     "target": "de",
     "tokenization": {
-        "mode": "aggressive",
-        "joiner_annotate": true
+        "source": {
+            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        },
+        "target": {
+            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        }
     },
     "options": {
         "theano": {
@@ -31,9 +39,7 @@
             "batch_size": 64,
             "maxibatch_size": 64,
             "objective": "CE",
-            "valid_batch_size": 64,
-            "src_vocab": "${CORPUS_DIR}/vocab/en-vocab.txt",
-            "tgt_vocab": "${CORPUS_DIR}/vocab/de-vocab.txt"
+            "valid_batch_size": 64
         },
         "trans": {
         }

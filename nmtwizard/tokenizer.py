@@ -14,6 +14,7 @@ def build_tokenizer(args):
             local_args[k] = v
     mode = local_args['mode']
     del local_args['mode']
+    del local_args['vocabulary']
     return pyonmttok.Tokenizer(mode, **local_args)
 
 def tokenize_file(tokenizer, input, output):

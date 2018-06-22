@@ -2,8 +2,16 @@
     "source": "en",
     "target": "de",
     "tokenization": {
-        "mode": "aggressive",
-        "joiner_annotate": true
+        "source": {
+            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        },
+        "target": {
+            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        }
     },
     "options": {
         "common": {},
@@ -11,9 +19,7 @@
             "layers": 2,
             "rnn_size": 512,
             "src_seq_length": 50,
-            "src_vocab": "${CORPUS_DIR}/vocab/en-vocab.txt",
             "tgt_seq_length": 50,
-            "tgt_vocab": "${CORPUS_DIR}/vocab/de-vocab.txt",
             "word_vec_size": 512
         },
         "trans": {

@@ -118,8 +118,8 @@ class OpenNMTLuaFramework(Framework):
         options.update(config["options"].get("common", {}))
         options.update(config["options"].get("train", {}))
         options['train_dir'] = data_dir
-        options['src_vocab'] = self._convert_vocab(options['src_vocab'])
-        options['tgt_vocab'] = self._convert_vocab(options['tgt_vocab'])
+        options['src_vocab'] = self._convert_vocab(config['tokenization']['source']['vocabulary'])
+        options['tgt_vocab'] = self._convert_vocab(config['tokenization']['target']['vocabulary'])
         options['report_every'] = '1000'
         options['src_suffix'] = config['source']
         options['tgt_suffix'] = config['target']

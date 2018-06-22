@@ -53,9 +53,15 @@ The JSON configuration file contains the parameters necessary to run the command
         //  (optional) Data distribution rules.
     },
     "tokenization": {
-        //  (optional) Tokenization options from OpenNMT/Tokenizer.
-        "source": {}, // source specific tokenization options
-        "target": {}  // target specific tokenization options
+        // Vocabularies and tokenization options (from OpenNMT/Tokenizer).
+        "source": {
+            "vocabulary": "string"
+            // other source specific tokenization options
+        },
+        "target": {
+            "vocabulary": "string"
+            // other target specific tokenization options
+        }
     },
     "options": {
         // (optional) Run options specific to each framework.

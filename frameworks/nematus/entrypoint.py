@@ -24,21 +24,20 @@ class NematusFramework(Framework):
         options = _getTrainingOptions(config, gpuid=gpuid)
         options["datasets"] = src_file + " " + tgt_file
 
-        src_vocab_file = src_file
-        tgt_vocab_file = tgt_file
-        if ("src_vocab" in options and
-            "tgt_vocab" in options and
-            os.path.isfile(options["src_vocab"]) and
-            os.path.isfile(options["tgt_vocab"])):
-            src_vocab_file = self._data_dir+"/src.vocab.txt"
-            tgt_vocab_file = self._data_dir+"/tgt.vocab.txt"
-            shutil.copy(options["src_vocab"], src_vocab_file)
-            shutil.copy(options["tgt_vocab"], tgt_vocab_file)
-
-        if "src_vocab" in options:
-            del(options["src_vocab"])
-        if "tgt_vocab" in options:
-            del(options["tgt_vocab"])
+        src_vocab_file = config.get('tokenization', {}).get('source', {}).get('vocabulary')
+        tgt_vocab_file = config.get('tokenization', {}).get('target', {}).get('vocabulary')
+        if src_vocab_file is not None:
+            dst_src_vocab_file = os.path.join(self._data_dir, "src.vocab.txt")
+            shutil.copy(src_vocab_file, dst_src_vocab_file)
+            src_vocab_file = dst_src_vocab_file
+        else:
+            src_vocab_file = src_file
+        if tgt_vocab_file is not None:
+            dst_tgt_vocab_file = os.path.join(self._data_dir, "tgt.vocab.txt")
+            shutil.copy(tgt_vocab_file, dst_tgt_vocab_file)
+            tgt_vocab_file = dst_tgt_vocab_file
+        else:
+            tgt_vocab_file = tgt_file
 
         # generate dictionary
         self._run_command(None, ["python", "data/build_dictionary.py", src_vocab_file])

@@ -40,8 +40,9 @@ class OpenNMTTFFramework(Framework):
             model_path=model_path)
         run_config = copy.deepcopy(config['options']['config'])
         run_config['model_dir'] = model_dir
-        for k, v in six.iteritems(run_config['data']):
-            run_config['data'][k] = self._convert_vocab(v)
+        if 'data' not in run_config:
+            run_config['data'] = {}
+        run_config['data'] = self._register_vocab(config, run_config['data'])
         run_config['data']['train_features_file'] = src_file
         run_config['data']['train_labels_file'] = tgt_file
         if 'train_steps' not in run_config['train']:
@@ -113,6 +114,13 @@ class OpenNMTTFFramework(Framework):
             batch_outputs.append(outputs)
         return batch_outputs
 
+    def _register_vocab(self, config, data_config):
+        data_config['source_words_vocabulary'] = self._convert_vocab(
+            config['tokenization']['source']['vocabulary'])
+        data_config['target_words_vocabulary'] = self._convert_vocab(
+            config['tokenization']['target']['vocabulary'])
+        return data_config
+
     def _convert_vocab(self, vocab_file):
         converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
         with open(vocab_file, "rb") as vocab, open(converted_vocab_file, "wb") as converted_vocab:
@@ -139,8 +147,9 @@ class OpenNMTTFFramework(Framework):
         model_dir, model = self._load_model(model_path=model_path)
         run_config = copy.deepcopy(config['options']['config'])
         run_config['model_dir'] = model_dir
-        for k, v in six.iteritems(run_config['data']):
-            run_config['data'][k] = self._convert_vocab(v)
+        if 'data' not in run_config:
+            run_config['data'] = {}
+        run_config['data'] = self._register_vocab(config, run_config['data'])
         return onmt.Runner(model, run_config)
 
     def _export_model(self, config, model_path):
