@@ -157,7 +157,7 @@ def start_server(host,
             self.send_result(results)
 
     try:
-        frontend_server = socketserver.TCPServer((host, port), ServerHandler)
+        frontend_server = socketserver.ThreadingTCPServer((host, port), ServerHandler)
     except socket.error as e:
         if backend_process is not None:
             backend_process.terminate()
