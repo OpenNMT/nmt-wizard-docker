@@ -488,7 +488,7 @@ def getenv(m):
     var = m.group(1)
     if var == 'TRAIN_DIR':
         var = 'CORPUS_DIR'
-    return var
+    return os.getenv(var, '')
 
 def resolve_environment_variables(config):
     """Returns a new configuration with all environment variables replaced."""
