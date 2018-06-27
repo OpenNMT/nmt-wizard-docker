@@ -157,7 +157,7 @@ The corpus directory should contain:
 
 When running the Docker container, the corpus directory should be mounted, e.g. with `-v /home/corpus/en_fr:/root/corpus`.
 
-**Note:** `${CORPUS_DIR}` can be used in the run configuration to locate data files in particular vocabulary files.
+**Note:** `${CORPUS_DIR}` can be used in the run configuration to locate data files in particular vocabulary files. `${TRAIN_DIR}` can be used the same way - but the resources accessed through this variable will not be bundled in the translation model.
 
 ## Models
 
