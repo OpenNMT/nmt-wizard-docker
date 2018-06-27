@@ -484,6 +484,12 @@ def merge_config(a, b):
             a[k] = v
     return a
 
+def getenv(m):
+    var = m.group(1)
+    if var == 'TRAIN_DIR':
+        var = 'CORPUS_DIR'
+    return var
+
 def resolve_environment_variables(config):
     """Returns a new configuration with all environment variables replaced."""
     if isinstance(config, dict):    
@@ -497,7 +503,7 @@ def resolve_environment_variables(config):
             new_config.append(resolve_environment_variables(config[i]))
         return new_config
     elif isinstance(config, six.string_types):
-        return ENVVAR_RE.sub(lambda m: os.getenv(m.group(1), ''), config)
+        return ENVVAR_RE.sub(lambda m: getenv(m), config)
     return config
 
 def bundle_dependencies(objects, options):
