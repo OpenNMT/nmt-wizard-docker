@@ -15,11 +15,13 @@ FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04 as serving_builder
 
 LABEL maintainer=gvasudevan@google.com
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --allow-downgrades \
         automake \
         build-essential \
         curl \
         git \
+        libcudnn7=7.0.5.15-1+cuda9.0 \
+        libcudnn7-dev=7.0.5.15-1+cuda9.0 \
         libfreetype6-dev \
         libpng12-dev \
         libtool \
@@ -131,7 +133,8 @@ COPY --from=serving_builder \
 
 WORKDIR /root
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --allow-downgrades --no-install-recommends \
+        libcudnn7=7.0.5.15-1+cuda9.0 \
         libgomp1 \
         python-pip \
         python-setuptools && \
