@@ -121,15 +121,17 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
 # Clean up Bazel cache when done.
 
 
-FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+FROM nvidia/cuda:9.0-cudnn7-runtime-ubuntu16.04
+
+COPY --from=serving_builder \
+     /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/
+COPY --from=serving_builder \
+     /usr/local/bin/tensorflow_model_server /usr/local/bin/
 
 # Fix to support running without nvidia-docker.
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
     && echo "/usr/local/cuda/lib64/stubs" > /etc/ld.so.conf.d/z-cuda-stubs.conf \
     && ldconfig
-
-COPY --from=serving_builder \
-     /usr/local/bin/tensorflow_model_server /usr/local/bin/
 
 WORKDIR /root
 
