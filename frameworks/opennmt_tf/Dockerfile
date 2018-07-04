@@ -15,17 +15,21 @@ FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04 as serving_builder
 
 LABEL maintainer=gvasudevan@google.com
 
-RUN apt-get update && apt-get install -y --allow-downgrades \
+# Install NCCL
+ENV NCCL_VERSION=2.2.12-1+cuda9.0
+RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" > /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN apt-get update && apt-get install -y \
         automake \
         build-essential \
         curl \
         git \
-        libcudnn7=7.0.5.15-1+cuda9.0 \
-        libcudnn7-dev=7.0.5.15-1+cuda9.0 \
         libfreetype6-dev \
         libpng12-dev \
         libtool \
         libzmq3-dev \
+        libnccl2=${NCCL_VERSION} \
+        libnccl-dev=${NCCL_VERSION} \
         mlocate \
         pkg-config \
         python-dev \
@@ -58,7 +62,7 @@ RUN echo "startup --batch" >>/etc/bazel.bazelrc
 RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" \
     >>/etc/bazel.bazelrc
 # Install a recent bazel release.
-ENV BAZEL_VERSION 0.10.0
+ENV BAZEL_VERSION 0.11.1
 WORKDIR /
 RUN mkdir /bazel && \
     cd /bazel && \
@@ -89,25 +93,25 @@ RUN mkdir /usr/lib/x86_64-linux-gnu/include/ && \
 
 
 # Fix paths so that NCCL can be found
-ENV TF_NCCL_VERSION=2.1.15
+ENV TF_NCCL_VERSION=2.2.12
 ENV NCCL_INSTALL_PATH=/usr/lib/nccl/
 
 WORKDIR /
-RUN mkdir /usr/lib/nccl && \
-  mkdir /usr/lib/nccl/include/ && \
-  mkdir /usr/lib/nccl/lib/ && \
-  ln -s /usr/include/nccl.h /usr/lib/nccl/include/nccl.h && \
-  ln -s /usr/lib/x86_64-linux-gnu/libnccl.so /usr/lib/nccl/lib/libnccl.so && \
-  ln -s /usr/lib/x86_64-linux-gnu/libnccl.so.2 /usr/lib/nccl/lib/libnccl.so.2 && \
-  ln -s /usr/lib/x86_64-linux-gnu/libnccl.so.$TF_NCCL_VERSION /usr/lib/nccl/lib/libnccl.so.$TF_NCCL_VERSION
+RUN mkdir -p ${NCCL_INSTALL_PATH} && \
+  mkdir ${NCCL_INSTALL_PATH}include/ && \
+  mkdir ${NCCL_INSTALL_PATH}lib/ && \
+  ln -s /usr/include/nccl.h ${NCCL_INSTALL_PATH}include/nccl.h && \
+  ln -s /usr/lib/x86_64-linux-gnu/libnccl.so ${NCCL_INSTALL_PATH}lib/libnccl.so && \
+  ln -s /usr/lib/x86_64-linux-gnu/libnccl.so.2 ${NCCL_INSTALL_PATH}lib/libnccl.so.2 && \
+  ln -s /usr/lib/x86_64-linux-gnu/libnccl.so.$TF_NCCL_VERSION ${NCCL_INSTALL_PATH}lib/libnccl.so.$TF_NCCL_VERSION
 
 # Download, build, and install TensorFlow Serving
-ARG TF_SERVING_VERSION_GIT_BRANCH=r1.7
+ARG TF_SERVING_VERSION_GIT_BRANCH=r1.8
 WORKDIR /tensorflow-serving
 RUN git clone --depth=1 --branch=${TF_SERVING_VERSION_GIT_BRANCH} \
         https://github.com/tensorflow/serving .
 
-ARG TF_SERVING_BUILD_OPTIONS="--copt=-mavx --cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0"
+ARG TF_SERVING_BUILD_OPTIONS="--copt=-mavx --cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0 --verbose_failures"
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:${LD_LIBRARY_PATH} \
     bazel build -c opt --color=yes --curses=yes --config=cuda \
@@ -135,8 +139,11 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
 
 WORKDIR /root
 
-RUN apt-get update && apt-get install -y --allow-downgrades --no-install-recommends \
-        libcudnn7=7.0.5.15-1+cuda9.0 \
+ENV NCCL_VERSION=2.2.12-1+cuda9.0
+RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" > /etc/apt/sources.list.d/nvidia-ml.list
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libnccl2=${NCCL_VERSION} \
         libgomp1 \
         python-pip \
         python-setuptools && \
@@ -145,7 +152,7 @@ RUN apt-get update && apt-get install -y --allow-downgrades --no-install-recomme
 ADD frameworks/opennmt_tf/requirements.txt /root
 RUN pip --no-cache-dir install -r /root/requirements.txt && \
     pip --no-cache-dir install grpcio>=1.0 && \
-    pip --no-cache-dir install --no-deps tensorflow-serving-api==1.7.0
+    pip --no-cache-dir install --no-deps tensorflow-serving-api==1.8.0
 
 ENV CORPUS_DIR=/root/corpus
 ENV MODELS_DIR=/root/models
