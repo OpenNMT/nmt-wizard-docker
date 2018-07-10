@@ -518,7 +518,7 @@ def bundle_dependencies(objects, options):
         return options
     elif isinstance(options, six.string_types):
         m = ENVVAR_ABS_RE.match(options)
-        if m and m.group(1) != "TRAIN_DIR":
+        if m and "TRAIN_DIR" not in m.group(1):
             path = ENVVAR_RE.sub(
                 lambda m: os.getenv(m.group(1), ''), str(options))
             objects[m.group(2)] = path
