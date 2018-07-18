@@ -1,4 +1,4 @@
-FROM opennmt/opennmt:latest
+FROM opennmt/opennmt:0.10.0
 
 WORKDIR /root
 
