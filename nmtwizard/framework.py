@@ -92,6 +92,20 @@ class Framework(object):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def release(self, config, model_path, gpuid=0):
+        """Releases a model for serving.
+
+        Args:
+          config: The run configuration.
+          model_path: The path to the model to release.
+          gpuid: The GPU identifier.
+
+        Returns:
+          A dictionary of filenames to paths of objects to save in the released model package.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def serve(self, config, model_path, gpuid=0):
         """Start a framework dependent serving service in the background.
 
@@ -188,6 +202,10 @@ class Framework(object):
         parser_trans.add_argument('-o', '--output', required=True,
                                   help='Output file.')
 
+        parser_release = subparsers.add_parser('release', help='Release a model for serving.')
+        parser_release.add_argument('-d', '--destination', default=None,
+                                    help='Released model storage (defaults to the model storage).')
+
         parser_serve = subparsers.add_parser('serve', help='Serve a model.')
         parser_serve.add_argument('-hs', '--host', default="0.0.0.0",
                                   help='Serving hostname.')
@@ -254,6 +272,13 @@ class Framework(object):
                 args.input,
                 args.output,
                 gpuid=args.gpuid)
+        elif args.cmd == 'release':
+            if parent_model is None:
+                raise ValueError('releasing requires a model')
+            if args.destination is None:
+                args.destination = args.model_storage
+            self.release_wrapper(
+                config, model_path, storage, args.destination, gpuid=args.gpuid)
         elif args.cmd == 'serve':
             if parent_model is None:
                 raise ValueError('serving requires a model')
@@ -336,6 +361,15 @@ class Framework(object):
 
         end_time = time.time()
         logger.info('Finished translation in %s seconds', str(end_time-start_time))
+
+    def release_wrapper(self, config, model_path, storage, destination, gpuid=0):
+        local_config = resolve_environment_variables(config)
+        objects = self.release(local_config, model_path, gpuid=gpuid)
+        extract_model_resources(objects, config)
+        model_id = config['model'] + '_release'
+        objects_dir = os.path.join(self._models_dir, model_id)
+        build_model_dir(objects_dir, objects, config)
+        storage.push(objects_dir, storage.join(destination, model_id))
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
         local_config = resolve_environment_variables(config)
@@ -506,24 +540,41 @@ def resolve_environment_variables(config):
         return ENVVAR_RE.sub(lambda m: getenv(m), config)
     return config
 
+def map_config_fn(config, fn):
+    if isinstance(config, list):
+        for i in xrange(len(config)):
+            config[i] = map_config_fn(config[i], fn)
+        return config
+    elif isinstance(config, dict):
+        for k, v in six.iteritems(config):
+            config[k] = map_config_fn(v, fn)
+        return config
+    else:
+        return fn(config)
+
 def bundle_dependencies(objects, options):
     """Bundles additional resources in the model package."""
-    if isinstance(options, list):
-        for i in xrange(len(options)):
-            options[i] = bundle_dependencies(objects, options[i])
+    def _map_fn(options):
+        if isinstance(options, six.string_types):
+            m = ENVVAR_ABS_RE.match(options)
+            if m and "TRAIN_DIR" not in m.group(1):
+                path = ENVVAR_RE.sub(
+                    lambda m: os.getenv(m.group(1), ''), str(options))
+                objects[m.group(2)] = path
+                return '${MODEL_DIR}/%s' % m.group(2)
         return options
-    elif isinstance(options, dict):
-        for k, v in six.iteritems(options):
-            options[k] = bundle_dependencies(objects, v)
-        return options
-    elif isinstance(options, six.string_types):
-        m = ENVVAR_ABS_RE.match(options)
-        if m and "TRAIN_DIR" not in m.group(1):
-            path = ENVVAR_RE.sub(
-                lambda m: os.getenv(m.group(1), ''), str(options))
-            objects[m.group(2)] = path
-            return '${MODEL_DIR}/%s' % m.group(2)
-    return options
+    return map_config_fn(options, _map_fn)
+
+def extract_model_resources(objects, config):
+    """Returns resources included in the model directory."""
+    def _map_fn(config):
+        if isinstance(config, six.string_types):
+            m = ENVVAR_ABS_RE.match(config)
+            if m and "MODEL_DIR" in m.group(1):
+                objects[m.group(2)] = ENVVAR_RE.sub(
+                    lambda m: os.getenv(m.group(1), ''), str(config))
+        return config
+    return map_config_fn(config, _map_fn)
 
 def build_model_dir(model_dir, objects, config):
     """Prepares the model directory based on the model package."""
@@ -537,10 +588,7 @@ def build_model_dir(model_dir, objects, config):
         json.dump(config, config_file)
     for target, source in six.iteritems(objects):
         if os.path.isdir(source):
-            if not os.path.exists(os.path.join(model_dir, target)):
-                os.makedirs(os.path.join(model_dir, target))
-            for f in os.listdir(source):
-                shutil.copy(os.path.join(source, f), os.path.join(model_dir, target))
+            shutil.copytree(source, os.path.join(model_dir, target))
         else:
             shutil.copyfile(source, os.path.join(model_dir, target))
     objects['config.json'] = config_path

@@ -57,12 +57,11 @@ class OpenNMTTFFramework(Framework):
         runner = self._make_predict_runner(config, model_path)
         runner.infer(input, predictions_file=output)
 
-    def serve(self, config, model_path, gpuid=0):
-        # Export model (deleting any previously exported models).
-        export_base_dir = os.path.join(model_path, "export")
-        if os.path.exists(export_base_dir):
-            shutile.rmtree(export_base_dir)
+    def release(self, config, model_path, gpuid=0):
         export_dir = self._export_model(config, model_path)
+        return {'1': export_dir}  # TensorFlow Serving expects a version number (here we use 1).
+
+    def serve(self, config, model_path, gpuid=0):
         # Start a new tensorflow_model_server instance.
         batching_parameters = self._generate_batching_parameters(config.get('serving'))
         port = serving.pick_free_port()
@@ -70,7 +69,7 @@ class OpenNMTTFFramework(Framework):
         cmd = ['tensorflow_model_server',
                '--port=%d' % port,
                '--model_name=%s' % model_name,
-               '--model_base_path=%s' % os.path.dirname(export_dir),
+               '--model_base_path=%s' % model_path,
                '--enable_batching=true',
                '--batching_parameters_file=%s' % batching_parameters]
         process = utils.run_cmd(cmd, background=True)

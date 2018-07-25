@@ -174,19 +174,38 @@ The models are saved in a directory named by their ID. This package contains all
 
 In the `config.json` file, the path to the model dependencies is prefixed by `${MODEL_DIR}` which is automatically set when a model is loaded.
 
-## Serving
+### Released version
 
-Compatible frameworks provide an uniform API for serving translation via the `serve` command, e.g.:
+Before serving a trained model, it is required to run a `release` step, for example:
 
 ```bash
-python frameworks/opennmt_lua/entrypoint.py
+python frameworks/opennmt_lua/entrypoint.py \
+    --storage_config storages.json \
     --model_storage s3_model: \
     --model 952f4f9b-b446-4aa4-bfc0-28a510c6df73 \
+    --gpuid 1 \
+    release \
+    --destination s3_model:
+```
+
+will fetch the model `952f4f9b-b446-4aa4-bfc0-28a510c6df73` from the storage `s3_model` and push the released version `952f4f9b-b446-4aa4-bfc0-28a510c6df73_release` to the same storage.
+
+Released models are smaller and more efficient but can only be used for serving.
+
+## Serving
+
+Compatible frameworks provide an uniform API for serving released model via the `serve` command, e.g.:
+
+```bash
+python frameworks/opennmt_lua/entrypoint.py \
+    --storage_config storages.json \
+    --model_storage s3_model: \
+    --model 952f4f9b-b446-4aa4-bfc0-28a510c6df73_release \
     --gpuid 1 \
     serve --host 0.0.0.0 --port 5000
 ```
 
-will fetch the model `952f4f9b-b446-4aa4-bfc0-28a510c6df73` from the storage `s3_model`, start a backend translation service on the first GPU, and serve translation on port 5000.
+will fetch the released model `952f4f9b-b446-4aa4-bfc0-28a510c6df73_release` from the storage `s3_model` (see the previous section), start a backend translation service on the first GPU, and serve translation on port 5000.
 
 Serving accepts additional run configurations:
 
