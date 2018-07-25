@@ -184,8 +184,7 @@ python frameworks/opennmt_lua/entrypoint.py \
     --model_storage s3_model: \
     --model 952f4f9b-b446-4aa4-bfc0-28a510c6df73 \
     --gpuid 1 \
-    release \
-    --destination s3_model:
+    release --destination s3_model:
 ```
 
 will fetch the model `952f4f9b-b446-4aa4-bfc0-28a510c6df73` from the storage `s3_model` and push the released version `952f4f9b-b446-4aa4-bfc0-28a510c6df73_release` to the same storage.
