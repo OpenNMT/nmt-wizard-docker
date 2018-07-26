@@ -30,6 +30,9 @@ class GoogleTranslateFramework(Framework):
     def train(self, *args, **kwargs):
         raise NotImplementedError("This framework can only be used for translation")
 
+    def release(self, *arg, **kwargs):
+        raise NotImplementedError('This framework does not require a release step')
+
     def serve(self, config, model_path, gpuid=0):
         return None, {'source': config['source'], 'target': config['target']}
 

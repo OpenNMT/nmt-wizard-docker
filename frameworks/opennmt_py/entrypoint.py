@@ -85,6 +85,9 @@ class OpenNMTPYFramework(Framework):
     def serve(self, *arg, **kwargs):
         raise NotImplementedError('serving is not supported yet for OpenNMT-py')
 
+    def release(self, *arg, **kwargs):
+        raise NotImplementedError('serving is not supported yet for OpenNMT-py')
+
     def forward_request(self, *arg, **kwargs):
         raise NotImplementedError()
 
