@@ -278,7 +278,7 @@ class Framework(object):
             if args.destination is None:
                 args.destination = args.model_storage
             self.release_wrapper(
-                config, model_path, storage, args.destination, gpuid=args.gpuid)
+                config, model_path, storage, args.image, args.destination, gpuid=args.gpuid)
         elif args.cmd == 'serve':
             if parent_model is None:
                 raise ValueError('serving requires a model')
@@ -362,11 +362,17 @@ class Framework(object):
         end_time = time.time()
         logger.info('Finished translation in %s seconds', str(end_time-start_time))
 
-    def release_wrapper(self, config, model_path, storage, destination, gpuid=0):
+    def release_wrapper(self, config, model_path, storage, image, destination, gpuid=0):
         local_config = resolve_environment_variables(config)
         objects = self.release(local_config, model_path, gpuid=gpuid)
         extract_model_resources(objects, config)
         model_id = config['model'] + '_release'
+        config['parent_model'] = config['model']
+        config['model'] = model_id
+        config['imageTag'] = image
+        config['build'] = {
+            'containerId': os.uname()[1]
+        }
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
         storage.push(objects_dir, storage.join(destination, model_id))
