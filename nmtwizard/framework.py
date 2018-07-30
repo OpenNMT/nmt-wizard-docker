@@ -328,13 +328,16 @@ class Framework(object):
             config['parent_model'] = parent_model
         config['model'] = model_id
         config['imageTag'] = image
-        config['build'] = {
+        parent_build_info = config.get('build')
+        build_info = {
             'containerId': os.uname()[1],
             'endDate': end_time,
             'startDate': start_time
         }
 
-        self._summarize_data_distribution(config['build'], distribution_summary)
+        build_info = self._summarize_data_distribution(
+            build_info, distribution_summary, parent_build_info=parent_build_info)
+        config['build'] = build_info
 
         # Build and push the model package.
         bundle_dependencies(objects, config)
@@ -505,8 +508,9 @@ class Framework(object):
 
         return data_path, train_dir, num_samples, summary, metadata
 
-    def _summarize_data_distribution(self, config, distribution):
-        config['distribution'] = distribution
+    def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
+        build_info['distribution'] = distribution
+        return build_info
 
 
 def load_config(config_arg):
