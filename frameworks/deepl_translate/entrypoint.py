@@ -28,7 +28,7 @@ class DeepLTranslateFramework(Framework):
                 self._credentials,
                 lines, source_language=config['source'], target_language=config['target'])
             for translation in translations:
-                fo.write(translation.encode('utf-8'))
+                fo.write(translation.encode('utf-8') + '\n')
 
     def train(self, *args, **kwargs):
         raise NotImplementedError("This framework can only be used for translation")
