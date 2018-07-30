@@ -330,10 +330,11 @@ class Framework(object):
         config['imageTag'] = image
         config['build'] = {
             'containerId': os.uname()[1],
-            'distribution': distribution_summary,
             'endDate': end_time,
             'startDate': start_time
         }
+
+        self._summarize_data_distribution(config['build'], distribution_summary)
 
         # Build and push the model package.
         bundle_dependencies(objects, config)
@@ -503,6 +504,9 @@ class Framework(object):
             data_path = tokenized_path
 
         return data_path, train_dir, num_samples, summary, metadata
+
+    def _summarize_data_distribution(self, config, distribution):
+        config['distribution'] = distribution
 
 
 def load_config(config_arg):
