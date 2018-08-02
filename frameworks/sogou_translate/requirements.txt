@@ -1,3 +1,4 @@
+boto3
+paramiko
 requests
 scp
-boto3
