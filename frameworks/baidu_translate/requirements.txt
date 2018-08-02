@@ -1,0 +1,3 @@
+requests
+scp
+boto3
