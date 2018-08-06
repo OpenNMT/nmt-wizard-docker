@@ -6,7 +6,6 @@ import re
 import json
 import time
 import httplib
-import md5
 import hashlib
 import hmac
 import base64
