@@ -1,4 +1,4 @@
-# Baidu Translate framework
+# Tencent Translate framework
 
 This a translation only framework from [Tencent](https://cloud.tencent.com/product/tmt).
 
