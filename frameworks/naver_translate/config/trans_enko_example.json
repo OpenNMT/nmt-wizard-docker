@@ -1,0 +1,6 @@
+{
+    "source": "en",
+    "target": "ko",
+    "model": "naver-translate",
+    "name": "Papago NMT API"
+}
