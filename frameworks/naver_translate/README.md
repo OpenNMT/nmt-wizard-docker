@@ -40,7 +40,7 @@ cat /tmp/test.txt.out
 mkdir /tmp/naver_translate
 echo 'Hello world!' > /tmp/naver_translate/test.txt
 
-cat frameworks/naver_translate/config/trans_ende_example.json | docker run -i --rm \
+cat frameworks/naver_translate/config/trans_enko_example.json | docker run -i --rm \
     -v /tmp/naver_translate:/root/mount \
     -e NAVER_CLIENT_ID=${NAVER_CLIENT_ID} \
     -e NAVER_SECRET=${NAVER_SECRET} \
