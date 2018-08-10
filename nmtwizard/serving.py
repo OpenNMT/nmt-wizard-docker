@@ -147,7 +147,7 @@ def start_server(host,
                 result = []
                 for output in hypotheses:
                     tgt = {}
-                    tgt['text'] = postprocess_fn(serving_state, output.output)
+                    tgt['text'] = postprocess_fn(serving_state, src_tokens, output.output)
                     if output.score is not None:
                         tgt['score'] = output.score
                     if output.attention is not None:

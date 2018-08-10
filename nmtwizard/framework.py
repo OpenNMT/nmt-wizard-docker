@@ -360,7 +360,7 @@ class Framework(object):
                    path_input,
                    path_output,
                    gpuid=gpuid)
-        path_output = self._postprocess_file(local_config, path_output)
+        path_output = self._postprocess_file(local_config, path_input, path_output)
         storage.push(path_output, output)
 
         end_time = time.time()
@@ -424,15 +424,15 @@ class Framework(object):
             tokens = input.split()
         return tokens
 
-    def _postprocess_output(self, state, output):
-        if not isinstance(output, list):
-            text = output
+    def _postprocess_output(self, state, source, target):
+        if not isinstance(target, list):
+            text = target
         elif 'tgt_tokenizer' in state:
-            output = [out.encode('utf-8') for out in output]
+            output = [out.encode('utf-8') for out in target]
             text = state['tgt_tokenizer'].detokenize(output)
             text.decode('utf-8')
         else:
-            text = ' '.join(output)
+            text = ' '.join(target)
         return text
 
     def _preprocess_file(self, config, input):
@@ -444,14 +444,14 @@ class Framework(object):
             return output
         return input
 
-    def _postprocess_file(self, config, input):
+    def _postprocess_file(self, config, source, target):
         if 'tokenization' in config:
             tok_config = config['tokenization']
             tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
-            output = "%s.detok" % input
-            tokenizer.detokenize_file(tgt_tokenizer, input, output)
+            output = "%s.detok" % target
+            tokenizer.detokenize_file(tgt_tokenizer, target, output)
             return output
-        return input
+        return target
 
     def _merge_multi_training_files(self, data_path, train_dir, source, target):
         merged_dir = os.path.join(self._data_dir, 'merged')
