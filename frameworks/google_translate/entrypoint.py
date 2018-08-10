@@ -45,8 +45,8 @@ class GoogleTranslateFramework(Framework):
     def _preprocess_input(self, state, input):
         return input
 
-    def _postprocess_output(self, state, output):
-        return output
+    def _postprocess_output(self, state, source, target):
+        return target
 
 
 def translate_list(texts, source_language=None, target_language=None):
