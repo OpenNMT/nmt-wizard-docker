@@ -606,7 +606,12 @@ def build_model_dir(model_dir, objects, config):
         else:
             shutil.copyfile(source, os.path.join(model_dir, target))
     objects['config.json'] = config_path
-    md5 = md5files(six.iteritems(objects))
+    if "description" in config:
+        readme_path = os.path.join(model_dir, 'README.md')
+        with open(readme_path, 'w') as readme_file:
+            readme_file.write(config['description'])
+        objects['README.md'] = readme_path
+    md5 = md5files((k, v) for k, v in six.iteritems(objects) if k != "README.md")
     with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
         f.write(md5)
 
@@ -620,7 +625,7 @@ def check_model_dir(model_dir):
     with open(md5_file, "r") as f:
         md5ref = f.read().strip()
     files = os.listdir(model_dir)
-    md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if f != "checksum.md5"])
+    md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if f != "checksum.md5" and f != "README.md"])
     return md5check == md5ref
 
 def fetch_model(storage, remote_model_path, model_path):

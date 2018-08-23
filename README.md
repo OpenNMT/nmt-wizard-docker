@@ -41,7 +41,8 @@ The JSON configuration file contains the parameters necessary to run the command
     "source": "string",  // (mandatory) 2-letter iso code for source language
     "target": "string",  // (mandatory) 2-letter iso code for target language
     "model": "string",  // (mandatory for trans, serve) Full model name as uuid64
-    "imageTag": String,  // (mandatory) Full URL of the image: url/image:tag.
+    "imageTag": "string",  // (mandatory) Full URL of the image: url/image:tag.
+    "description": "md5 string", // (optional) description for he model
     "build": {
         // (optional) Generated at the end of a training.
         "containerId": "string",  // (optional) ID of the builder container
@@ -173,6 +174,9 @@ The models are saved in a directory named by their ID. This package contains all
 ```
 
 In the `config.json` file, the path to the model dependencies is prefixed by `${MODEL_DIR}` which is automatically set when a model is loaded.
+
+* `checksum.md5` file is generated from the content of the model and is used to check integrity of the model
+* optionally, a `README.md` file can describe the model. It is generated from `description` field of the config file and is not taken into account for checksum.
 
 ### Released version
 

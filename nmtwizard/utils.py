@@ -27,6 +27,7 @@ def md5files(lfp):
     m = hashlib.md5()
     sorted_lfp = sorted(lfp, key=lambda ab: ab[0])
     for ab in sorted_lfp:
+      if ab != "README.md":
         m.update(six.b(ab[0]))
         if os.path.isdir(ab[1]):
           m.update(md5files([(os.path.join(ab[0],f),os.path.join(ab[1],f)) for f in os.listdir(ab[1])]))
