@@ -144,7 +144,10 @@ class OpenNMTTFFramework(Framework):
         return parameters_path
 
     def _make_predict_runner(self, config, model_path):
-        model_dir, model = self._load_model(model_path=model_path)
+        model_dir, model = self._load_model(
+            model_type=config['options'].get('model_type'),
+            model_file=config['options'].get('model'),
+            model_path=model_path)
         run_config = copy.deepcopy(config['options']['config'])
         run_config['model_dir'] = model_dir
         if 'data' not in run_config:
