@@ -248,11 +248,18 @@ class Framework(object):
             fetch_model(storage, remote_model_path, model_path)
             with open(os.path.join(model_path, 'config.json'), 'r') as config_file:
                 model_config = json.load(config_file)
+            if 'modelType' not in model_config:
+                if parent_model.endswith('_release'):
+                    model_config['modelType'] = 'release'
+                else:
+                    model_config['modelType'] = 'checkpoint'
             config = merge_config(model_config, config)
         else:
             model_path = None
 
         if args.cmd == 'train':
+            if parent_model is not None and config['modelType'] != 'checkpoint':
+                raise ValueError('cannot train from a model that is not a training checkpoint')
             self.train_wrapper(
                 args.task_id,
                 config,
@@ -263,8 +270,9 @@ class Framework(object):
                 model_path=model_path,
                 gpuid=args.gpuid)
         elif args.cmd == 'trans':
-            if parent_model is None:
-                raise ValueError('translation requires a model')
+            if (not self._stateless
+                and (parent_model is None or config['modelType'] != 'checkpoint')):
+                raise ValueError('translation requires a training checkpoint')
             self.trans_wrapper(
                 config,
                 model_path,
@@ -273,15 +281,17 @@ class Framework(object):
                 args.output,
                 gpuid=args.gpuid)
         elif args.cmd == 'release':
-            if parent_model is None:
-                raise ValueError('releasing requires a model')
+            if (not self._stateless
+                and (parent_model is None or config['modelType'] != 'checkpoint')):
+                raise ValueError('releasing requires a training checkpoint')
             if args.destination is None:
                 args.destination = args.model_storage
             self.release_wrapper(
                 config, model_path, storage, args.image, args.destination, gpuid=args.gpuid)
         elif args.cmd == 'serve':
-            if parent_model is None:
-                raise ValueError('serving requires a model')
+            if (not self._stateless
+                and (parent_model is None or config['modelType'] != 'release')):
+                raise ValueError('serving requires a released model')
             self.serve_wrapper(
                 config, model_path, args.host, args.port, gpuid=args.gpuid)
         elif args.cmd == 'preprocess':
@@ -327,6 +337,7 @@ class Framework(object):
         if parent_model:
             config['parent_model'] = parent_model
         config['model'] = model_id
+        config['modelType'] = 'checkpoint'
         config['imageTag'] = image
         parent_build_info = config.get('build')
         build_info = {
@@ -373,6 +384,7 @@ class Framework(object):
         model_id = config['model'] + '_release'
         config['parent_model'] = config['model']
         config['model'] = model_id
+        config['modelType'] = 'release'
         config['imageTag'] = image
         config['build'] = {
             'containerId': os.uname()[1]
