@@ -212,7 +212,8 @@ class Framework(object):
         parser_serve.add_argument('-p', '--port', type=int, default=4000,
                                   help='Serving port.')
 
-        parser.build_vocab = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+        parser.preprocess = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+        parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
         args = parser.parse_args()
         if args.config is None and args.model is None:
@@ -258,8 +259,9 @@ class Framework(object):
             model_path = None
 
         if args.cmd == 'train':
-            if parent_model is not None and config['modelType'] != 'checkpoint':
-                raise ValueError('cannot train from a model that is not a training checkpoint')
+            if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
+                raise ValueError('cannot train from a model that is not a training checkpoint '
+                                 'or a base model')
             self.train_wrapper(
                 args.task_id,
                 config,
@@ -269,6 +271,13 @@ class Framework(object):
                 parent_model=parent_model,
                 model_path=model_path,
                 gpuid=args.gpuid)
+        elif args.cmd == 'buildvocab':
+            self.build_vocab(
+                args.task_id,
+                config,
+                storage,
+                args.model_storage,
+                args.image)
         elif args.cmd == 'trans':
             if (not self._stateless
                 and (parent_model is None or config['modelType'] != 'checkpoint')):
@@ -322,6 +331,8 @@ class Framework(object):
             data_dir = self._merge_multi_training_files(
                 data_dir, train_dir, config['source'], config['target'])
 
+        if model_path is not None and config.get('modelType') == 'base':
+            model_path = None
         objects = self.train_multi_files(
             local_config,
             data_dir,
@@ -351,6 +362,32 @@ class Framework(object):
         config['build'] = build_info
 
         # Build and push the model package.
+        bundle_dependencies(objects, config)
+        objects_dir = os.path.join(self._models_dir, model_id)
+        build_model_dir(objects_dir, objects, config)
+        storage.push(objects_dir, storage.join(model_storage, model_id))
+
+    def build_vocab(self,
+                    model_id,
+                    config,
+                    storage,
+                    model_storage,
+                    image):
+        start_time = time.time()
+        local_config = resolve_environment_variables(config)
+        objects, tokenization_config = self._generate_vocabularies(local_config)
+        end_time = time.time()
+
+        config['tokenization'] = tokenization_config
+        config['model'] = model_id
+        config['modelType'] = 'base'
+        config['imageTag'] = image
+        config['build'] = {
+            'containerId': os.uname()[1],
+            'endDate': end_time,
+            'startDate': start_time
+        }
+
         bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
@@ -533,6 +570,9 @@ class Framework(object):
             data_path = tokenized_path
 
         return data_path, train_dir, num_samples, summary, metadata
+
+    def _generate_vocabularies(self, config):
+        raise NotImplementedError('vocabularies generation is not supported yet')
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution
