@@ -475,6 +475,20 @@ class Framework(object):
         data.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
+    def _convert_vocab(self, vocab_file):
+        converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
+        with open(vocab_file, 'rb') as vocab, open(converted_vocab_file, 'wb') as converted_vocab:
+            header = True
+            index = 0
+            for line in vocab:
+                if header and line[0] == b'#':
+                    continue
+                header = False
+                token = line.strip().split()[0]
+                self._map_vocab_entry(index, token, converted_vocab)
+                index += 1
+        return converted_vocab_file
+
     def _generate_training_data(self, config):
         if 'data' in config and 'train_dir' in config['data']:
             train_dir = config['data']['train_dir']

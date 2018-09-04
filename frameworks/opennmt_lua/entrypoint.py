@@ -157,18 +157,13 @@ class OpenNMTLuaFramework(Framework):
         options["gpuid"] = gpuid
         return options
 
-    def _convert_vocab(self, vocab_file):
-        converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
-        with open(vocab_file, "rb") as vocab, open(converted_vocab_file, "wb") as converted_vocab:
-            converted_vocab.write(b"<blank> 1\n")
-            converted_vocab.write(b"<unk> 2\n")
-            converted_vocab.write(b"<s> 3\n")
-            converted_vocab.write(b"</s> 4\n")
-            i = 5
-            for line in vocab:
-                converted_vocab.write(b"%s %d\n" % (line.strip(), i))
-                i += 1
-        return converted_vocab_file
+    def _map_vocab_entry(self, index, token, vocab):
+        if index == 0:
+            vocab.write(b"<blank> 1\n")
+            vocab.write(b"<unk> 2\n")
+            vocab.write(b"<s> 3\n")
+            vocab.write(b"</s> 4\n")
+        vocab.write(b"%s %d\n" % (line.strip(), index + 5))
 
     def _run_command(self, cmd, background=False):
         return run_cmd(cmd, cwd=self._onmt_dir, background=background)
