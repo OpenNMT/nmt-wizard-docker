@@ -212,7 +212,8 @@ class Framework(object):
         parser_serve.add_argument('-p', '--port', type=int, default=4000,
                                   help='Serving port.')
 
-        parser.build_vocab = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+        parser.preprocess = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+        parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
         args = parser.parse_args()
         if args.config is None and args.model is None:
@@ -248,11 +249,19 @@ class Framework(object):
             fetch_model(storage, remote_model_path, model_path)
             with open(os.path.join(model_path, 'config.json'), 'r') as config_file:
                 model_config = json.load(config_file)
+            if 'modelType' not in model_config:
+                if parent_model.endswith('_release'):
+                    model_config['modelType'] = 'release'
+                else:
+                    model_config['modelType'] = 'checkpoint'
             config = merge_config(model_config, config)
         else:
             model_path = None
 
         if args.cmd == 'train':
+            if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
+                raise ValueError('cannot train from a model that is not a training checkpoint '
+                                 'or a base model')
             self.train_wrapper(
                 args.task_id,
                 config,
@@ -262,9 +271,17 @@ class Framework(object):
                 parent_model=parent_model,
                 model_path=model_path,
                 gpuid=args.gpuid)
+        elif args.cmd == 'buildvocab':
+            self.build_vocab(
+                args.task_id,
+                config,
+                storage,
+                args.model_storage,
+                args.image)
         elif args.cmd == 'trans':
-            if parent_model is None:
-                raise ValueError('translation requires a model')
+            if (not self._stateless
+                and (parent_model is None or config['modelType'] != 'checkpoint')):
+                raise ValueError('translation requires a training checkpoint')
             self.trans_wrapper(
                 config,
                 model_path,
@@ -273,15 +290,17 @@ class Framework(object):
                 args.output,
                 gpuid=args.gpuid)
         elif args.cmd == 'release':
-            if parent_model is None:
-                raise ValueError('releasing requires a model')
+            if (not self._stateless
+                and (parent_model is None or config['modelType'] != 'checkpoint')):
+                raise ValueError('releasing requires a training checkpoint')
             if args.destination is None:
                 args.destination = args.model_storage
             self.release_wrapper(
                 config, model_path, storage, args.image, args.destination, gpuid=args.gpuid)
         elif args.cmd == 'serve':
-            if parent_model is None:
-                raise ValueError('serving requires a model')
+            if (not self._stateless
+                and (parent_model is None or config['modelType'] != 'release')):
+                raise ValueError('serving requires a released model')
             self.serve_wrapper(
                 config, model_path, args.host, args.port, gpuid=args.gpuid)
         elif args.cmd == 'preprocess':
@@ -312,6 +331,8 @@ class Framework(object):
             data_dir = self._merge_multi_training_files(
                 data_dir, train_dir, config['source'], config['target'])
 
+        if model_path is not None and config.get('modelType') == 'base':
+            model_path = None
         objects = self.train_multi_files(
             local_config,
             data_dir,
@@ -327,6 +348,7 @@ class Framework(object):
         if parent_model:
             config['parent_model'] = parent_model
         config['model'] = model_id
+        config['modelType'] = 'checkpoint'
         config['imageTag'] = image
         parent_build_info = config.get('build')
         build_info = {
@@ -340,6 +362,32 @@ class Framework(object):
         config['build'] = build_info
 
         # Build and push the model package.
+        bundle_dependencies(objects, config)
+        objects_dir = os.path.join(self._models_dir, model_id)
+        build_model_dir(objects_dir, objects, config)
+        storage.push(objects_dir, storage.join(model_storage, model_id))
+
+    def build_vocab(self,
+                    model_id,
+                    config,
+                    storage,
+                    model_storage,
+                    image):
+        start_time = time.time()
+        local_config = resolve_environment_variables(config)
+        objects, tokenization_config = self._generate_vocabularies(local_config)
+        end_time = time.time()
+
+        config['tokenization'] = tokenization_config
+        config['model'] = model_id
+        config['modelType'] = 'base'
+        config['imageTag'] = image
+        config['build'] = {
+            'containerId': os.uname()[1],
+            'endDate': end_time,
+            'startDate': start_time
+        }
+
         bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
@@ -373,6 +421,7 @@ class Framework(object):
         model_id = config['model'] + '_release'
         config['parent_model'] = config['model']
         config['model'] = model_id
+        config['modelType'] = 'release'
         config['imageTag'] = image
         config['build'] = {
             'containerId': os.uname()[1]
@@ -463,6 +512,20 @@ class Framework(object):
         data.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
+    def _convert_vocab(self, vocab_file):
+        converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
+        with open(vocab_file, 'rb') as vocab, open(converted_vocab_file, 'wb') as converted_vocab:
+            header = True
+            index = 0
+            for line in vocab:
+                if header and line[0] == b'#':
+                    continue
+                header = False
+                token = line.strip().split()[0]
+                self._map_vocab_entry(index, token, converted_vocab)
+                index += 1
+        return converted_vocab_file
+
     def _generate_training_data(self, config):
         if 'data' in config and 'train_dir' in config['data']:
             train_dir = config['data']['train_dir']
@@ -507,6 +570,9 @@ class Framework(object):
             data_path = tokenized_path
 
         return data_path, train_dir, num_samples, summary, metadata
+
+    def _generate_vocabularies(self, config):
+        raise NotImplementedError('vocabularies generation is not supported yet')
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution

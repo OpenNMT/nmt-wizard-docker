@@ -121,15 +121,12 @@ class OpenNMTTFFramework(Framework):
             config['tokenization']['target']['vocabulary'])
         return data_config
 
-    def _convert_vocab(self, vocab_file):
-        converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
-        with open(vocab_file, "rb") as vocab, open(converted_vocab_file, "wb") as converted_vocab:
-            converted_vocab.write(b"<blank>\n")
-            converted_vocab.write(b"<s>\n")
-            converted_vocab.write(b"</s>\n")
-            for line in vocab:
-                converted_vocab.write(line)
-        return converted_vocab_file
+    def _map_vocab_entry(self, index, token, vocab):
+        if index == 0:
+            vocab.write(b"<blank>\n")
+            vocab.write(b"<s>\n")
+            vocab.write(b"</s>\n")
+        vocab.write(b"%s\n" % token)
 
     def _generate_batching_parameters(self, serving_config):
         if serving_config is None:
