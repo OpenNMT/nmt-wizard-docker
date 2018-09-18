@@ -197,9 +197,9 @@ class Framework(object):
         parser_train = subparsers.add_parser('train', help='Run a training.')
 
         parser_trans = subparsers.add_parser('trans', help='Run a translation.')
-        parser_trans.add_argument('-i', '--input', required=True,
+        parser_trans.add_argument('-i', '--input', required=True, nargs='+',
                                   help='Input file.')
-        parser_trans.add_argument('-o', '--output', required=True,
+        parser_trans.add_argument('-o', '--output', required=True, nargs='+',
                                   help='Output file.')
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
@@ -394,25 +394,34 @@ class Framework(object):
         storage.push(objects_dir, storage.join(model_storage, model_id))
 
     def trans_wrapper(self, config, model_path, storage,
-                      input, output, gpuid=0):
-        path_input = os.path.join(self._data_dir, storage.split(input)[-1])
-        path_output = os.path.join(self._output_dir, storage.split(output)[-1])
-        storage.get_file(input, path_input)
-        logger.info('Starting translation %s to %s', path_input, path_output)
-        start_time = time.time()
+                      inputs, outputs, gpuid=0):
+        if len(inputs) != len(outputs):
+            raise ValueError("Mismatch of input/output files number, got %d and %d" % (
+                len(inputs), len(outputs)))
 
         local_config = resolve_environment_variables(config)
-        path_input = self._preprocess_file(local_config, path_input)
-        self.trans(local_config,
-                   model_path,
-                   path_input,
-                   path_output,
-                   gpuid=gpuid)
-        path_output = self._postprocess_file(local_config, path_input, path_output)
-        storage.push(path_output, output)
 
-        end_time = time.time()
-        logger.info('Finished translation in %s seconds', str(end_time-start_time))
+        for input, output in zip(inputs, outputs):
+            try:
+                path_input = os.path.join(self._data_dir, storage.split(input)[-1])
+                path_output = os.path.join(self._output_dir, storage.split(output)[-1])
+                storage.get_file(input, path_input)
+                logger.info('Starting translation %s to %s', path_input, path_output)
+                start_time = time.time()
+                path_input = self._preprocess_file(local_config, path_input)
+                self.trans(local_config,
+                           model_path,
+                           path_input,
+                           path_output,
+                           gpuid=gpuid)
+                path_output = self._postprocess_file(local_config, path_input, path_output)
+                storage.push(path_output, output)
+                end_time = time.time()
+                logger.info('Finished translation in %s seconds', str(end_time-start_time))
+            except Exception as e:
+                # Catch any exception to not impact other translations.
+                logger.error("Translation of %s failed with error %s" % (path_input, str(e)))
+                logger.warning("Skipping translation of %s" % path_input)
 
     def release_wrapper(self, config, model_path, storage, image, destination, gpuid=0):
         local_config = resolve_environment_variables(config)
