@@ -400,6 +400,7 @@ class Framework(object):
                 len(inputs), len(outputs)))
 
         local_config = resolve_environment_variables(config)
+        failed_translation = 0
 
         for input, output in zip(inputs, outputs):
             try:
@@ -422,6 +423,10 @@ class Framework(object):
                 # Catch any exception to not impact other translations.
                 logger.error("Translation of %s failed with error %s" % (path_input, str(e)))
                 logger.warning("Skipping translation of %s" % path_input)
+                failed_translation += 1
+
+        if failed_translation == len(inputs):
+            raise RuntimeError("All translation failed, see error logs")
 
     def release_wrapper(self, config, model_path, storage, image, destination, gpuid=0):
         local_config = resolve_environment_variables(config)
