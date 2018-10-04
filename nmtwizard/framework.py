@@ -2,9 +2,11 @@
 
 import os
 import abc
+import copy
 import json
 import argparse
 import time
+import filecmp
 import shutil
 import re
 import uuid
@@ -62,6 +64,8 @@ class Framework(object):
               config,
               src_file,
               tgt_file,
+              src_vocab_info,
+              tgt_vocab_info,
               model_path=None,
               gpuid=0):
         """Trains for one epoch.
@@ -70,6 +74,8 @@ class Framework(object):
           config: The run configuration.
           src_file: The local path to the preprocessed (if any) source file.
           tgt_file: The local path to the preprocessed (if any) target file.
+          src_vocab_info: Source vocabulary metadata (see _get_vocab_info).
+          tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
           model_path: The path to a model to load from.
           gpuid: The GPU identifier.
 
@@ -137,6 +143,8 @@ class Framework(object):
     def train_multi_files(self,
                           config,
                           data_dir,
+                          src_vocab_info,
+                          tgt_vocab_info,
                           model_path=None,
                           num_samples=None,
                           samples_metadata=None,
@@ -149,6 +157,8 @@ class Framework(object):
         Args:
           config: The run configuration.
           data_dir: The directory containing the training files.
+          src_vocab_info: Source vocabulary metadata (see _get_vocab_info).
+          tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
           model_path: The path to a model to load from.
           num_samples: The total number of sentences of the training data.
           samples_metadata: A dictionary mapping filenames to extra metadata set
@@ -165,6 +175,8 @@ class Framework(object):
                 config,
                 os.path.join(data_dir, 'train.%s' % config['source']),
                 os.path.join(data_dir, 'train.%s' % config['target']),
+                src_vocab_info,
+                tgt_vocab_info,
                 model_path=model_path,
                 gpuid=gpuid)
 
@@ -254,9 +266,10 @@ class Framework(object):
                     model_config['modelType'] = 'release'
                 else:
                     model_config['modelType'] = 'checkpoint'
-            config = merge_config(model_config, config)
+            config = merge_config(copy.deepcopy(model_config), config)
         else:
             model_path = None
+            model_config = None
 
         if args.cmd == 'train':
             if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
@@ -270,6 +283,7 @@ class Framework(object):
                 args.image,
                 parent_model=parent_model,
                 model_path=model_path,
+                model_config=model_config,
                 gpuid=args.gpuid)
         elif args.cmd == 'buildvocab':
             self.build_vocab(
@@ -317,11 +331,21 @@ class Framework(object):
                       image,
                       parent_model=None,
                       model_path=None,
+                      model_config=None,
                       gpuid=0):
         logger.info('Starting training model %s', model_id)
         start_time = time.time()
 
         local_config = resolve_environment_variables(config)
+        local_model_config = (
+            resolve_environment_variables(model_config)
+            if model_config is not None else None)
+
+        src_vocab_info = self._get_vocab_info(
+            'source', config, local_config, model_config=local_model_config)
+        tgt_vocab_info = self._get_vocab_info(
+            'target', config, local_config, model_config=local_model_config)
+
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
         if num_samples == 0:
@@ -336,6 +360,8 @@ class Framework(object):
         objects = self.train_multi_files(
             local_config,
             data_dir,
+            src_vocab_info,
+            tgt_vocab_info,
             model_path=model_path,
             num_samples=num_samples,
             samples_metadata=samples_metadata,
@@ -468,6 +494,33 @@ class Framework(object):
         logger.info('Finished preprocessing data in %s seconds into %s', 
                     str(end_time-start_time), data_dir)
 
+    def _get_vocab_info(self, side, config, local_config, model_config=None):
+        if config.get('tokenization', {}).get(side, {}).get('vocabulary') is None:
+            return None
+        current_vocab = self._convert_vocab(
+            local_config['tokenization'][side]['vocabulary'],
+            basename='%s-vocab.txt' % side)
+        model_vocab = None
+        vocab_changed = False
+        if (model_config is not None
+            and (local_config['tokenization'][side]['vocabulary']
+                 != model_config['tokenization'][side]['vocabulary'])):
+            model_vocab = self._convert_vocab(
+                model_config['tokenization'][side]['vocabulary'],
+                basename='model-%s-vocab.txt' % side)
+            vocab_changed = not filecmp.cmp(model_vocab, current_vocab)
+            if vocab_changed and not config['tokenization'][side].get('replace_vocab', False):
+                raise ValueError('%s vocabulary has changed but replace_vocab is not set.'
+                                 % side.capitalize())
+        if 'replace_vocab' in config['tokenization'][side]:
+            del config['tokenization'][side]['replace_vocab']
+            del local_config['tokenization'][side]['replace_vocab']
+        return {
+            'current': current_vocab,
+            'model': model_vocab,
+            'changed': vocab_changed
+        }
+
     def _serving_state(self, config):
         state = {}
         if 'tokenization' in config:
@@ -526,8 +579,10 @@ class Framework(object):
         data.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
-    def _convert_vocab(self, vocab_file):
-        converted_vocab_file = os.path.join(self._data_dir, os.path.basename(vocab_file))
+    def _convert_vocab(self, vocab_file, basename=None):
+        if basename is None:
+            basename = os.path.basename(vocab_file)
+        converted_vocab_file = os.path.join(self._data_dir, basename)
         with open(vocab_file, 'rb') as vocab, open(converted_vocab_file, 'wb') as converted_vocab:
             header = True
             index = 0

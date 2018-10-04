@@ -20,6 +20,8 @@ class OpenNMTLuaFramework(Framework):
     def train_multi_files(self,
                           config,
                           data_dir,
+                          src_vocab_info,
+                          tgt_vocab_info,
                           model_path=None,
                           num_samples=None,
                           samples_metadata=None,
@@ -30,6 +32,8 @@ class OpenNMTLuaFramework(Framework):
         options = self._get_training_options(
             config,
             data_dir,
+            src_vocab_info,
+            tgt_vocab_info,
             model_path=model_path,
             num_samples=num_samples,
             samples_metadata=samples_metadata,
@@ -112,6 +116,8 @@ class OpenNMTLuaFramework(Framework):
     def _get_training_options(self,
                               config,
                               data_dir,
+                              src_vocab_info,
+                              tgt_vocab_info,
                               model_path=None,
                               num_samples=None,
                               samples_metadata=None,
@@ -120,8 +126,10 @@ class OpenNMTLuaFramework(Framework):
         options.update(config["options"].get("common", {}))
         options.update(config["options"].get("train", {}))
         options['train_dir'] = data_dir
-        options['src_vocab'] = self._convert_vocab(config['tokenization']['source']['vocabulary'])
-        options['tgt_vocab'] = self._convert_vocab(config['tokenization']['target']['vocabulary'])
+        options['src_vocab'] = src_vocab_info["current"]
+        options['tgt_vocab'] = tgt_vocab_info["current"]
+        options['update_vocab'] = (
+            'replace' if src_vocab_info['changed'] or tgt_vocab_info['changed'] else 'none')
         options['report_every'] = '1000'
         options['src_suffix'] = config['source']
         options['tgt_suffix'] = config['target']
