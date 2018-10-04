@@ -14,11 +14,7 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
 
 WORKDIR /root
 
-ENV NCCL_VERSION=2.2.12-1+cuda9.0
-RUN echo "deb http://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1604/x86_64 /" > /etc/apt/sources.list.d/nvidia-ml.list
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libnccl2=${NCCL_VERSION} \
         libgomp1 \
         python-pip \
         python-setuptools && \
