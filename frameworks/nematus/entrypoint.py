@@ -19,6 +19,8 @@ class NematusFramework(Framework):
               config,
               src_file,
               tgt_file,
+              src_vocab_info,
+              tgt_vocab_info,
               model_path=None,
               gpuid=0):
         options = _getTrainingOptions(config, gpuid=gpuid)

@@ -20,6 +20,7 @@ from tensorflow_serving.apis import predict_pb2
 from tensorflow_serving.apis import prediction_service_pb2
 
 from opennmt.config import load_model
+from opennmt.utils import checkpoint
 
 
 class OpenNMTTFFramework(Framework):
@@ -32,8 +33,21 @@ class OpenNMTTFFramework(Framework):
               config,
               src_file,
               tgt_file,
+              src_vocab_info,
+              tgt_vocab_info,
               model_path=None,
               gpuid=0):
+        if src_vocab_info['changed'] or tgt_vocab_info['changed']:
+            model_path = checkpoint.update_vocab(
+                model_path,
+                os.path.join(self._output_dir, 'new_vocab_checkpoint'),
+                src_vocab_info['model'],
+                tgt_vocab_info['model'],
+                new_src_vocab=src_vocab_info['current'],
+                new_tgt_vocab=tgt_vocab_info['current'],
+                mode='replace',
+                session_config=tf.ConfigProto(
+                    device_count={'GPU': 0}))
         model_dir, model = self._load_model(
             model_type=config['options'].get('model_type'),
             model_file=config['options'].get('model'),
@@ -42,7 +56,8 @@ class OpenNMTTFFramework(Framework):
         run_config['model_dir'] = model_dir
         if 'data' not in run_config:
             run_config['data'] = {}
-        run_config['data'] = self._register_vocab(config, run_config['data'])
+        run_config['data']['source_words_vocabulary'] = src_vocab_info['current']
+        run_config['data']['target_words_vocabulary'] = tgt_vocab_info['current']
         run_config['data']['train_features_file'] = src_file
         run_config['data']['train_labels_file'] = tgt_file
         if 'train_steps' not in run_config['train']:
