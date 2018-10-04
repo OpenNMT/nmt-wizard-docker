@@ -109,6 +109,8 @@ class StorageClient(object):
     def push(self, local_path, remote_path, storage_id=None):
         if not os.path.exists(local_path):
             raise RuntimeError('%s not found' % local_path)
+        if local_path == remote_path:
+            return
         logger.info('Uploading %s to %s', local_path, remote_path)
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
