@@ -204,6 +204,8 @@ class Framework(object):
                                   "(push notifications of activity)."))
         parser.add_argument('-bi', '--beat_interval', default=30, type=int,
                             help="Interval of beat requests in seconds.")
+        parser.add_argument('--no_push', default=False, action='store_true',
+                            help='Do not push model.')
 
         subparsers = parser.add_subparsers(help='Run type', dest='cmd')
         parser_train = subparsers.add_parser('train', help='Run a training.')
@@ -224,13 +226,17 @@ class Framework(object):
         parser_serve.add_argument('-p', '--port', type=int, default=4000,
                                   help='Serving port.')
 
-        parser.preprocess = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+        parser_preprocess = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
+        parser_preprocess.add_argument('--build_model', default=False, action='store_true',
+                                       help='Preprocess data into a model.')
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
         args = parser.parse_args()
         if args.config is None and args.model is None:
             parser.error('at least one of --config or --model options must be set')
-        if not self._stateless and args.cmd != 'preprocess' and not args.model_storage:
+        if (not self._stateless
+            and (args.cmd != 'preprocess' or args.build_model)
+            and not args.model_storage):
             parser.error('argument -ms/--model_storage is required')
         if args.task_id is None:
             args.task_id = str(uuid.uuid4())
@@ -272,9 +278,10 @@ class Framework(object):
             model_config = None
 
         if args.cmd == 'train':
-            if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
-                raise ValueError('cannot train from a model that is not a training checkpoint '
-                                 'or a base model')
+            if (parent_model is not None
+                and config['modelType'] not in ('checkpoint', 'base', 'preprocess')):
+                raise ValueError('cannot train from a model that is not a training checkpoint, '
+                                 'a base model, or a preprocess model')
             self.train_wrapper(
                 args.task_id,
                 config,
@@ -284,14 +291,16 @@ class Framework(object):
                 parent_model=parent_model,
                 model_path=model_path,
                 model_config=model_config,
-                gpuid=args.gpuid)
+                gpuid=args.gpuid,
+                push_model=not args.no_push)
         elif args.cmd == 'buildvocab':
             self.build_vocab(
                 args.task_id,
                 config,
                 storage,
                 args.model_storage,
-                args.image)
+                args.image,
+                push_model=not args.no_push)
         elif args.cmd == 'trans':
             if (not self._stateless
                 and (parent_model is None or config['modelType'] != 'checkpoint')):
@@ -310,7 +319,13 @@ class Framework(object):
             if args.destination is None:
                 args.destination = args.model_storage
             self.release_wrapper(
-                config, model_path, storage, args.image, args.destination, gpuid=args.gpuid)
+                config,
+                model_path,
+                storage,
+                args.image,
+                args.destination,
+                gpuid=args.gpuid,
+                push_model=not args.no_push)
         elif args.cmd == 'serve':
             if (not self._stateless
                 and (parent_model is None or config['modelType'] != 'release')):
@@ -318,10 +333,21 @@ class Framework(object):
             self.serve_wrapper(
                 config, model_path, args.host, args.port, gpuid=args.gpuid)
         elif args.cmd == 'preprocess':
-            self.preprocess(
-                config,
-                storage
-                )
+            if not args.build_model:
+                self.preprocess(config, storage)
+            else:
+                if (parent_model is not None
+                    and config['modelType'] not in ('checkpoint', 'base')):
+                    raise ValueError('cannot preprocess from a model that is not a training '
+                                     'checkpoint or a base model')
+                self.preprocess_into_model(
+                    args.task_id,
+                    config,
+                    storage,
+                    args.model_storage,
+                    args.image,
+                    parent_model=parent_model,
+                    push_model=not args.no_push)
 
     def train_wrapper(self,
                       model_id,
@@ -332,7 +358,8 @@ class Framework(object):
                       parent_model=None,
                       model_path=None,
                       model_config=None,
-                      gpuid=0):
+                      gpuid=0,
+                      push_model=True):
         logger.info('Starting training model %s', model_id)
         start_time = time.time()
 
@@ -346,16 +373,25 @@ class Framework(object):
         tgt_vocab_info = self._get_vocab_info(
             'target', config, local_config, model_config=local_model_config)
 
-        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-            self._generate_training_data(local_config))
-        if num_samples == 0:
-            raise RuntimeError('data sampling generated 0 sentences')
+        parent_model_type = config.get('modelType') if model_path is not None else None
 
-        if not self._support_multi_training_files:
-            data_dir = self._merge_multi_training_files(
-                data_dir, train_dir, config['source'], config['target'])
+        if parent_model_type == 'preprocess':
+            train_dir = 'data'
+            data_dir = os.path.join(model_path, train_dir)
+            num_samples = config['sampling']['numSamples']
+            samples_metadata = config['sampling']['samplesMetadata']
+            del config['sampling']
+            logger.info('Using preprocessed data from %s' % data_dir)
+        else:
+            data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
+                self._generate_training_data(local_config))
+            if num_samples == 0:
+                raise RuntimeError('data sampling generated 0 sentences')
+            if not self._support_multi_training_files:
+                data_dir = self._merge_multi_training_files(
+                    data_dir, train_dir, config['source'], config['target'])
 
-        if model_path is not None and config.get('modelType') == 'base':
+        if parent_model_type in ('base', 'preprocess'):
             model_path = None
         objects = self.train_multi_files(
             local_config,
@@ -371,34 +407,40 @@ class Framework(object):
         logger.info('Finished training model %s in %s seconds', model_id, str(end_time-start_time))
 
         # Fill training details.
-        if parent_model:
-            config['parent_model'] = parent_model
         config['model'] = model_id
         config['modelType'] = 'checkpoint'
         config['imageTag'] = image
-        parent_build_info = config.get('build')
         build_info = {
             'containerId': os.uname()[1],
             'endDate': end_time,
             'startDate': start_time
         }
 
-        build_info = self._summarize_data_distribution(
-            build_info, distribution_summary, parent_build_info=parent_build_info)
-        config['build'] = build_info
+        if parent_model_type == 'preprocess':
+            # Inherit distribution summary and the parent from the preprocess run.
+            config['build'].update(build_info)
+        else:
+            if parent_model:
+                config['parent_model'] = parent_model
+            parent_build_info = config.get('build')
+            build_info = self._summarize_data_distribution(
+                build_info, distribution_summary, parent_build_info=parent_build_info)
+            config['build'] = build_info
 
         # Build and push the model package.
         bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
-        storage.push(objects_dir, storage.join(model_storage, model_id))
+        if push_model:
+            storage.push(objects_dir, storage.join(model_storage, model_id))
 
     def build_vocab(self,
                     model_id,
                     config,
                     storage,
                     model_storage,
-                    image):
+                    image,
+                    push_model=True):
         start_time = time.time()
         local_config = resolve_environment_variables(config)
         objects, tokenization_config = self._generate_vocabularies(local_config)
@@ -417,7 +459,8 @@ class Framework(object):
         bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
-        storage.push(objects_dir, storage.join(model_storage, model_id))
+        if push_model:
+            storage.push(objects_dir, storage.join(model_storage, model_id))
 
     def trans_wrapper(self, config, model_path, storage,
                       inputs, outputs, gpuid=0):
@@ -454,7 +497,14 @@ class Framework(object):
         if failed_translation == len(inputs):
             raise RuntimeError("All translation failed, see error logs")
 
-    def release_wrapper(self, config, model_path, storage, image, destination, gpuid=0):
+    def release_wrapper(self,
+                        config,
+                        model_path,
+                        storage,
+                        image,
+                        destination,
+                        gpuid=0,
+                        push_model=True):
         local_config = resolve_environment_variables(config)
         objects = self.release(local_config, model_path, gpuid=gpuid)
         extract_model_resources(objects, config)
@@ -468,7 +518,8 @@ class Framework(object):
         }
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
-        storage.push(objects_dir, storage.join(destination, model_id))
+        if push_model:
+            storage.push(objects_dir, storage.join(destination, model_id))
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
         local_config = resolve_environment_variables(config)
@@ -493,6 +544,57 @@ class Framework(object):
         end_time = time.time()
         logger.info('Finished preprocessing data in %s seconds into %s', 
                     str(end_time-start_time), data_dir)
+
+    def preprocess_into_model(self,
+                              model_id,
+                              config,
+                              storage,
+                              model_storage,
+                              image,
+                              parent_model=None,
+                              push_model=True):
+        logger.info('Starting preprocessing %s', model_id)
+        start_time = time.time()
+
+        local_config = resolve_environment_variables(config)
+        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
+            self._generate_training_data(local_config))
+        if num_samples == 0:
+            raise RuntimeError('data sampling generated 0 sentences')
+        if not self._support_multi_training_files:
+            data_dir = self._merge_multi_training_files(
+                data_dir, train_dir, config['source'], config['target'])
+
+        end_time = time.time()
+        logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
+
+        # Fill training details.
+        if parent_model:
+            config['parent_model'] = parent_model
+        config['model'] = model_id
+        config['modelType'] = 'preprocess'
+        config['imageTag'] = image
+        config['sampling'] = {
+            'numSamples': num_samples,
+            'samplesMetadata': samples_metadata}
+        parent_build_info = config.get('build')
+        build_info = {
+            'containerId': os.uname()[1],
+            'endDate': end_time,
+            'startDate': start_time
+        }
+
+        build_info = self._summarize_data_distribution(
+            build_info, distribution_summary, parent_build_info=parent_build_info)
+        config['build'] = build_info
+
+        # Build and push the model package.
+        objects = {'data': data_dir}
+        bundle_dependencies(objects, config)
+        objects_dir = os.path.join(self._models_dir, model_id)
+        build_model_dir(objects_dir, objects, config)
+        if push_model:
+            storage.push(objects_dir, storage.join(model_storage, model_id))
 
     def _get_vocab_info(self, side, config, local_config, model_config=None):
         if config.get('tokenization', {}).get(side, {}).get('vocabulary') is None:
@@ -725,6 +827,10 @@ def extract_model_resources(objects, config):
         return config
     return map_config_fn(config, _map_fn)
 
+def should_check_integrity(f):
+    """Returns True if f should be checked for integrity."""
+    return f not in ('README.md', 'checksum.md5', 'data')
+
 def build_model_dir(model_dir, objects, config):
     """Prepares the model directory based on the model package."""
     if os.path.exists(model_dir):
@@ -746,7 +852,7 @@ def build_model_dir(model_dir, objects, config):
         with open(readme_path, 'w') as readme_file:
             readme_file.write(config['description'])
         objects['README.md'] = readme_path
-    md5 = md5files((k, v) for k, v in six.iteritems(objects) if k != "README.md")
+    md5 = md5files((k, v) for k, v in six.iteritems(objects) if should_check_integrity(k))
     with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
         f.write(md5)
 
@@ -760,7 +866,7 @@ def check_model_dir(model_dir):
     with open(md5_file, "r") as f:
         md5ref = f.read().strip()
     files = os.listdir(model_dir)
-    md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if f != "checksum.md5" and f != "README.md"])
+    md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if should_check_integrity(f)])
     return md5check == md5ref
 
 def fetch_model(storage, remote_model_path, model_path):
