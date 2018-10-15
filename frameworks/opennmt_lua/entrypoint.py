@@ -171,7 +171,7 @@ class OpenNMTLuaFramework(Framework):
             vocab.write(b"<unk> 2\n")
             vocab.write(b"<s> 3\n")
             vocab.write(b"</s> 4\n")
-        vocab.write(b"%s %d\n" % (line.strip(), index + 5))
+        vocab.write(b"%s %d\n" % (token, index + 5))
 
     def _run_command(self, cmd, background=False):
         return run_cmd(cmd, cwd=self._onmt_dir, background=background)
