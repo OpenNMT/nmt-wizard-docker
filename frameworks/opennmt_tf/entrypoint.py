@@ -52,10 +52,12 @@ class OpenNMTTFFramework(Framework):
             model_type=config['options'].get('model_type'),
             model_file=config['options'].get('model'),
             model_path=model_path)
-        run_config = copy.deepcopy(config['options']['config'])
+        run_config = copy.deepcopy(config['options'].get('config', {}))
         run_config['model_dir'] = model_dir
         if 'data' not in run_config:
             run_config['data'] = {}
+        if 'train' not in run_config:
+            run_config['train'] = {}
         run_config['data']['source_words_vocabulary'] = src_vocab_info['current']
         run_config['data']['target_words_vocabulary'] = tgt_vocab_info['current']
         run_config['data']['train_features_file'] = src_file
@@ -65,7 +67,12 @@ class OpenNMTTFFramework(Framework):
             run_config['train']['train_steps'] = None
         if 'sample_buffer_size' not in run_config['train']:
             run_config['train']['sample_buffer_size'] = -1
-        onmt.Runner(model, run_config, num_devices=utils.count_devices(gpuid)).train()
+        runner = onmt.Runner(
+            model,
+            run_config,
+            num_devices=utils.count_devices(gpuid),
+            auto_config=config['options'].get('auto_config', False))
+        runner.train()
         return self._list_model_files(model_dir)
 
     def trans(self, config, model_path, input, output, gpuid=0):
@@ -202,7 +209,7 @@ class OpenNMTTFFramework(Framework):
         latest = tf.train.latest_checkpoint(model_dir)
         objects = {
             "checkpoint": os.path.join(model_dir, "checkpoint"),
-            "model_description.pkl": os.path.join(model_dir, "model_description.pkl")
+            "model_description.py": os.path.join(model_dir, "model_description.py")
         }
         for filename in os.listdir(model_dir):
             path = os.path.join(model_dir, filename)
