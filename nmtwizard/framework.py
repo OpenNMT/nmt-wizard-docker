@@ -631,7 +631,7 @@ class Framework(object):
             state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
         return state
 
-    def _preprocess_input(self, state, input):
+    def _preprocess_input(self, state, input, extra_config):
         if isinstance(input, list):
             tokens = input
         elif 'src_tokenizer' in state:
@@ -642,7 +642,7 @@ class Framework(object):
             tokens = input.split()
         return tokens
 
-    def _postprocess_output(self, state, source, target):
+    def _postprocess_output(self, state, source, target, extra_config):
         if not isinstance(target, list):
             text = target
         elif 'tgt_tokenizer' in state:

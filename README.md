@@ -242,11 +242,15 @@ The `timeout` and `max_batch_size` values can be overriden for each request.
     ],
     "options": {
         "timeout": 10.0
+        "config": {
+            ...
+        },
     }
 }
 ```
 
-(The `options` field is optional.)
+* `options` and each of its children are optional
+* `config` defines request-specific overrides to the global configuration file
 
 **Output:**
 

@@ -44,9 +44,10 @@ def start_server(host,
       port: The port used by the service.
       serving_state: The framework state to propagate to pre/postprocessing callbacks.
       backend_service_fn: A callable to start the framework dependent backend service.
-      preprocess_fn: A callable taking (serving_state, text) and returning tokens.
+      preprocess_fn: A callable taking (serving_state, text, extra_config) and returning tokens.
       translation_fn: A callable that forwards the request to the translation backend.
-      postprocess_fn: A callable taking (serving_state, tokens) and returning text.
+      postprocess_fn: A callable taking (serving_state, src_tokens, tgt_tokens, extra_config)
+        and returning text.
     """
     global backend_process
     global backend_info
@@ -121,11 +122,13 @@ def start_server(host,
                 return
             timeout = global_timeout
             max_batch_size = global_max_batch_size
+            extra_config = None
             if 'options' in request and isinstance(request['options'], dict):
                 timeout = request['options'].get('timeout', timeout)
                 max_batch_size = request['options'].get('max_batch_size', max_batch_size)
+                extra_config = request['options'].get('config')
             batch_tokens = [
-                preprocess_fn(serving_state, src['text']) for src in request['src']]
+                preprocess_fn(serving_state, src['text'], extra_config) for src in request['src']]
             if max_batch_size is not None and len(batch_tokens) > max_batch_size:
                 offset = 0
                 batch_hypotheses = []
@@ -147,7 +150,8 @@ def start_server(host,
                 result = []
                 for output in hypotheses:
                     tgt = {}
-                    tgt['text'] = postprocess_fn(serving_state, src_tokens, output.output)
+                    tgt['text'] = postprocess_fn(
+                        serving_state, src_tokens, output.output, extra_config)
                     if output.score is not None:
                         tgt['score'] = output.score
                     if output.attention is not None:
