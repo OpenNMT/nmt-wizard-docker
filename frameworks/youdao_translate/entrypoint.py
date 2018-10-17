@@ -71,10 +71,10 @@ class YoudaoTranslateFramework(Framework):
             source_language=info['source'],
             target_language=info['target'])]
 
-    def _preprocess_input(self, state, input):
+    def _preprocess_input(self, state, input, extra_config):
         return input
 
-    def _postprocess_output(self, state, source, target):
+    def _postprocess_output(self, state, source, target, extra_config):
         return target
 
 
