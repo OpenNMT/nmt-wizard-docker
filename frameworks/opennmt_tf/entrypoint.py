@@ -13,11 +13,11 @@ logger = get_logger(__name__)
 import opennmt as onmt
 import tensorflow as tf
 
-from grpc.beta import implementations
-from grpc.framework.interfaces.face.face import ExpirationError
+import grpc
 
+from grpc.framework.interfaces.face.face import ExpirationError
 from tensorflow_serving.apis import predict_pb2
-from tensorflow_serving.apis import prediction_service_pb2
+from tensorflow_serving.apis import prediction_service_pb2_grpc
 
 from opennmt.config import load_model
 from opennmt.utils import checkpoint
@@ -99,8 +99,8 @@ class OpenNMTTFFramework(Framework):
         return process, info
 
     def forward_request(self, batch_inputs, info, timeout=None):
-        channel = implementations.insecure_channel('localhost', info['port'])
-        stub = prediction_service_pb2.beta_create_PredictionService_stub(channel)
+        channel = grpc.insecure_channel("localhost:%s" % info['port'])
+        stub = prediction_service_pb2_grpc.PredictionServiceStub(channel)
 
         max_length = max(len(src) for src in batch_inputs)
         tokens, lengths = utils.pad_lists(batch_inputs, padding_value='', max_length=max_length)
