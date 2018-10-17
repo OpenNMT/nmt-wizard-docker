@@ -241,10 +241,8 @@ The `timeout` and `max_batch_size` values can be overriden for each request.
         {"text": "Source sentence 2"}
     ],
     "options": {
-        "timeout": 10.0
-        "config": {
-            ...
-        },
+        "timeout": 10.0,
+        "config": {}
     }
 }
 ```
