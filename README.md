@@ -232,23 +232,34 @@ The `timeout` and `max_batch_size` values can be overriden for each request.
 
 #### `POST /translate`
 
-**Input:**
+**Input (minimum required):**
 
 ```json
 {
     "src": [
         {"text": "Source sentence 1"},
         {"text": "Source sentence 2"}
-    ],
-    "options": {
-        "timeout": 10.0,
-        "config": {}
-    }
+    ]
 }
 ```
 
-* `options` and each of its children are optional
-* `config` defines request-specific overrides to the global configuration file
+**Input (with optional fields):**
+
+```json
+{
+    "options": {
+        "timeout": 10.0,
+        "max_batch_size": 32,
+        "config": {}
+    },
+    "src": [
+        {"text": "Source sentence 1", "config": {}},
+        {"text": "Source sentence 2", "config": {}}
+    ]
+}
+```
+
+The `config` fields define request-specific and sentence-specific overrides to the global configuration file.
 
 **Output:**
 

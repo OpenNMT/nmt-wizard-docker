@@ -2,6 +2,7 @@ import json
 import signal
 import threading
 import collections
+import copy
 import socket
 import time
 import six
@@ -10,6 +11,7 @@ from six.moves import SimpleHTTPServer
 from six.moves import socketserver
 
 from nmtwizard.logger import get_logger
+from nmtwizard.utils import merge_dict
 
 logger = get_logger(__name__)
 
@@ -122,13 +124,19 @@ def start_server(host,
                 return
             timeout = global_timeout
             max_batch_size = global_max_batch_size
-            extra_config = None
+            batch_config = {}
             if 'options' in request and isinstance(request['options'], dict):
                 timeout = request['options'].get('timeout', timeout)
                 max_batch_size = request['options'].get('max_batch_size', max_batch_size)
-                extra_config = request['options'].get('config')
-            batch_tokens = [
-                preprocess_fn(serving_state, src['text'], extra_config) for src in request['src']]
+                batch_config = request['options'].get('config', batch_config)
+            extra_config = []
+            batch_tokens = []
+            for src in request['src']:
+                local_config = batch_config
+                if 'config' in src:
+                    local_config = merge_dict(copy.deepcopy(local_config), src['config'])
+                extra_config.append(local_config)
+                batch_tokens.append(preprocess_fn(serving_state, src['text'], local_config))
             if max_batch_size is not None and len(batch_tokens) > max_batch_size:
                 offset = 0
                 batch_hypotheses = []
@@ -146,12 +154,13 @@ def start_server(host,
             if batch_hypotheses is None:
                 self.send_error(504, 'translation request timed out')
                 return
-            for src_tokens, hypotheses in zip(batch_tokens, batch_hypotheses):
+            for local_config, src_tokens, hypotheses in zip(
+                    extra_config, batch_tokens, batch_hypotheses):
                 result = []
                 for output in hypotheses:
                     tgt = {}
                     tgt['text'] = postprocess_fn(
-                        serving_state, src_tokens, output.output, extra_config)
+                        serving_state, src_tokens, output.output, local_config)
                     if output.score is not None:
                         tgt['score'] = output.score
                     if output.attention is not None:

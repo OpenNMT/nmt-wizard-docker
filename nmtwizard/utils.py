@@ -69,3 +69,12 @@ def pad_lists(lists, padding_value=None, max_length=None):
     lst += [padding_value] * (max_length - length)
     lengths.append(length)
   return lists, lengths
+
+def merge_dict(a, b):
+    """Merges config b in a."""
+    for k, v in six.iteritems(b):
+        if k in a and isinstance(v, dict):
+            merge_dict(a[k], v)
+        else:
+            a[k] = v
+    return a
