@@ -347,6 +347,7 @@ class Framework(object):
                     args.model_storage,
                     args.image,
                     parent_model=parent_model,
+                    model_path=model_path,
                     push_model=not args.no_push)
 
     def train_wrapper(self,
@@ -552,6 +553,7 @@ class Framework(object):
                               model_storage,
                               image,
                               parent_model=None,
+                              model_path=None,
                               push_model=True):
         logger.info('Starting preprocessing %s', model_id)
         start_time = time.time()
@@ -591,6 +593,11 @@ class Framework(object):
         # Build and push the model package.
         objects = {'data': data_dir}
         bundle_dependencies(objects, config)
+        # Forward other files from the parent model.
+        if model_path is not None:
+            for f in os.listdir(model_path):
+                if f not in objects:
+                    objects[f] = os.path.join(model_path, f)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
         if push_model:
