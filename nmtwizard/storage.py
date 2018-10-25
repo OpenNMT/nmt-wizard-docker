@@ -88,7 +88,12 @@ class StorageClient(object):
     def get_directory(self, remote_path, local_path, storage_id=None):
         return self.get(remote_path, local_path, directory=True, storage_id=storage_id)
 
-    def get(self, remote_path, local_path, directory=False, storage_id=None):
+    def get(self,
+            remote_path,
+            local_path,
+            directory=False,
+            storage_id=None,
+            check_integrity_fn=None):
         if directory and os.path.isdir(local_path):
             logger.warning('Directory %s already exists', local_path)
         elif not directory and os.path.isfile(local_path):
@@ -100,11 +105,16 @@ class StorageClient(object):
             client.get(remote_path, tmp_path, directory=directory)
             if not os.path.exists(tmp_path):
                 raise RuntimeError('download failed: %s not found' % tmp_path)
+            if check_integrity_fn is not None and not check_integrity_fn(tmp_path):
+                raise RuntimeError('integrity check failed on %s' % tmp_path)
             # in meantime, the file might have been copied
             if os.path.exists(local_path):
                 logger.warning('File/Directory created while copying - taking copy')
             else:
+                check_integrity_fn = None  # No need to check again.
                 shutil.move(tmp_path, local_path)
+        if check_integrity_fn is not None and not check_integrity_fn(local_path):
+            raise RuntimeError('integrity check failed on %s' % local_path)
 
     def push(self, local_path, remote_path, storage_id=None):
         if not os.path.exists(local_path):
