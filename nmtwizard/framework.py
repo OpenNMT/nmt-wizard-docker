@@ -878,7 +878,5 @@ def check_model_dir(model_dir):
 
 def fetch_model(storage, remote_model_path, model_path):
     """Downloads the remote model."""
-    storage.get_directory(remote_model_path, model_path)
-    if not check_model_dir(model_path):
-        raise RuntimeError('model integrity check failed: MD5 mismatch')
+    storage.get(remote_model_path, model_path, directory=True, check_integrity_fn=check_model_dir)
     os.environ['MODEL_DIR'] = model_path
