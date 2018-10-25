@@ -62,6 +62,8 @@ class OpenNMTLuaFramework(Framework):
             logger.warning('no support of multi-gpu for opennmt_lua trans')
             gpuid = gpuid[0]
         model_file = os.path.join(model_path, 'model_released.t7')
+        if not os.path.exists(model_file):
+            model_file = os.path.join(model_path, 'model.t7')
         options = self._get_translation_options(
             config, model_file, input=input, output=output, gpuid=gpuid)
         options = _build_cmd_line_options(options)
