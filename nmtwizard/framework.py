@@ -840,14 +840,14 @@ def build_model_dir(model_dir, objects, config):
     else:
         logger.info("Building model package in %s", model_dir)
     os.mkdir(model_dir)
-    config_path = os.path.join(model_dir, 'config.json')
-    with open(config_path, 'w') as config_file:
-        json.dump(config, config_file)
     for target, source in six.iteritems(objects):
         if os.path.isdir(source):
             shutil.copytree(source, os.path.join(model_dir, target))
         else:
             shutil.copyfile(source, os.path.join(model_dir, target))
+    config_path = os.path.join(model_dir, 'config.json')
+    with open(config_path, 'w') as config_file:
+        json.dump(config, config_file)
     objects['config.json'] = config_path
     if "description" in config:
         readme_path = os.path.join(model_dir, 'README.md')
