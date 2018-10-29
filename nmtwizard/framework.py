@@ -392,7 +392,7 @@ class Framework(object):
                 data_dir = self._merge_multi_training_files(
                     data_dir, train_dir, config['source'], config['target'])
 
-        if parent_model_type in ('base'):
+        if parent_model_type in ('base',):
             model_path = None
         objects = self.train_multi_files(
             local_config,
