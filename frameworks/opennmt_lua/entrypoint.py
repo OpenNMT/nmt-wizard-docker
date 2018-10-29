@@ -140,7 +140,9 @@ class OpenNMTLuaFramework(Framework):
         options['start_epoch'] = options.get('start_epoch', '1')
         options['end_epoch'] = options.get('end_epoch', '1')
         if model_path is not None:
-            options['train_from'] = os.path.join(model_path, 'model.t7')
+            model_file = os.path.join(model_path, 'model.t7')
+            if os.path.exists(model_file):
+                options['train_from'] = model_file
         if num_samples is not None:
             rule_file = os.path.join(self._onmt_dir, 'rule')
             _generate_distribution_file(rule_file, samples_metadata)
