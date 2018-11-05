@@ -15,7 +15,7 @@ import six
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.logger import get_logger
-from nmtwizard.utils import md5files
+from nmtwizard.utils import md5files, merge_dict
 from nmtwizard.sampler import sample
 from nmtwizard.storage import StorageClient
 from nmtwizard import serving
@@ -769,12 +769,7 @@ def load_config(config_arg):
 
 def merge_config(a, b):
     """Merges config b in a."""
-    for k, v in six.iteritems(b):
-        if k in a and isinstance(v, dict):
-            merge_config(a[k], v)
-        else:
-            a[k] = v
-    return a
+    return merge_dict(a, b)
 
 def getenv(m):
     var = m.group(1)
