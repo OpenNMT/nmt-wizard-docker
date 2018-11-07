@@ -207,6 +207,8 @@ class OpenNMTTFFramework(Framework):
     def _list_model_files(self, model_dir):
         """Lists the files that should be bundled in the model package."""
         latest = tf.train.latest_checkpoint(model_dir)
+        # Only keep the latest checkpoint in the state proto.
+        tf.train.update_checkpoint_state(model_dir, latest)
         objects = {
             "checkpoint": os.path.join(model_dir, "checkpoint"),
             "model_description.py": os.path.join(model_dir, "model_description.py")
