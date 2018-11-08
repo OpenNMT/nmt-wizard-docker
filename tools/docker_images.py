@@ -40,8 +40,12 @@ else:
 for dockerfile in dockerfiles:
     framework_dir = os.path.basename(os.path.split(dockerfile)[0])
     repo_name = framework_dir.replace('_', '-')
-    image_name = '%s/%s:%s' % (args.org, repo_name, args.version)
+    image_name = '%s/%s' % (args.org, repo_name)
+    image_latest = '%s:latest' % image_name
+    image_full_name = '%s:%s' % (image_name, args.version)
     if args.build:
-        run(['docker', 'build', '-t', image_name, '-f', dockerfile, '.'])
+        run(['docker', 'build', '-t', image_latest, '-f', dockerfile, '.'])
+    run(['docker', 'tag', image_latest, image_full_name])
     if args.push:
-        run(['docker', 'push', image_name])
+        run(['docker', 'push', image_latest])
+        run(['docker', 'push', image_full_name])
