@@ -510,13 +510,12 @@ class Framework(object):
         objects = self.release(local_config, model_path, gpuid=gpuid)
         extract_model_resources(objects, config)
         model_id = config['model'] + '_release'
-        config['parent_model'] = config['model']
         config['model'] = model_id
         config['modelType'] = 'release'
         config['imageTag'] = image
-        config['build'] = {
-            'containerId': os.uname()[1]
-        }
+        for name in ("parent_model", "build", "data"):
+            if name in config:
+                del config[name]
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config)
         if push_model:
