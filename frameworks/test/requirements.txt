@@ -1,0 +1,5 @@
+boto3
+paramiko
+pyonmttok==1.*
+requests
+scp
