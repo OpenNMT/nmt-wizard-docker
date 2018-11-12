@@ -21,14 +21,20 @@ def tokenize_file(tokenizer, input, output):
     """Tokenizes an input file."""
     with open(input, 'rb') as input_file, open(output, 'wb') as output_file:
         for line in input_file:
-            tokens, _ = tokenizer.tokenize(line.strip())
+            if tokenizer:
+                tokens, _ = tokenizer.tokenize(line.strip())
+            else:
+                tokens = [line.strip()]
             output_file.write('%s\n' % b' '.join(tokens))
 
 def detokenize_file(tokenizer, input, output):
     """Detokenizes an input file."""
     with open(input, 'rb') as input_file, open(output, 'wb') as output_file:
         for line in input_file:
-            text = tokenizer.detokenize(line.strip().split())
+            if tokenizer:
+                text = tokenizer.detokenize(line.strip().split())
+            else:
+                text = line.strip()
             output_file.write('%s\n' % text)
 
 def tokenize_directory(input_dir,

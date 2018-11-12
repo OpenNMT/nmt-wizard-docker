@@ -730,8 +730,8 @@ class Framework(object):
             data_path = sample_path
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
-            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
+            src_tokenizer = 'source' in tok_config and tokenizer.build_tokenizer(tok_config['source'])
+            tgt_tokenizer = 'target' in tok_config and tokenizer.build_tokenizer(tok_config['target'])
             tokenized_dir = os.path.join(self._data_dir, 'tokenized')
             if not os.path.exists(tokenized_dir):
                 os.mkdir(tokenized_dir)
