@@ -6,11 +6,8 @@ import time
 
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
-from nmtwizard.serving import pick_free_port, TranslationOutput
-from nmtwizard.utils import run_cmd
 
 logger = get_logger(__name__)
-
 
 class TestFramework(Framework):
 
@@ -71,6 +68,9 @@ class TestFramework(Framework):
 
     def forward_request(self, *arg, **kwargs):
         raise NotImplementedError()
+
+    def release(self, config, model_path, gpuid=0):
+        raise NotImplementedError('release is not supported yet for test framework')
 
     def _get_training_options(self,
                               config,
