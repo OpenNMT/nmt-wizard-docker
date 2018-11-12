@@ -180,7 +180,7 @@ class Framework(object):
                 model_path=model_path,
                 gpuid=gpuid)
 
-    def run(self):
+    def run(self, args=None):
         """Main entrypoint."""
         parser = argparse.ArgumentParser()
         parser.add_argument('-c', '--config', default=None,
@@ -231,7 +231,7 @@ class Framework(object):
                                        help='Preprocess data into a model.')
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
-        args = parser.parse_args()
+        args = parser.parse_args(args=args)
         if args.config is None and args.model is None:
             parser.error('at least one of --config or --model options must be set')
         if (not self._stateless
