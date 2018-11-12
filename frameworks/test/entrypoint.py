@@ -48,16 +48,16 @@ class TestFramework(Framework):
     def train(self, *arg, **kwargs):
         raise NotImplementedError()
 
-    def trans(self, config, model_path, input, output, gpuid=0):
+    def trans(self, config, model_path, input_file, output_file, gpuid=0):
         model_file = os.path.join(model_path, 'model')
         options = self._get_translation_options(
-            config, model_file, input=input, output=output, gpuid=gpuid)
+            config, model_file, input_file=input_file, output_file=output_file, gpuid=gpuid)
 
         with open(model_file) as f:
             map_alphabet = f.read()
-        with open(input) as f_in, open(output, "w") as f_out:
+        with open(input_file) as f_in, open(output_file, "w") as f_out:
             for l in f_in:
-                for idx in range(len(l)):
+                for idx, c in enumerate(l):
                     c = l[idx]
                     if c >= 'A' and c <= 'Z':
                         c = map_alphabet[ord(c)-ord('A')]
@@ -84,7 +84,7 @@ class TestFramework(Framework):
         options.update(config["options"].get("train", {}))
         return options
 
-    def _get_translation_options(self, config, model_file, input=None, output=None, gpuid=0):
+    def _get_translation_options(self, config, model_file, input_file=None, output_file=None, gpuid=0):
         options = {}
         options.update(config["options"].get("common", {}))
         options.update(config["options"].get("trans", {}))
