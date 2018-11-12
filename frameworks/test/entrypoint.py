@@ -17,6 +17,8 @@ class TestFramework(Framework):
     def train_multi_files(self,
                           config,
                           data_dir,
+                          src_vocab_info,
+                          tgt_vocab_info,
                           model_path=None,
                           num_samples=None,
                           samples_metadata=None,
