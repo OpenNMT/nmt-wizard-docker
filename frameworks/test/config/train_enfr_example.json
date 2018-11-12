@@ -1,0 +1,12 @@
+{
+    "source": "en",
+    "target": "fr",
+    "options": {
+        "common": {},
+        "train": {
+        	"duration": 10
+        },
+        "trans": {
+        }
+    }
+}
