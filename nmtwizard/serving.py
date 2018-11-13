@@ -1,4 +1,5 @@
 import json
+import logging
 import signal
 import threading
 import collections
@@ -83,6 +84,8 @@ def start_server(host,
             post_body = self.rfile.read(content_len)
             try:
                 body = json.loads(post_body)
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Incoming request: %s", json.dumps(body, ensure_ascii=False))
             except ValueError:
                 self.send_error(400, 'badly formatted JSON data')
                 return
