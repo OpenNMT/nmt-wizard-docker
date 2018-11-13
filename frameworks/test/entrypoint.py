@@ -3,6 +3,7 @@ import six
 import re
 import requests
 import time
+import random
 
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
@@ -35,12 +36,9 @@ class TestFramework(Framework):
 
         model_file = os.path.join(self._output_dir,"model")
         with open(model_file, "w") as f:
-            charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            length = 26
-            random_bytes = os.urandom(length)
-            len_charset = len(charset)
-            indices = [int(len_charset * (ord(byte) / 256.0)) for byte in random_bytes]
-            f.write("".join([charset[index] for index in indices]))
+            cmapping = range(0,26)
+            random.shuffle(cmapping)
+            f.write("".join([chr(c+65) for c in cmapping]))
 
         return {"model": model_file}
 
