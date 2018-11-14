@@ -3,6 +3,7 @@ import os
 import tempfile
 import shutil
 import json
+import copy
 import six
 
 from nmtwizard.framework import Framework
@@ -156,6 +157,30 @@ def test_train(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["tokenization"]["target"]["vocabulary"])))
     assert DummyCheckpoint(model_dir).index() == 0
+
+def test_train_with_sampling(tmpdir):
+    def _make_sampling_config(n):
+        config = copy.deepcopy(config_base)
+        config["data"] = {
+            "sample": n,
+            "train_dir": ".",
+            "sample_dist": [{
+                "path": ".",
+                "distribution": [
+                    ["europarl", 1]
+                ]
+            }]
+        }
+        return config
+    model_dir = _run_framework(tmpdir, "model0", "train", config=_make_sampling_config(1000))
+    config = _read_config(model_dir)
+    assert config["build"]["sentenceCount"] == 1000
+    assert config["build"]["cumSentenceCount"] == 1000
+    model_dir = _run_framework(
+        tmpdir, "model1", "train", config=_make_sampling_config(800), parent="model0")
+    config = _read_config(model_dir)
+    assert config["build"]["sentenceCount"] == 800
+    assert config["build"]["cumSentenceCount"] == 1800
 
 def test_train_chain(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base)

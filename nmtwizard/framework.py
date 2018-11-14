@@ -753,6 +753,14 @@ class Framework(object):
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution
+        if distribution is not None:
+            cum_sent_count = 0
+            if parent_build_info is not None:
+                cum_sent_count = parent_build_info.get('cumSentenceCount')
+            sent_count = sum(six.itervalues(distribution['file']))
+            build_info['sentenceCount'] = sent_count
+            build_info['cumSentenceCount'] = (
+                cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
 
 
