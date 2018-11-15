@@ -130,9 +130,11 @@ def _setup_env(tmpdir):
     os.environ["MODELS_DIR"] = os.path.join(tmpdir, "models")
     os.environ["WORKSPACE_DIR"] = os.path.join(tmpdir, "workspace")
 
-def _run_framework(tmpdir, task_id, args, config=None, parent=None):
+def _run_framework(tmpdir, task_id, args, config=None, parent=None, auto_ms=True):
     _setup_env(tmpdir)
-    full_args = ["-t", str(task_id), "-ms", os.environ["MODELS_DIR"]]
+    full_args = ["-t", str(task_id)]
+    if auto_ms:
+        full_args += ["-ms", os.environ["MODELS_DIR"]]
     if config is not None:
         full_args += ["-c", json.dumps(config)]
     if parent is not None:
@@ -165,6 +167,19 @@ def test_train_chain(tmpdir):
     assert config["model"] == "model1"
     assert config["modelType"] == "checkpoint"
     assert DummyCheckpoint(model_dir).index() == 1
+
+def test_model_storage(tmpdir):
+    ms1 = tmpdir.join("ms1")
+    ms2 = tmpdir.join("ms2")
+    _run_framework(
+        tmpdir, "model0", ["-ms", str(ms1), "train"],
+        config=config_base, auto_ms=False)
+    assert ms1.join("model0").check(dir=1, exists=1)
+    _run_framework(
+        tmpdir, "model1", ["-msr", str(ms1), "-msw", str(ms2), "train"],
+        parent="model0", auto_ms=False)
+    assert ms1.join("model1").check(exists=0)
+    assert ms2.join("model1").check(dir=1, exists=1)
 
 def test_release(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base)
