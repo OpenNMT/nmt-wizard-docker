@@ -59,7 +59,8 @@ class StorageClient(object):
             elif config['type'] == 'http':
                 client = HTTPStorage(storage_id,
                                      config['get_pattern'],
-                                     config.get('post_pattern'))
+                                     pattern_push=config.get('post_pattern'),
+                                     pattern_list=config.get('list_pattern'))
             else:
                 raise ValueError('unsupported storage type %s for %s' % (config['type'], storage_id))
         else:
@@ -241,23 +242,34 @@ class S3Storage(Storage):
 class HTTPStorage(Storage):
     """Simple http file-only storage."""
 
-    def __init__(self, storage_id, pattern_get, pattern_push=None):
+    def __init__(self, storage_id, pattern_get, pattern_push=None, pattern_list=None):
         super(HTTPStorage, self).__init__(storage_id)
         self._pattern_get = pattern_get
         self._pattern_push = pattern_push
+        self._pattern_list = pattern_list
 
     def get(self, remote_path, local_path, directory=False):
         if not directory:
-            if os.path.isdir(local_path):
-                local_path = os.path.join(local_path, os.path.basename(remote_path))
             res = requests.get(self._pattern_get % remote_path)
             if res.status_code != 200:
                 raise RuntimeError('cannot not get %s (response code %d)' % (remote_path, res.status_code))
-            else:
-                with open(local_path, "wb") as f:
-                    f.write(res.content)
+            if os.path.isdir(local_path):
+                local_path = os.path.join(local_path, os.path.basename(remote_path))
+            elif not os.path.exists(os.path.dirname(local_path)):
+                os.makedirs(os.path.dirname(local_path))
+            with open(local_path, "wb") as f:
+                f.write(res.content)
+        elif self._pattern_list is None:
+            raise ValueError('http storage %s can not handle directories' % self._storage_id)
         else:
-            raise NotImplementedError('http storage can not handle directories')
+            res = requests.get(self._pattern_list % remote_path)
+            if res.status_code != 200:
+                raise RuntimeError('Error when listing remote directory %s (status %d)' % (
+                    remote_path, res.status_code))
+            data = res.json()
+            for f in data:
+                path = f["path"]
+                self.get(os.path.join(remote_path, path), os.path.join(local_path, path))
 
     def push(self, local_path, remote_path):
         if self._pattern_push is None:
