@@ -3,6 +3,6 @@ python:
   - "2.7"
 install:
   - pip install -r frameworks/test/requirements.txt
-  - pip install pytest
+  - pip install pytest requests-mock
 script:
   - PYTHONPATH=$PWD pytest test/
