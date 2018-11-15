@@ -189,8 +189,14 @@ class Framework(object):
         parser.add_argument('-s', '--storage_config', default=None,
                             help=('Configuration of available storages as a file or a JSON string. '
                                   'Setting "-" will read from the standard input.'))
-        parser.add_argument('-ms', '--model_storage',
+        parser.add_argument('-ms', '--model_storage', default=None,
                             help='Model storage in the form <storage_id>:[<path>].')
+        parser.add_argument('-msr', '--model_storage_read', default=None,
+                            help=('Model storage to read from, in the form <storage_id>:[<path>] '
+                                  '(defaults to model_storage).'))
+        parser.add_argument('-msw', '--model_storage_write', default=None,
+                            help=('Model storage to write to, in the form <storage_id>:[<path>] '
+                                  '(defaults to model_storage).'))
         parser.add_argument('-m', '--model', default=None,
                             help='Model to load.')
         parser.add_argument('-g', '--gpuid', default="0",
@@ -234,10 +240,14 @@ class Framework(object):
         args = parser.parse_args(args=args)
         if args.config is None and args.model is None:
             parser.error('at least one of --config or --model options must be set')
+        if args.model_storage_read is None:
+            args.model_storage_read = args.model_storage
+        if args.model_storage_write is None:
+            args.model_storage_write = args.model_storage
         if (not self._stateless
             and (args.cmd != 'preprocess' or args.build_model)
-            and not args.model_storage):
-            parser.error('argument -ms/--model_storage is required')
+            and (args.model_storage_write is None or args.model_storage_write is None)):
+            parser.error('Missing model storage argument')
         if args.task_id is None:
             args.task_id = str(uuid.uuid4())
 
@@ -262,7 +272,7 @@ class Framework(object):
 
         if parent_model is not None and not self._stateless:
             # Download model locally and merge the configuration.
-            remote_model_path = storage.join(args.model_storage, parent_model)
+            remote_model_path = storage.join(args.model_storage_read, parent_model)
             model_path = os.path.join(self._models_dir, parent_model)
             fetch_model(storage, remote_model_path, model_path)
             with open(os.path.join(model_path, 'config.json'), 'r') as config_file:
@@ -286,7 +296,7 @@ class Framework(object):
                 args.task_id,
                 config,
                 storage,
-                args.model_storage,
+                args.model_storage_write,
                 args.image,
                 parent_model=parent_model,
                 model_path=model_path,
@@ -298,7 +308,7 @@ class Framework(object):
                 args.task_id,
                 config,
                 storage,
-                args.model_storage,
+                args.model_storage_write,
                 args.image,
                 push_model=not args.no_push)
         elif args.cmd == 'trans':
@@ -317,7 +327,7 @@ class Framework(object):
                 and (parent_model is None or config['modelType'] != 'checkpoint')):
                 raise ValueError('releasing requires a training checkpoint')
             if args.destination is None:
-                args.destination = args.model_storage
+                args.destination = args.model_storage_write
             self.release_wrapper(
                 config,
                 model_path,
@@ -344,7 +354,7 @@ class Framework(object):
                     args.task_id,
                     config,
                     storage,
-                    args.model_storage,
+                    args.model_storage_write,
                     args.image,
                     parent_model=parent_model,
                     model_path=model_path,
