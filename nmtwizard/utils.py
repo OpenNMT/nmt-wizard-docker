@@ -73,7 +73,7 @@ def pad_lists(lists, padding_value=None, max_length=None):
 def merge_dict(a, b):
     """Merges config b in a."""
     for k, v in six.iteritems(b):
-        if k in a and isinstance(v, dict):
+        if k in a and isinstance(v, dict) and type(a[k]) == type (v):
             merge_dict(a[k], v)
         else:
             a[k] = v
