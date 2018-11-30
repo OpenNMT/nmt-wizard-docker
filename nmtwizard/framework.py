@@ -97,6 +97,25 @@ class Framework(object):
         """
         raise NotImplementedError()
 
+    def translate_as_release(self, config, model_path, input, output, gpuid=0):
+        """Translates a file in release condition.
+
+        This is useful when the released model contains optimizations that
+        change the translation result (e.g. quantization).
+
+        By default, assumes that the released model does not change the results
+        and calls the standard translation method. Otherwise, the framework
+        should release the given checkpoint and adapt the translation logic.
+
+        Args:
+          config: The run configuration.
+          model_path: The path to the checkpoint to release.
+          input: The local path to the preprocessed (if any) source file.
+          output: The local path to the file that should contain the translation.
+          gpuid: The GPU identifier.
+        """
+        return self.trans(config, model_path, input, output, gpuid=gpuid)
+
     @abc.abstractmethod
     def release(self, config, model_path, gpuid=0):
         """Releases a model for serving.
@@ -221,6 +240,8 @@ class Framework(object):
                                   help='Input file.')
         parser_trans.add_argument('-o', '--output', required=True, nargs='+',
                                   help='Output file.')
+        parser_trans.add_argument('--as_release', default=False, action='store_true',
+                                  help='Translate from a released model.')
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
         parser_release.add_argument('-d', '--destination', default=None,
@@ -321,6 +342,7 @@ class Framework(object):
                 storage,
                 args.input,
                 args.output,
+                as_release=args.as_release,
                 gpuid=args.gpuid)
         elif args.cmd == 'release':
             if (not self._stateless
@@ -474,13 +496,14 @@ class Framework(object):
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
     def trans_wrapper(self, config, model_path, storage,
-                      inputs, outputs, gpuid=0):
+                      inputs, outputs, as_release=False, gpuid=0):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
 
         local_config = resolve_environment_variables(config)
         failed_translation = 0
+        translate_fn = self.translate_as_release if as_release else self.trans
 
         for input, output in zip(inputs, outputs):
             try:
@@ -490,11 +513,11 @@ class Framework(object):
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
                 path_input = self._preprocess_file(local_config, path_input)
-                self.trans(local_config,
-                           model_path,
-                           path_input,
-                           path_output,
-                           gpuid=gpuid)
+                translate_fn(local_config,
+                             model_path,
+                             path_input,
+                             path_output,
+                             gpuid=gpuid)
                 path_output = self._postprocess_file(local_config, path_input, path_output)
                 storage.push(path_output, output)
                 end_time = time.time()
