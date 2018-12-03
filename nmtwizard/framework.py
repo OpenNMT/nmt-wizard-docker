@@ -513,11 +513,16 @@ class Framework(object):
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
                 path_input = self._preprocess_file(local_config, path_input)
+                metadata = None
+                if isinstance(path_input, tuple):
+                    path_input, metadata = path_input
                 translate_fn(local_config,
                              model_path,
                              path_input,
                              path_output,
                              gpuid=gpuid)
+                if metadata is not None:
+                    path_input = (path_input, metadata)
                 path_output = self._postprocess_file(local_config, path_input, path_output)
                 storage.push(path_output, output)
                 end_time = time.time()
