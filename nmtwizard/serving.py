@@ -133,13 +133,33 @@ def start_server(host,
                 max_batch_size = request['options'].get('max_batch_size', max_batch_size)
                 batch_config = request['options'].get('config', batch_config)
             extra_config = []
+            batch_metadata = []
+            batch_offsets = []
             batch_tokens = []
+            offset = 0
             for src in request['src']:
                 local_config = batch_config
                 if 'config' in src:
                     local_config = merge_dict(copy.deepcopy(local_config), src['config'])
+                data = preprocess_fn(serving_state, src['text'], local_config)
+                # Preprocessing may return additional metadata.
+                if isinstance(data, tuple):
+                    tokens, metadata = data
+                else:
+                    tokens, metadata = data, None
+                # Preprocessing may split input text into multiple parts.
+                if tokens and isinstance(tokens[0], list):
+                    size = len(tokens)
+                    # Flatten the parts in the batch collection.
+                    batch_tokens.extend(tokens)
+                    batch_metadata.extend(metadata)
+                else:
+                    size = 1
+                    batch_tokens.append(tokens)
+                    batch_metadata.append(metadata)
                 extra_config.append(local_config)
-                batch_tokens.append(preprocess_fn(serving_state, src['text'], local_config))
+                batch_offsets.append((offset, offset + size))
+                offset += size
             if max_batch_size is not None and len(batch_tokens) > max_batch_size:
                 offset = 0
                 batch_hypotheses = []
@@ -157,18 +177,36 @@ def start_server(host,
             if batch_hypotheses is None:
                 self.send_error(504, 'translation request timed out')
                 return
-            for local_config, src_tokens, hypotheses in zip(
-                    extra_config, batch_tokens, batch_hypotheses):
+            for local_config, offset in zip(extra_config, batch_offsets):
+                hypotheses = batch_hypotheses[offset[0]:offset[1]]
+                num_parts = offset[1] - offset[0]
+                num_hypotheses = len(hypotheses[0])
+                src_tokens = batch_tokens[offset[0]:offset[1]]
+                src_metadata = batch_metadata[offset[0]:offset[1]]
                 result = []
-                for output in hypotheses:
-                    tgt = {}
-                    tgt['text'] = postprocess_fn(
-                        serving_state, src_tokens, output.output, local_config)
-                    if output.score is not None:
-                        tgt['score'] = output.score
-                    if output.attention is not None:
-                        tgt['align'] = _align(src_tokens, output.output, output.attention)
-                    result.append(tgt)
+                for h in range(num_hypotheses):
+                    if num_parts == 1:
+                        src = src_tokens[0]
+                        if src_metadata[0] is not None:
+                            src = (src, src_metadata[0])
+                        tgt = hypotheses[0][h].output
+                        scores = hypotheses[0][h].score
+                        attention = hypotheses[0][h].attention
+                    else:
+                        # For multi parts inputs, send all result parts to the postprocessing.
+                        src = (src_tokens, src_metadata)
+                        tgt = []
+                        scores = []
+                        attention = None
+                        for j in range(num_parts):
+                            tgt.append(hypotheses[j][h].output)
+                            scores.append(hypotheses[j][h].score)
+                    result.append(_build_result(
+                        lambda src, tgt: postprocess_fn(serving_state, src, tgt, local_config),
+                        src,
+                        tgt,
+                        scores=scores,
+                        attention=attention))
                 results['tgt'].append(result)
             self.send_result(results)
 
@@ -193,6 +231,20 @@ def start_server(host,
     while server_thread.is_alive():
         time.sleep(1)
     frontend_server.server_close()
+
+
+def _build_result(postprocess_fn, src_tokens, tgt_tokens, scores=None, attention=None):
+    split_request = src_tokens and isinstance(src_tokens[0], list)
+    result = {}
+    result['text'] = postprocess_fn(src_tokens, tgt_tokens)
+    if scores is not None:
+        if split_request:
+            result['score'] = sum(scores)
+        else:
+            result['score'] = scores
+    if attention is not None and not split_request:
+        result['align'] = _align(src_tokens, tgt_tokens, attention)
+    return result
 
 def _align(src_tokens, tgt_tokens, attention):
     src_ranges = []
