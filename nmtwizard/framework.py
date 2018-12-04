@@ -648,9 +648,7 @@ class Framework(object):
             basename='%s-vocab.txt' % side)
         model_vocab = None
         vocab_changed = False
-        if (model_config is not None
-            and (local_config['tokenization'][side]['vocabulary']
-                 != model_config['tokenization'][side]['vocabulary'])):
+        if model_config is not None:
             model_vocab = self._convert_vocab(
                 model_config['tokenization'][side]['vocabulary'],
                 basename='model-%s-vocab.txt' % side)
