@@ -43,8 +43,8 @@ class OpenNMTTFFramework(Framework):
                 os.path.join(self._output_dir, 'new_vocab_checkpoint'),
                 src_vocab_info['model'],
                 tgt_vocab_info['model'],
-                new_src_vocab=src_vocab_info['current'],
-                new_tgt_vocab=tgt_vocab_info['current'],
+                new_src_vocab=src_vocab_info['current'] if src_vocab_info['changed'] else None,
+                new_tgt_vocab=tgt_vocab_info['current'] if tgt_vocab_info['changed'] else None,
                 mode='replace',
                 session_config=tf.ConfigProto(
                     device_count={'GPU': 0}))
