@@ -529,8 +529,9 @@ class Framework(object):
                 logger.info('Finished translation in %s seconds', str(end_time-start_time))
             except Exception as e:
                 # Catch any exception to not impact other translations.
-                logger.error("Translation of %s failed with error %s" % (path_input, str(e)))
-                logger.warning("Skipping translation of %s" % path_input)
+                filename = path_input if not isinstance(path_input, tuple) else path_input[0]
+                logger.error("Translation of %s failed with error %s" % (filename, str(e)))
+                logger.warning("Skipping translation of %s" % filename)
                 failed_translation += 1
 
         if failed_translation == len(inputs):
