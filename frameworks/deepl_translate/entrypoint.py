@@ -9,8 +9,8 @@ import time
 
 logger = get_logger(__name__)
 
-supportedLangRe = re.compile(r"^(en|de|fr|es|it|nl|pl)$")
-entrypoint = "https://api.deepl.com/v1/translate"
+supportedLangRe = re.compile(r"^(en|de|fr|es|pt|it|nl|pl|ru)$")
+entrypoint = "https://api.deepl.com/v2/translate"
 
 class DeepLTranslateFramework(Framework):
 
