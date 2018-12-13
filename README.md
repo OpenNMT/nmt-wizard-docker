@@ -114,24 +114,22 @@ Available storage types are:
 
 The `data` section of the run configuration can be used to define advanced data selection based on file patterns. The distribution is a JSON list where each element is a dictionary with 2 elements:
 
-* `path` : Path to sub-directory on which theses rules apply
+* `path` : Path to a directory on which theses rules apply
 * `distribution`: a dictionary of patterns/weights as defined [here](http://opennmt.net/OpenNMT/training/sampling/#sampling-distribution-rules).
 
 For example:
 
 ```json
 "data": {
+    "sample": 10000,
     "sample_dist": [{
-        "path": "train",
+        "path": "${CORPUS_DIR}/en_nl/train",
         "distribution": [
             ["News", 0.7],
             ["IT", 0.3],
             ["Dialog", "*"]
         ]
-    }],
-    "version": "1",
-    "sample": 10000,
-    "train_dir": "en_nl"
+    }]
 }
 ```
 
