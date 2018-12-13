@@ -819,6 +819,8 @@ def getenv(m):
     var = m.group(1)
     if var == 'TRAIN_DIR':
         var = 'CORPUS_DIR'
+    elif 'TRAIN_' in var:
+        var = var.replace('TRAIN_', '')
     return os.getenv(var, '')
 
 def resolve_environment_variables(config):
@@ -854,7 +856,7 @@ def bundle_dependencies(objects, options):
     def _map_fn(options):
         if isinstance(options, six.string_types):
             m = ENVVAR_ABS_RE.match(options)
-            if m and "TRAIN_DIR" not in m.group(1):
+            if m and "TRAIN" not in m.group(1):
                 path = ENVVAR_RE.sub(
                     lambda m: os.getenv(m.group(1), ''), str(options))
                 objects[m.group(2)] = path

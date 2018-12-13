@@ -124,15 +124,21 @@ def _read_config(model_dir):
     with open(config_path) as config_file:
         return json.load(config_file)
 
-def _setup_env(tmpdir):
+def _test_dir():
+    return os.path.dirname(os.path.realpath(__file__))
+
+def _setup_env(tmpdir, corpus_env=True):
     tmpdir = str(tmpdir)
-    testdir = os.path.dirname(os.path.realpath(__file__))
-    os.environ["CORPUS_DIR"] = os.path.join(testdir, "corpus")
+    testdir = _test_dir()
+    if corpus_env:
+        os.environ["CORPUS_DIR"] = os.path.join(testdir, "corpus")
+    else:
+        os.environ.pop("CORPUS_DIR", None)
     os.environ["MODELS_DIR"] = os.path.join(tmpdir, "models")
     os.environ["WORKSPACE_DIR"] = os.path.join(tmpdir, "workspace")
 
-def _run_framework(tmpdir, task_id, args, config=None, parent=None, auto_ms=True):
-    _setup_env(tmpdir)
+def _run_framework(tmpdir, task_id, args, config=None, parent=None, auto_ms=True, corpus_env=True):
+    _setup_env(tmpdir, corpus_env=corpus_env)
     full_args = ["-t", str(task_id)]
     if auto_ms:
         full_args += ["-ms", os.environ["MODELS_DIR"]]
@@ -183,6 +189,43 @@ def test_train_with_sampling(tmpdir):
     config = _read_config(model_dir)
     assert config["build"]["sentenceCount"] == 800
     assert config["build"]["cumSentenceCount"] == 1800
+
+def test_train_with_sampling_v2(tmpdir):
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 1000,
+            "sample_dist": [{
+                "path": "${DATA_DIR}",
+                "distribution": [
+                    ["europarl", 1]
+                ]
+            }]
+        },
+        "tokenization": {
+            "source": {
+                "vocabulary": "${XXX_DIR}/vocab/en-vocab.txt",
+                "mode": "aggressive",
+                "joiner_annotate": True
+            },
+            "target": {
+                "vocabulary": "${XXX_TRAIN_DIR}/vocab/de-vocab.txt",
+                "mode": "aggressive",
+                "joiner_annotate": True
+            }
+        },
+        "options": {}
+    }
+    os.environ["XXX_DIR"] = os.path.join(_test_dir(), "corpus")
+    os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus", "train")
+    model_dir = _run_framework(tmpdir, "model0", "train", config=config, corpus_env=False)
+    config = _read_config(model_dir)
+    assert config["build"]["sentenceCount"] == 1000
+    assert os.path.exists(os.path.join(model_dir, "en-vocab.txt"))
+    assert not os.path.exists(os.path.join(model_dir, "de-vocab.txt"))
+    del os.environ["XXX_DIR"]
+    del os.environ["DATA_DIR"]
 
 def test_train_chain(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base)

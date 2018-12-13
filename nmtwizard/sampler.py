@@ -85,9 +85,6 @@ def sample(gsample, sample_dist, source_dir, target_dir, src_suffix, tgt_suffix)
             fosrc.close()
             fotgt.close()
 
-    if not os.path.exists(source_dir) or not os.path.isdir(source_dir):
-        raise RuntimeError('source directory %s does not exist' % source_dir)
-
     if not os.path.exists(target_dir):
         mkdir_p(target_dir)
 
@@ -97,11 +94,15 @@ def sample(gsample, sample_dist, source_dir, target_dir, src_suffix, tgt_suffix)
     for d in sample_dist:
         if "path" not in d or "distribution" not in d:
             raise ValueError('invalid distribution in collection %s' % d)
+        if not os.path.isabs(d["path"]):
+            if not os.path.exists(source_dir) or not os.path.isdir(source_dir):
+                raise RuntimeError('source directory %s does not exist' % source_dir)
+            d["path"] = os.path.join(source_dir, d["path"])
 
     # start collecting the files
     allfiles = []
     for ri in range(len(sample_dist)):
-        for root, _, files in os.walk(os.path.join(source_dir, sample_dist[ri]['path'])):
+        for root, _, files in os.walk(sample_dist[ri]['path']):
             for file in files:
                 if file.endswith(src_suffix):
                     fullpath = os.path.join(root, file[:-len(src_suffix)])
