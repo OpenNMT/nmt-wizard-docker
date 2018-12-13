@@ -749,7 +749,6 @@ class Framework(object):
         num_samples = None
         summary = None
         metadata = None
-        logger.info('Generating training data from %s', data_path)
         if 'data' in config and 'sample_dist' in config['data']:
             sample_dir = os.path.join(self._data_dir, 'sample')
             if not os.path.exists(sample_dir):
