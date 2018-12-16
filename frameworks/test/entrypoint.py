@@ -32,7 +32,11 @@ class TestFramework(Framework):
             samples_metadata=samples_metadata,
             gpuid=gpuid)
 
-        time.sleep(config['options'].get('duration', 10))
+        duration = config['options'].get('duration', 10)
+        while duration > 0:
+            print("LOG MESSAGE BLOCK - remaining %d", duration)
+            time.sleep(5)
+            duration -= 5
 
         model_file = os.path.join(self._output_dir,"model")
         with open(model_file, "w") as f:
