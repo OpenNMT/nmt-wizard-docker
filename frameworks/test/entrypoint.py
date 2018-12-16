@@ -32,7 +32,7 @@ class TestFramework(Framework):
             samples_metadata=samples_metadata,
             gpuid=gpuid)
 
-        time.sleep(config.get("duration", 10))
+        time.sleep(config['options'].get('duration', 10))
 
         model_file = os.path.join(self._output_dir,"model")
         with open(model_file, "w") as f:
