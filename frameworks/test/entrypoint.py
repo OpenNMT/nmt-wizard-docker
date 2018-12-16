@@ -34,7 +34,7 @@ class TestFramework(Framework):
 
         duration = config['options'].get('duration', 10)
         while duration > 0:
-            print("LOG MESSAGE BLOCK - remaining %d", duration)
+            print("LOG MESSAGE BLOCK - remaining %d" % duration)
             time.sleep(5)
             duration -= 5
 
