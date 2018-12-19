@@ -206,7 +206,8 @@ def start_server(host,
                         src,
                         tgt,
                         scores=scores,
-                        attention=attention))
+                        attention=attention,
+                        num_parts=num_parts))
                 results['tgt'].append(result)
             self.send_result(results)
 
@@ -233,16 +234,15 @@ def start_server(host,
     frontend_server.server_close()
 
 
-def _build_result(postprocess_fn, src_tokens, tgt_tokens, scores=None, attention=None):
-    split_request = src_tokens and isinstance(src_tokens[0], list)
+def _build_result(postprocess_fn, src_tokens, tgt_tokens, scores=None, attention=None, num_parts=1):
     result = {}
     result['text'] = postprocess_fn(src_tokens, tgt_tokens)
     if scores is not None:
-        if split_request:
+        if num_parts > 1:
             result['score'] = sum(scores)
         else:
             result['score'] = scores
-    if attention is not None and not split_request:
+    if attention is not None and num_parts == 1:
         result['align'] = _align(src_tokens, tgt_tokens, attention)
     return result
 
