@@ -1,8 +1,4 @@
-from nmtwizard.framework import Framework
-from nmtwizard.logger import get_logger
-from nmtwizard.serving import TranslationOutput
 import os
-import re
 import json
 import time
 import httplib
@@ -10,9 +6,9 @@ import urllib
 import random
 import hashlib
 
-logger = get_logger(__name__)
+from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
-supportedLangRe = re.compile(r"^(ar|bn|bg|zh|hr|cs|da|nl|en|et|fi|fr|de|el|he|hi|hu|id|it|ja|ko|lv|lt|ms|no|fa|pl|pt|ro|ru|sr|sb|sk|sl|es|sv|th|zt|tr|uk|ur|vi|cy)$")
+
 sogou_lang_dict_map = {
   'ar':'ar',
   'bn':'bn',
@@ -58,88 +54,45 @@ sogou_lang_dict_map = {
   'vi':'vi',
   'cy':'cy'
 }
-entrypoint = "fanyi.sogou.com:80"
 
-class SogouTranslateFramework(Framework):
+
+class SogouTranslateFramework(CloudTranslationFramework):
 
     def __init__(self):
-        super(SogouTranslateFramework, self).__init__(stateless=True)
+        super(SogouTranslateFramework, self).__init__()
         self._appid = os.getenv('SOGOU_PID')
         self._key = os.getenv('SOGOU_KEY')
-        assert isinstance(self._appid, str), "missing pid"
-        assert isinstance(self._key, str), "missing key"
-        self.httpClient = httplib.HTTPConnection(entrypoint)
-        
+        if self._appid is None:
+            raise ValueError("missing pid")
+        if self._key is None:
+            raise ValueError("missing key")
+        self.httpClient = httplib.HTTPConnection("fanyi.sogou.com:80")
+
     def __del__(self):
         if self.httpClient:
           self.httpClient.close()
-          
-    def trans(self, config, model_path, input, output, gpuid=0):
-        assert supportedLangRe.match(config['source']), "unsupported language: %s" % config['source']
-        assert supportedLangRe.match(config['target']), "unsupported language: %s" % config['target']
-        with open(input, 'rb') as fi, open(output, 'wb') as fo:
-            lines = fi.readlines()
-            translations = translate_list(
-                self.httpClient,
-                self._appid,
-                self._key,
-                lines, source_language=config['source'], target_language=config['target'])
-            for translation in translations:
-                fo.write(translation.encode('utf-8') + '\n')
 
-    def train(self, *args, **kwargs):
-        raise NotImplementedError("This framework can only be used for translation")
+    def translate_batch(self, batch, source_lang, target_lang):
+        query = '\n'.join(batch)
+        from_lang = sogou_lang_dict_map[source_lang.lower()]
+        to_lang = sogou_lang_dict_map[target_lang.lower()]
+        salt = str(random.randint(10000, 99999))
 
-    def release(self, *arg, **kwargs):
-        raise NotImplementedError('This framework does not require a release step')
-
-    def serve(self, config, model_path, gpuid=0):
-        return None, {'source': config['source'], 'target': config['target']}
-
-    def forward_request(self, batch_inputs, info, timeout=None):
-        return [[TranslationOutput(translation)] for translation in translate_list(
-            self.httpClient,
-            self._appid,
-            self._key,
-            batch_inputs,
-            source_language=info['source'],
-            target_language=info['target'])]
-
-    def _preprocess_input(self, state, input, extra_config):
-        return input
-
-    def _postprocess_output(self, state, source, target, extra_config):
-        return target
-
-
-def translate_list(httpClient, appid, secretKey, texts, source_language, target_language):
-
-    i = 0
-    while i < len(texts):
-        nexti = i + 10
-        if nexti > len(texts):
-            nexti = len(texts)
-        logger.info('Translating range [%d:%d]', i, nexti)
-        
-        query = ''.join(texts[i:nexti])
-        fromLang = sogou_lang_dict_map[source_language.lower()]
-        toLang = sogou_lang_dict_map[target_language.lower()]
-        salt = random.randint(10000, 99999)
-
-        sign = appid+query.strip()+str(salt)+secretKey
+        sign = self._appid + query.strip() + salt + self._key
         sign = hashlib.md5(sign.encode('utf-8')).hexdigest()
 
-        payload = 'from='+fromLang+'&to='+toLang+'&pid='+appid+'&q='+urllib.quote(query)+'&sign='+sign+'&salt='+str(salt)
+        payload = 'from=%s&to=%s&pid=%s&q=%s&sign=%s&salt=%s' % (
+            from_lang, to_lang, self._appid, urllib.quote(query), sign, salt)
 
         headers = {
             'content-type': "application/x-www-form-urlencoded",
             'accept': "application/json"
-            }        
+        }
 
         retry = 0
         while retry < 10:
-            httpClient.request("POST", "/reventondc/api/sogouTranslate", payload, headers)
-            r = httpClient.getresponse()
+            self.httpClient.request("POST", "/reventondc/api/sogouTranslate", payload, headers)
+            r = self.httpClient.getresponse()
             if r.status == 429:
                 retry += 1
                 time.sleep(5)
@@ -150,7 +103,54 @@ def translate_list(httpClient, appid, secretKey, texts, source_language, target_
         if r.status != 200 or 'translation' not in results:
             raise RuntimeError('incorrect result from \'translate\' service: %s' % results)
         yield results['translation']
-        i = nexti
+
+    def supported_languages(self):
+        return [
+            'ar',
+            'bg',
+            'bn',
+            'cs',
+            'cy',
+            'da',
+            'de',
+            'el',
+            'en',
+            'es',
+            'et',
+            'fa',
+            'fi',
+            'fr',
+            'he',
+            'hi',
+            'hr',
+            'hu',
+            'id',
+            'it',
+            'ja',
+            'ko',
+            'lt',
+            'lv',
+            'ms',
+            'nl',
+            'no',
+            'pl',
+            'pt',
+            'ro',
+            'ru',
+            'sb',
+            'sk',
+            'sl',
+            'sr',
+            'sv',
+            'th',
+            'tr',
+            'uk',
+            'ur',
+            'vi',
+            'zh',
+            'zt'
+        ]
+
 
 if __name__ == "__main__":
     SogouTranslateFramework().run()

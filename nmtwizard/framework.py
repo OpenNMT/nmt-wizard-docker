@@ -46,7 +46,7 @@ class Framework(object):
         self._support_multi_training_files = support_multi_training_files
         self._corpus_dir = os.getenv('CORPUS_DIR', '/root/corpus')
         self._models_dir = os.getenv('MODELS_DIR', '/root/models')
-        if not os.path.exists(self._models_dir):
+        if not stateless and not os.path.exists(self._models_dir):
             os.makedirs(self._models_dir)
         workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
         self._output_dir = os.path.join(workspace_dir, 'output')
