@@ -831,7 +831,7 @@ def resolve_environment_variables(config):
         return new_config
     elif isinstance(config, list):
         new_config = []
-        for i in range (len(config)):
+        for i, _ in enumerate(config):
             new_config.append(resolve_environment_variables(config[i]))
         return new_config
     elif isinstance(config, six.string_types):
@@ -840,7 +840,7 @@ def resolve_environment_variables(config):
 
 def map_config_fn(config, fn):
     if isinstance(config, list):
-        for i in xrange(len(config)):
+        for i, _ in enumerate(config):
             config[i] = map_config_fn(config[i], fn)
         return config
     elif isinstance(config, dict):
