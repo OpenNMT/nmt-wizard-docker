@@ -23,5 +23,5 @@ def test_http_storage_get_dir(tmpdir):
         local_dir = tmpdir.join("model0")
         http.get("model0", str(local_dir), directory=True)
         assert local_dir.check()
-        assert local_dir.join("checkpoint").join("model.bin").read() == b"model"
-        assert local_dir.join("config.json").read() == b"config"
+        assert local_dir.join("checkpoint").join("model.bin").read() == "model"
+        assert local_dir.join("config.json").read() == "config"

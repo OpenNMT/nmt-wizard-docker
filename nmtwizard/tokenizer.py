@@ -8,8 +8,8 @@ def build_tokenizer(args):
     import pyonmttok
     local_args = {}
     for k, v in six.iteritems(args):
-        if isinstance(v, unicode):
-            local_args[k] = v.encode('latin-1')
+        if isinstance(v, six.string_types):
+            local_args[k] = v.encode('utf-8')
         else:
             local_args[k] = v
     mode = local_args['mode']
@@ -19,23 +19,25 @@ def build_tokenizer(args):
 
 def tokenize_file(tokenizer, input, output):
     """Tokenizes an input file."""
-    with open(input, 'rb') as input_file, open(output, 'wb') as output_file:
+    with open(input, 'r') as input_file, open(output, 'w') as output_file:
         for line in input_file:
             if tokenizer:
                 tokens, _ = tokenizer.tokenize(line.strip())
+                output_file.write(' '.join(tokens))
+                output_file.write('\n')
             else:
-                tokens = [line.strip()]
-            output_file.write('%s\n' % b' '.join(tokens))
+                output_file.write(line)
 
 def detokenize_file(tokenizer, input, output):
     """Detokenizes an input file."""
-    with open(input, 'rb') as input_file, open(output, 'wb') as output_file:
+    with open(input, 'r') as input_file, open(output, 'w') as output_file:
         for line in input_file:
             if tokenizer:
                 text = tokenizer.detokenize(line.strip().split())
             else:
                 text = line.strip()
-            output_file.write('%s\n' % text)
+            output_file.write(text)
+            output_file.write('\n')
 
 def tokenize_directory(input_dir,
                        output_dir,
