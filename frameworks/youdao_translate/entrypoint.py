@@ -1,10 +1,9 @@
 import os
-import json
-import time
-import httplib
-import md5
-import urllib
+import hashlib
 import random
+import requests
+
+import six
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -32,40 +31,27 @@ class YoudaoTranslateFramework(CloudTranslationFramework):
             raise ValueError("missing app id")
         if self._key is None:
             raise ValueError("missing key")
-        self.httpClient = httplib.HTTPConnection("openapi.youdao.com")
-
-    def __del__(self):
-        if self.httpClient:
-          self.httpClient.close()
 
     def translate_batch(self, batch, source_lang, target_lang):
         query = '\n'.join(batch)
-        from_lang = youdao_lang_dict_map[source_lang.lower()]
-        to_lang = youdao_lang_dict_map[target_lang.lower()]
         salt = str(random.randint(10000, 99999))
-
         sign = self._appid + query + salt + self._key
-        m1 = md5.new()
-        m1.update(sign)
+        m1 = hashlib.md5()
+        m1.update(six.b(sign))
         sign = m1.hexdigest()
 
-        myurl = '/api?appKey=%s&q=%s&from=%s&to=%s&salt=%s&sign=%s' % (
-            self._appid, urllib.quote(query), from_lang, to_lang, salt, sign)
+        url = 'http://openapi.youdao.com/api'
+        params = {
+            'appKey': self._appid,
+            'q': query,
+            'from': youdao_lang_dict_map[source_lang.lower()],
+            'to': youdao_lang_dict_map[target_lang.lower()],
+            'salt': salt,
+            'sign': sign
+        }
 
-        retry = 0
-        while retry < 10:
-            self.httpClient.request('GET', myurl)
-            r = self.httpClient.getresponse()
-            if r.status == 429:
-                retry += 1
-                time.sleep(5)
-            else:
-                break
-
-        results = json.load(r)
-        if r.status != 200 or 'translation' not in results:
-            raise RuntimeError('incorrect result from \'translate\' service: %s' % results)
-        for trans in results['translation']:
+        result = self.send_request(lambda: requests.get(url, params=params))
+        for trans in result['translation']:
             yield trans
 
     def supported_languages(self):

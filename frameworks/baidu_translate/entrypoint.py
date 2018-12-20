@@ -1,10 +1,8 @@
 import os
-import json
-import time
-import httplib
-import md5
-import urllib
+import hashlib
 import random
+import requests
+import six
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -49,40 +47,27 @@ class BaiduTranslateFramework(CloudTranslationFramework):
             raise ValueError("missing app id")
         if self._key is None:
             raise ValueError("missing key")
-        self.httpClient = httplib.HTTPConnection("fanyi-api.baidu.com")
-
-    def __del__(self):
-        if self.httpClient:
-          self.httpClient.close()
 
     def translate_batch(self, batch, source_lang, target_lang):
         query = '\n'.join(batch)
-        from_lang = baidu_lang_dict_map[source_lang.lower()]
-        to_lang = baidu_lang_dict_map[target_lang.lower()]
         salt = str(random.randint(10000, 99999))
-
         sign = self._appid + query + salt + self._key
-        m1 = md5.new()
-        m1.update(sign)
+        m1 = hashlib.md5()
+        m1.update(six.b(sign))
         sign = m1.hexdigest()
 
-        url = '/api/trans/vip/translate?appid=%s&q=%s&from=%s&to=%s&salt=%s&sign=%s' % (
-            self._appid, urllib.quote(query), from_lang, to_lang, salt, sign)
+        params = {
+            'appid': self._appid,
+            'q': query,
+            'from': baidu_lang_dict_map[source_lang.lower()],
+            'to': baidu_lang_dict_map[target_lang.lower()],
+            'salt': salt,
+            'sign': sign
+        }
 
-        retry = 0
-        while retry < 10:
-            self.httpClient.request('GET', url)
-            r = self.httpClient.getresponse()
-            if r.status == 429:
-                retry += 1
-                time.sleep(5)
-            else:
-                break
-
-        results = json.load(r)
-        if r.status != 200 or 'trans_result' not in results:
-            raise RuntimeError('incorrect result from \'translate\' service: %s' % results)
-        for trans in results['trans_result']:
+        url = 'http://api.fanyi.baidu.com/api/trans/vip/translate'
+        result = self.send_request(lambda: requests.get(url, params=params))
+        for trans in result['trans_result']:
             yield trans['dst']
 
     def supported_languages(self):

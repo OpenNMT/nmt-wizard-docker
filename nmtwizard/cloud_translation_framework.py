@@ -1,4 +1,5 @@
 import abc
+import time
 import six
 
 from nmtwizard.framework import Framework
@@ -34,15 +35,29 @@ class CloudTranslationFramework(Framework):
         if supported_languages is not None and lang not in supported_languages:
             raise ValueError('unsupported language: %s' % lang)
 
+    def send_request(self, request_fn, max_retry=5, retry_delay=5):
+        retry = 0
+        while retry < max_retry:
+            r = request_fn()
+            if r.status_code == 429:
+                retry += 1
+                time.sleep(5)
+            else:
+                break
+        if r.status_code != 200:
+            raise RuntimeError('Error status %d: %s' % (r.status_code, r.text))
+        return r.json()
+
     def trans(self, config, model_path, input, output, gpuid=0):
         self._check_lang(config['source'])
         self._check_lang(config['target'])
-        with open(input, 'rb') as input_file, open(output, 'wb') as output_file:
+        with open(input, 'r') as input_file, open(output, 'w') as output_file:
             for batch in _batch_iter(input_file, 10):
                 translations = self.translate_batch(
                     batch, config['source'], config['target'])
                 for translation in translations:
-                    output_file.write(translation.encode('utf-8') + '\n')
+                    output_file.write(translation)
+                    output_file.write('\n')
 
     def train(self, *args, **kwargs):
         raise NotImplementedError('This framework can only be used for translation')
