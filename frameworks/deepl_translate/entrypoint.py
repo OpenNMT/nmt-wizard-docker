@@ -1,7 +1,5 @@
 import requests
 import os
-import json
-import time
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -23,18 +21,9 @@ class DeepLTranslateFramework(CloudTranslationFramework):
             "auth_key": self._credentials
         }
 
-        retry = 0
-        while retry < 10:
-            r = requests.get("https://api.deepl.com/v2/translate", params=params)
-            if r.status_code == 429:
-                retry += 1
-                time.sleep(5)
-            else:
-                break
-
-        if r.status_code != 200 or 'translations' not in r.json():
-            raise RuntimeError('incorrect result from \'translate\' service: %s' % r.text)
-        for trans in r.json()['translations']:
+        url = 'https://api.deepl.com/v2/translate'
+        result = self.send_request(lambda: requests.get(url, params=params))
+        for trans in result['translations']:
             yield trans['text']
 
     def supported_languages(self):

@@ -1,6 +1,5 @@
 import os
-import json
-import urllib2
+import requests
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -30,29 +29,19 @@ class NaverTranslateFramework(CloudTranslationFramework):
             raise ValueError("missing key")
 
     def translate_batch(self, batch, source_lang, target_lang):
-        from_lang = naver_lang_dict_map[source_lang.lower()]
-        to_lang = naver_lang_dict_map[target_lang.lower()]
-        encText = urllib2.quote('\n'.join(batch))
-        data = "source=%s&target=%s&text=%s" % (from_lang, to_lang, encText)
+        url = 'https://naveropenapi.apigw.ntruss.com/nmt/v1/translation'
+        data = {
+            'source': naver_lang_dict_map[source_lang.lower()],
+            'target': naver_lang_dict_map[target_lang.lower()],
+            'text': '\n'.join(batch)
+        }
+        headers = {
+            'X-NCP-APIGW-API-KEY-ID': self._appid,
+            'X-NCP-APIGW-API-KEY': self._key
+        }
 
-        request = urllib2.Request("https://naveropenapi.apigw.ntruss.com/nmt/v1/translation")
-        request.add_header("X-NCP-APIGW-API-KEY-ID", self._appid)
-        request.add_header("X-NCP-APIGW-API-KEY", self._key)
-
-        retry = 0
-        while retry < 10:
-            r = urllib2.urlopen(request, data=data.encode("utf-8"))
-            rescode = r.getcode()
-            if rescode == 429:
-                retry += 1
-                time.sleep(5)
-            else:
-                break
-
-        results = json.load(r)
-        if rescode != 200 or 'result' not in results['message']:
-            raise RuntimeError('incorrect result from \'translate\' service: %s' % results)
-        yield results['message']['result']['translatedText']
+        result = self.send_request(lambda: requests.post(url, data=data, headers=headers))
+        yield result['message']['result']['translatedText']
 
     def supported_languages(self):
         return ['zh', 'en', 'fr', 'id', 'ko', 'es', 'th', 'zt', 'vi']

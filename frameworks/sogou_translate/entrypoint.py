@@ -1,10 +1,7 @@
 import os
-import json
-import time
-import httplib
-import urllib
 import random
 import hashlib
+import requests
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -66,43 +63,29 @@ class SogouTranslateFramework(CloudTranslationFramework):
             raise ValueError("missing pid")
         if self._key is None:
             raise ValueError("missing key")
-        self.httpClient = httplib.HTTPConnection("fanyi.sogou.com:80")
-
-    def __del__(self):
-        if self.httpClient:
-          self.httpClient.close()
 
     def translate_batch(self, batch, source_lang, target_lang):
         query = '\n'.join(batch)
-        from_lang = sogou_lang_dict_map[source_lang.lower()]
-        to_lang = sogou_lang_dict_map[target_lang.lower()]
         salt = str(random.randint(10000, 99999))
-
-        sign = self._appid + query.strip() + salt + self._key
+        sign = self._appid + query + salt + self._key
         sign = hashlib.md5(sign.encode('utf-8')).hexdigest()
 
-        payload = 'from=%s&to=%s&pid=%s&q=%s&sign=%s&salt=%s' % (
-            from_lang, to_lang, self._appid, urllib.quote(query), sign, salt)
-
+        url = 'http://fanyi.sogou.com:80/reventondc/api/sogouTranslate'
+        data = {
+            'from': sogou_lang_dict_map[source_lang.lower()],
+            'to': sogou_lang_dict_map[target_lang.lower()],
+            'pid': self._appid,
+            'q': query,
+            'sign': sign,
+            'salt': salt
+        }
         headers = {
             'content-type': "application/x-www-form-urlencoded",
             'accept': "application/json"
         }
 
-        retry = 0
-        while retry < 10:
-            self.httpClient.request("POST", "/reventondc/api/sogouTranslate", payload, headers)
-            r = self.httpClient.getresponse()
-            if r.status == 429:
-                retry += 1
-                time.sleep(5)
-            else:
-                break
-
-        results = json.load(r)
-        if r.status != 200 or 'translation' not in results:
-            raise RuntimeError('incorrect result from \'translate\' service: %s' % results)
-        yield results['translation']
+        result = self.send_request(lambda: requests.post(url, data=data, headers=headers))
+        yield result['translation']
 
     def supported_languages(self):
         return [
