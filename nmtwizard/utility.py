@@ -125,7 +125,7 @@ class Utility(object):
                     self.name, args.image, " ".join(args.utility_args))
         start_time = time.time()
 
-        self.exec_function(resolve_environment_variables(unknown + args.utility_args))
+        self.exec_function(unknown + args.utility_args)
 
         end_time = time.time()
         logger.info('Finished executing utility in %s seconds', str(end_time-start_time))
