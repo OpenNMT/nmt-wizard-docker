@@ -15,24 +15,25 @@ import six
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.logger import get_logger
-from nmtwizard.utils import md5files, merge_dict
+from nmtwizard.utils import md5files
 from nmtwizard.sampler import sample
 from nmtwizard.storage import StorageClient
+from nmtwizard.utility import Utility, load_config, merge_config, resolve_environment_variables
+from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
 from nmtwizard import serving
 from nmtwizard import data
 from nmtwizard import tokenizer
 
-ENVVAR_RE = re.compile(r'\${(.*?)}')
-ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
 
 logger = get_logger(__name__)
 
 
 @six.add_metaclass(abc.ABCMeta)
-class Framework(object):
+class Framework(Utility):
     """Base class for frameworks."""
 
     def __init__(self, stateless=False, support_multi_training_files=False):
+        super(Framework, self).__init__()
         """Initializes the framework.
 
         Args:
@@ -44,20 +45,13 @@ class Framework(object):
         """
         self._stateless = stateless
         self._support_multi_training_files = support_multi_training_files
-        self._corpus_dir = os.getenv('CORPUS_DIR', '/root/corpus')
         self._models_dir = os.getenv('MODELS_DIR', '/root/models')
         if not stateless and not os.path.exists(self._models_dir):
             os.makedirs(self._models_dir)
-        workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
-        self._output_dir = os.path.join(workspace_dir, 'output')
-        self._data_dir = os.path.join(workspace_dir, 'data')
-        self._tmp_dir = os.path.join(workspace_dir, 'tmp')
-        if not os.path.exists(self._output_dir):
-            os.makedirs(self._output_dir)
-        if not os.path.exists(self._data_dir):
-            os.makedirs(self._data_dir)
-        if not os.path.exists(self._tmp_dir):
-            os.makedirs(self._tmp_dir)
+
+    @property
+    def name(self):
+        return "NMT framework"
 
     @abc.abstractmethod
     def train(self,
@@ -199,15 +193,9 @@ class Framework(object):
                 model_path=model_path,
                 gpuid=gpuid)
 
-    def run(self, args=None):
+    def exec_function(self, args):
         """Main entrypoint."""
         parser = argparse.ArgumentParser()
-        parser.add_argument('-c', '--config', default=None,
-                            help=('Configuration as a file or a JSON string. '
-                                  'Setting "-" will read from the standard input.'))
-        parser.add_argument('-s', '--storage_config', default=None,
-                            help=('Configuration of available storages as a file or a JSON string. '
-                                  'Setting "-" will read from the standard input.'))
         parser.add_argument('-ms', '--model_storage', default=None,
                             help='Model storage in the form <storage_id>:[<path>].')
         parser.add_argument('-msr', '--model_storage_read', default=None,
@@ -216,19 +204,13 @@ class Framework(object):
         parser.add_argument('-msw', '--model_storage_write', default=None,
                             help=('Model storage to write to, in the form <storage_id>:[<path>] '
                                   '(defaults to model_storage).'))
+        parser.add_argument('-c', '--config', default=None,
+                            help=('Configuration as a file or a JSON string. '
+                                  'Setting "-" will read from the standard input.'))
         parser.add_argument('-m', '--model', default=None,
                             help='Model to load.')
         parser.add_argument('-g', '--gpuid', default="0",
                             help="Comma-separated list of 1-indexed GPU identifiers (0 for CPU).")
-        parser.add_argument('-t', '--task_id', default=None,
-                            help="Identifier of this run.")
-        parser.add_argument('-i', '--image', default="?",
-                            help="Full URL (registry/image:tag) of the image used for this run.")
-        parser.add_argument('-b', '--beat_url', default=None,
-                            help=("Endpoint that listens to beat requests "
-                                  "(push notifications of activity)."))
-        parser.add_argument('-bi', '--beat_interval', default=30, type=int,
-                            help="Interval of beat requests in seconds.")
         parser.add_argument('--no_push', default=False, action='store_true',
                             help='Do not push model.')
 
@@ -261,16 +243,20 @@ class Framework(object):
         args = parser.parse_args(args=args)
         if args.config is None and args.model is None:
             parser.error('at least one of --config or --model options must be set')
+
         if args.model_storage_read is None:
             args.model_storage_read = args.model_storage
         if args.model_storage_write is None:
             args.model_storage_write = args.model_storage
-        if (not self._stateless
-            and (args.cmd != 'preprocess' or args.build_model)
-            and (args.model_storage_write is None or args.model_storage_write is None)):
+
+        self._model_storage = args.model_storage
+        self._model_storage_read = args.model_storage_read
+        self._model_storage_write = args.model_storage_write
+
+        if not self._stateless and \
+           (args.cmd != 'preprocess' or args.build_model) and \
+           (self._model_storage_write is None or self._model_storage_write is None):
             parser.error('Missing model storage argument')
-        if args.task_id is None:
-            args.task_id = str(uuid.uuid4())
 
         # for backward compatibility - convert singleton in int
         args.gpuid = args.gpuid.split(',')
@@ -278,24 +264,14 @@ class Framework(object):
         if len(args.gpuid) == 1:
             args.gpuid = args.gpuid[0]
 
-        start_beat_service(
-            os.uname()[1],
-            args.beat_url,
-            args.task_id,
-            interval=args.beat_interval)
-
         config = load_config(args.config) if args.config is not None else {}
         parent_model = args.model or config.get('model')
 
-        storage = StorageClient(
-            tmp_dir=self._tmp_dir,
-            config=load_config(args.storage_config) if args.storage_config else None)
-
         if parent_model is not None and not self._stateless:
             # Download model locally and merge the configuration.
-            remote_model_path = storage.join(args.model_storage_read, parent_model)
+            remote_model_path = self._storage.join(self._model_storage_read, parent_model)
             model_path = os.path.join(self._models_dir, parent_model)
-            fetch_model(storage, remote_model_path, model_path)
+            fetch_model(self._storage, remote_model_path, model_path)
             with open(os.path.join(model_path, 'config.json'), 'r') as config_file:
                 model_config = json.load(config_file)
             if 'modelType' not in model_config:
@@ -309,16 +285,15 @@ class Framework(object):
             model_config = None
 
         if args.cmd == 'train':
-            if (parent_model is not None
-                and config['modelType'] not in ('checkpoint', 'base', 'preprocess')):
+            if parent_model is not None and config['modelType'] not in ('checkpoint', 'base', 'preprocess'):
                 raise ValueError('cannot train from a model that is not a training checkpoint, '
                                  'a base model, or a preprocess model')
             self.train_wrapper(
-                args.task_id,
+                self._task_id,
                 config,
-                storage,
-                args.model_storage_write,
-                args.image,
+                self._storage,
+                self._model_storage_write,
+                self._image,
                 parent_model=parent_model,
                 model_path=model_path,
                 model_config=model_config,
@@ -326,58 +301,54 @@ class Framework(object):
                 push_model=not args.no_push)
         elif args.cmd == 'buildvocab':
             self.build_vocab(
-                args.task_id,
+                self._task_id,
                 config,
-                storage,
-                args.model_storage_write,
-                args.image,
+                self._storage,
+                self._model_storage_write,
+                self._image,
                 push_model=not args.no_push)
         elif args.cmd == 'trans':
-            if (not self._stateless
-                and (parent_model is None or config['modelType'] != 'checkpoint')):
+            if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('translation requires a training checkpoint')
             self.trans_wrapper(
                 config,
                 model_path,
-                storage,
+                self._storage,
                 args.input,
                 args.output,
                 as_release=args.as_release,
                 gpuid=args.gpuid)
         elif args.cmd == 'release':
-            if (not self._stateless
-                and (parent_model is None or config['modelType'] != 'checkpoint')):
+            if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('releasing requires a training checkpoint')
             if args.destination is None:
-                args.destination = args.model_storage_write
+                args.destination = self._model_storage_write
             self.release_wrapper(
                 config,
                 model_path,
-                storage,
-                args.image,
+                self._storage,
+                self._image,
                 args.destination,
                 gpuid=args.gpuid,
                 push_model=not args.no_push)
         elif args.cmd == 'serve':
-            if (not self._stateless
-                and (parent_model is None or config['modelType'] != 'release')):
+            if not self._stateless and (parent_model is None or config['modelType'] != 'release'):
                 raise ValueError('serving requires a released model')
             self.serve_wrapper(
                 config, model_path, args.host, args.port, gpuid=args.gpuid)
         elif args.cmd == 'preprocess':
             if not args.build_model:
-                self.preprocess(config, storage)
+                self.preprocess(config, self._storage)
             else:
-                if (parent_model is not None
-                    and config['modelType'] not in ('checkpoint', 'base')):
+                if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
                     raise ValueError('cannot preprocess from a model that is not a training '
                                      'checkpoint or a base model')
                 self.preprocess_into_model(
-                    args.task_id,
+                    self._task_id,
                     config,
-                    storage,
-                    args.model_storage_write,
-                    args.image,
+                    self._storage,
+                    self._model_storage_write,
+                    self._image,
                     parent_model=parent_model,
                     model_path=model_path,
                     push_model=not args.no_push)
@@ -581,7 +552,7 @@ class Framework(object):
             self._generate_training_data(local_config))
 
         end_time = time.time()
-        logger.info('Finished preprocessing data in %s seconds into %s', 
+        logger.info('Finished preprocessing data in %s seconds into %s',
                     str(end_time-start_time), data_dir)
 
     def preprocess_into_model(self,
@@ -798,45 +769,6 @@ class Framework(object):
             build_info['cumSentenceCount'] = (
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
-
-
-def load_config(config_arg):
-    """Loads the configuration from a string, a file, or the standard input."""
-    if config_arg.startswith('{'):
-        return json.loads(config_arg)
-    elif config_arg == '-':
-        return json.loads(sys.stdin.read())
-    else:
-        with open(config_arg) as config_file:
-            return json.load(config_file)
-
-def merge_config(a, b):
-    """Merges config b in a."""
-    return merge_dict(a, b)
-
-def getenv(m):
-    var = m.group(1)
-    if var == 'TRAIN_DIR':
-        var = 'CORPUS_DIR'
-    elif 'TRAIN_' in var:
-        var = var.replace('TRAIN_', '')
-    return os.getenv(var, '')
-
-def resolve_environment_variables(config):
-    """Returns a new configuration with all environment variables replaced."""
-    if isinstance(config, dict):    
-        new_config = {}
-        for k, v in six.iteritems(config):
-            new_config[k] = resolve_environment_variables(v)
-        return new_config
-    elif isinstance(config, list):
-        new_config = []
-        for i, _ in enumerate(config):
-            new_config.append(resolve_environment_variables(config[i]))
-        return new_config
-    elif isinstance(config, six.string_types):
-        return ENVVAR_RE.sub(lambda m: getenv(m), config)
-    return config
 
 def map_config_fn(config, fn):
     if isinstance(config, list):
