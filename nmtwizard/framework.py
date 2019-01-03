@@ -33,7 +33,6 @@ class Framework(Utility):
     """Base class for frameworks."""
 
     def __init__(self, stateless=False, support_multi_training_files=False):
-        super(Framework, self).__init__()
         """Initializes the framework.
 
         Args:
@@ -43,6 +42,9 @@ class Framework(Utility):
             training API receiving a data directory as argument and additional per file
             metadata.
         """
+
+        super(Framework, self).__init__()
+
         self._stateless = stateless
         self._support_multi_training_files = support_multi_training_files
         self._models_dir = os.getenv('MODELS_DIR', '/root/models')
@@ -249,7 +251,6 @@ class Framework(Utility):
         if args.model_storage_write is None:
             args.model_storage_write = args.model_storage
 
-        self._model_storage = args.model_storage
         self._model_storage_read = args.model_storage_read
         self._model_storage_write = args.model_storage_write
 
