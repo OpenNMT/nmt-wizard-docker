@@ -22,3 +22,15 @@ def merge_files_in_directory(input_dir, output_dir, src_suffix, tgt_suffix):
     tgt_files = sorted(os.path.join(input_dir, f) for f in files if f.endswith(tgt_suffix))
     merge_files(src_files, os.path.join(output_dir, 'train.%s' % src_suffix))
     merge_files(tgt_files, os.path.join(output_dir, 'train.%s' % tgt_suffix))
+
+def paste_files(input_files, output_file, separator='\t'):
+    input_fhs = [open(f, 'rb') for f in input_files]
+    output_fb = open(output_file, 'wb')
+    while True:
+        line = []
+        for fh in input_fhs:
+            line.append(fh.readline())
+        if '' in line:
+            break
+
+        output_fb.write('%s\n' % separator.join([s.strip() for s in line]))
