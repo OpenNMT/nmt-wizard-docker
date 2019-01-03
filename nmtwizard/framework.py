@@ -44,6 +44,7 @@ class Framework(Utility):
         """
 
         super(Framework, self).__init__()
+
         self._stateless = stateless
         self._support_multi_training_files = support_multi_training_files
         self._models_dir = os.getenv('MODELS_DIR', '/root/models')
