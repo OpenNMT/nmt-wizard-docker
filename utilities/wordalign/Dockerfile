@@ -15,6 +15,10 @@ RUN git clone https://github.com/clab/fast_align.git
 WORKDIR /root/fast_align
 RUN mkdir build ; cd build ; cmake .. ; make
 
-ENV PATH /root/fast_align/build
+WORKDIR /root
+ENV PATH /root/fast_align/build:${PATH}
+
+ADD nmtwizard /root/nmtwizard
+ADD utilities/wordalign/entrypoint.py /root
 
 ENTRYPOINT ["python", "entrypoint.py"]
