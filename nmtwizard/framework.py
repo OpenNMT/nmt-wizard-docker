@@ -7,21 +7,15 @@ import json
 import argparse
 import time
 import filecmp
-import shutil
 import re
-import uuid
-import sys
 import six
 
-from nmtwizard.beat_service import start_beat_service
 from nmtwizard.logger import get_logger
-from nmtwizard.utils import md5files
 from nmtwizard.sampler import sample
-from nmtwizard.storage import StorageClient
-from nmtwizard.utility import Utility, load_config, merge_config, resolve_environment_variables
+from nmtwizard.utility import Utility, merge_config, resolve_environment_variables
+from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
 from nmtwizard import serving
-from nmtwizard import data
 from nmtwizard import tokenizer
 
 
@@ -198,23 +192,6 @@ class Framework(Utility):
     def exec_function(self, args):
         """Main entrypoint."""
         parser = argparse.ArgumentParser()
-        parser.add_argument('-ms', '--model_storage', default=None,
-                            help='Model storage in the form <storage_id>:[<path>].')
-        parser.add_argument('-msr', '--model_storage_read', default=None,
-                            help=('Model storage to read from, in the form <storage_id>:[<path>] '
-                                  '(defaults to model_storage).'))
-        parser.add_argument('-msw', '--model_storage_write', default=None,
-                            help=('Model storage to write to, in the form <storage_id>:[<path>] '
-                                  '(defaults to model_storage).'))
-        parser.add_argument('-c', '--config', default=None,
-                            help=('Configuration as a file or a JSON string. '
-                                  'Setting "-" will read from the standard input.'))
-        parser.add_argument('-m', '--model', default=None,
-                            help='Model to load.')
-        parser.add_argument('-g', '--gpuid', default="0",
-                            help="Comma-separated list of 1-indexed GPU identifiers (0 for CPU).")
-        parser.add_argument('--no_push', default=False, action='store_true',
-                            help='Do not push model.')
 
         subparsers = parser.add_subparsers(help='Run type', dest='cmd')
         parser_train = subparsers.add_parser('train', help='Run a training.')
@@ -243,36 +220,23 @@ class Framework(Utility):
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
         args = parser.parse_args(args=args)
-        if args.config is None and args.model is None:
+        if self._config is None and self._model is None:
             parser.error('at least one of --config or --model options must be set')
 
-        if args.model_storage_read is None:
-            args.model_storage_read = args.model_storage
-        if args.model_storage_write is None:
-            args.model_storage_write = args.model_storage
-
-        self._model_storage_read = args.model_storage_read
-        self._model_storage_write = args.model_storage_write
+        config = {} if self._config is None else self._config
 
         if not self._stateless and \
            (args.cmd != 'preprocess' or args.build_model) and \
            (self._model_storage_write is None or self._model_storage_write is None):
             parser.error('Missing model storage argument')
 
-        # for backward compatibility - convert singleton in int
-        args.gpuid = args.gpuid.split(',')
-        args.gpuid = [int(g) for g in args.gpuid]
-        if len(args.gpuid) == 1:
-            args.gpuid = args.gpuid[0]
-
-        config = load_config(args.config) if args.config is not None else {}
-        parent_model = args.model or config.get('model')
+        parent_model = self._model or config.get('model')
 
         if parent_model is not None and not self._stateless:
             # Download model locally and merge the configuration.
             remote_model_path = self._storage.join(self._model_storage_read, parent_model)
             model_path = os.path.join(self._models_dir, parent_model)
-            fetch_model(self._storage, remote_model_path, model_path)
+            fetch_model(self._storage, remote_model_path, model_path, should_check_integrity)
             with open(os.path.join(model_path, 'config.json'), 'r') as config_file:
                 model_config = json.load(config_file)
             if 'modelType' not in model_config:
@@ -298,8 +262,8 @@ class Framework(Utility):
                 parent_model=parent_model,
                 model_path=model_path,
                 model_config=model_config,
-                gpuid=args.gpuid,
-                push_model=not args.no_push)
+                gpuid=self._gpuid,
+                push_model=not self._no_push)
         elif args.cmd == 'buildvocab':
             self.build_vocab(
                 self._task_id,
@@ -307,7 +271,7 @@ class Framework(Utility):
                 self._storage,
                 self._model_storage_write,
                 self._image,
-                push_model=not args.no_push)
+                push_model=not self._no_push)
         elif args.cmd == 'trans':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('translation requires a training checkpoint')
@@ -318,7 +282,7 @@ class Framework(Utility):
                 args.input,
                 args.output,
                 as_release=args.as_release,
-                gpuid=args.gpuid)
+                gpuid=self._gpuid)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('releasing requires a training checkpoint')
@@ -330,13 +294,13 @@ class Framework(Utility):
                 self._storage,
                 self._image,
                 args.destination,
-                gpuid=args.gpuid,
-                push_model=not args.no_push)
+                gpuid=self._gpuid,
+                push_model=not self._no_push)
         elif args.cmd == 'serve':
             if not self._stateless and (parent_model is None or config['modelType'] != 'release'):
                 raise ValueError('serving requires a released model')
             self.serve_wrapper(
-                config, model_path, args.host, args.port, gpuid=args.gpuid)
+                config, model_path, args.host, args.port, gpuid=self._gpuid)
         elif args.cmd == 'preprocess':
             if not args.build_model:
                 self.preprocess(config, self._storage)
@@ -352,7 +316,7 @@ class Framework(Utility):
                     self._image,
                     parent_model=parent_model,
                     model_path=model_path,
-                    push_model=not args.no_push)
+                    push_model=not self._no_push)
 
     def train_wrapper(self,
                       model_id,
@@ -435,7 +399,7 @@ class Framework(Utility):
         # Build and push the model package.
         bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config)
+        build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
@@ -463,7 +427,7 @@ class Framework(Utility):
 
         bundle_dependencies(objects, config)
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config)
+        build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
@@ -528,7 +492,7 @@ class Framework(Utility):
             if name in config:
                 del config[name]
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config)
+        build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(destination, model_id))
 
@@ -609,7 +573,7 @@ class Framework(Utility):
                 if f not in objects:
                     objects[f] = os.path.join(model_path, f)
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config)
+        build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
@@ -685,16 +649,6 @@ class Framework(Utility):
             tokenizer.detokenize_file(tgt_tokenizer, target, output)
             return output
         return target
-
-    def _merge_multi_training_files(self, data_path, train_dir, source, target):
-        merged_dir = os.path.join(self._data_dir, 'merged')
-        if not os.path.exists(merged_dir):
-            os.mkdir(merged_dir)
-        merged_path = os.path.join(merged_dir, train_dir)
-        logger.info('Merging training data to %s/train.{%s,%s}',
-                    merged_path, source, target)
-        data.merge_files_in_directory(data_path, merged_path, source, target)
-        return merged_path
 
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:
@@ -810,46 +764,3 @@ def extract_model_resources(objects, config):
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
     return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data')
-
-def build_model_dir(model_dir, objects, config):
-    """Prepares the model directory based on the model package."""
-    if os.path.exists(model_dir):
-        raise ValueError("model directory %s already exists" % model_dir)
-    else:
-        logger.info("Building model package in %s", model_dir)
-    os.mkdir(model_dir)
-    for target, source in six.iteritems(objects):
-        if os.path.isdir(source):
-            shutil.copytree(source, os.path.join(model_dir, target))
-        else:
-            shutil.copyfile(source, os.path.join(model_dir, target))
-    config_path = os.path.join(model_dir, 'config.json')
-    with open(config_path, 'w') as config_file:
-        json.dump(config, config_file)
-    objects['config.json'] = config_path
-    if "description" in config:
-        readme_path = os.path.join(model_dir, 'README.md')
-        with open(readme_path, 'w') as readme_file:
-            readme_file.write(config['description'])
-        objects['README.md'] = readme_path
-    md5 = md5files((k, v) for k, v in six.iteritems(objects) if should_check_integrity(k))
-    with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
-        f.write(md5)
-
-def check_model_dir(model_dir):
-    """Compares model package MD5."""
-    logger.info("Checking integrity of model package %s", model_dir)
-    md5_file = os.path.join(model_dir, "checksum.md5")
-    if not os.path.exists(md5_file):
-        return True
-    md5ref = None
-    with open(md5_file, "r") as f:
-        md5ref = f.read().strip()
-    files = os.listdir(model_dir)
-    md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if should_check_integrity(f)])
-    return md5check == md5ref
-
-def fetch_model(storage, remote_model_path, model_path):
-    """Downloads the remote model."""
-    storage.get(remote_model_path, model_path, directory=True, check_integrity_fn=check_model_dir)
-    os.environ['MODEL_DIR'] = model_path
