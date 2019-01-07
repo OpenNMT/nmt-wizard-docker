@@ -22,7 +22,7 @@ ADD utilities/similarity/requirements.txt /root
 RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ARG SIMILARITY_URL
-ENV SIMILARITY_URL=${SIMILARITY_URL:-https://github.com/jsenellart/similarity.git}
+ENV SIMILARITY_URL=${SIMILARITY_URL:-https://github.com/systran/similarity.git}
 ARG SIMILARITY_REF
 ENV SIMILARITY_REF=${SIMILARITY_REF:-master}
 
