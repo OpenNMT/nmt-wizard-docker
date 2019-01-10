@@ -9,6 +9,8 @@ import paramiko
 import scp
 import boto3
 
+from collections import Counter
+
 from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
@@ -126,6 +128,10 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
 
+    def ls(self, remote_path, storage_id=None):
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        return client.ls(remote_path)
+
 
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
@@ -143,10 +149,22 @@ class Storage(object):
 
     @abc.abstractmethod
     def get(self, remote_path, local_path, directory=False):
+        """Get a file or a directory from a storage to a local file
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def stream(self, remote_path, buffer_size=1024):
+        """return an iterator
+        """
         raise NotImplementedError()
 
     @abc.abstractmethod
     def push(self, local_path, remote_path):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def ls(self, remote_path):
         raise NotImplementedError()
 
 
@@ -161,6 +179,13 @@ class LocalStorage(Storage):
             shutil.copytree(remote_path, local_path)
         else:
             shutil.copy(remote_path, local_path)
+
+    def stream(self, remote_path, buffer_size=1024):
+        with open(remote_path, "rb") as f:
+            def generate():
+                for chunk in iter(lambda: body.read(buffer_size), b''):
+                    yield chunk
+            return generate()
 
     def push(self, local_path, remote_path):
         self.get(local_path, remote_path, directory=os.path.isdir(local_path))
@@ -188,6 +213,49 @@ class RemoteStorage(Storage):
         client.get(remote_path, local_path, recursive=directory)
         client.close()
 
+    def stream(self, remote_path, buffer_size=1024):
+        client = self._connect()
+        channel = client._open()
+        channel.settimeout(client.socket_timeout)
+        channel.exec_command("scp -f " + client.sanitize(scp.asbytes(remote_path)))
+        while not channel.closed:
+            # wait for command as long as we're open
+            channel.sendall('\x00')
+            msg = channel.recv(1024)
+            if not msg:  # chan closed while recving
+                break
+            assert msg[-1:] == b'\n'
+            msg = msg[:-1]
+            code = msg[0:1]
+            # recv file
+            if code == "C":
+                cmd = msg[1:]
+                parts = cmd.strip().split(b' ', 2)
+                mode = int(parts[0], 8)
+                size = int(parts[1])
+                remote_file = parts[2]
+
+                channel.send(b'\x00')
+                try:
+                    def generate():
+                        buff_size = buffer_size
+                        pos = 0
+                        while pos < size:
+                            # we have to make sure we don't read the final byte
+                            if size - pos <= buff_size:
+                                buff_size = size - pos
+                            s = channel.recv(buff_size)
+                            pos += len(s)
+                            yield s
+                        msg = channel.recv(512)
+                        if msg and msg[0:1] != b'\x00':
+                            raise scp.SCPException(scp.asunicode(msg[1:]))
+                        client.close()
+                    return generate()
+                except SocketTimeout:
+                    channel.close()
+                    raise scp.SCPException('Error receiving, socket.timeout')
+
     def push(self, local_path, remote_path):
         client = self._connect()
         client.put(local_path, remote_path, recursive=os.path.isdir(local_path))
@@ -206,8 +274,9 @@ class S3Storage(Storage):
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_access_key,
                 region_name=region_name)
-        s3 = session.resource('s3')
-        self._bucket = s3.Bucket(bucket_name)
+        self._s3 = session.resource('s3')
+        self._bucket_name = bucket_name
+        self._bucket = self._s3.Bucket(bucket_name)
 
     def get(self, remote_path, local_path, directory=False):
         if not directory:
@@ -238,6 +307,31 @@ class S3Storage(Storage):
                     relative_path = os.path.relpath(path, local_path)
                     s3_path = os.path.join(remote_path, relative_path)
                     self._bucket.upload_file(path, s3_path)
+
+    def stream(self, remote_path, buffer_size=1024):
+        body = self._s3.Object(self._bucket_name, remote_path).get()['Body']
+
+        def generate():
+            for chunk in iter(lambda: body.read(buffer_size), b''):
+                yield chunk
+
+        return generate()
+
+    def ls(self, remote_path):
+        objects = list(self._bucket.objects.filter(
+                             Prefix=remote_path
+                        ))
+        firstlevel = Counter()
+        for obj in objects:
+            path = obj.key
+            p = path.find('/', len(remote_path)+1)
+            if p != -1:
+                path = path[0:p]
+                firstlevel[path] += 1
+            else:
+                firstlevel[path] = 0
+        return dict((k, v) for k, v in six.iteritems(firstlevel))
+
 
 class HTTPStorage(Storage):
     """Simple http file-only storage."""
@@ -271,6 +365,17 @@ class HTTPStorage(Storage):
                 path = f["path"]
                 self.get(os.path.join(remote_path, path), os.path.join(local_path, path))
 
+    def stream(self, remote_path, buffer_size=1024):
+        res = requests.get(self._pattern_get % remote_path, stream=True)
+        if res.status_code != 200:
+            raise RuntimeError('cannot not get %s (response code %d)' % (remote_path, res.status_code))
+
+        def generate():
+            for chunk in res.iter_content(chunk_size=buffer_size, decode_unicode=None):
+                yield chunk
+
+        return generate()
+
     def push(self, local_path, remote_path):
         if self._pattern_push is None:
             raise ValueError('http storage %s can not handle post requests' % self._storage_id)
@@ -287,3 +392,6 @@ class HTTPStorage(Storage):
                         res.status_code))
         else:
             raise NotImplementedError('http storage can not handle directories')
+
+    def ls(self, remote_path):
+        raise NotImplementedError()

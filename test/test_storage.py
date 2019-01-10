@@ -25,3 +25,13 @@ def test_http_storage_get_dir(tmpdir):
         assert local_dir.check()
         assert local_dir.join("checkpoint").join("model.bin").read() == "model"
         assert local_dir.join("config.json").read() == "config"
+
+
+def test_http_stream(tmpdir):
+    http = storage.HTTPStorage("0", "http://www.ovh.net/files/%s")
+    size = 0
+    nchunk = 0
+    for chunk in http.stream("1Mio.dat"):
+        size += len(chunk)
+        nchunk += 1
+    assert size == 1024*1024 and nchunk == 1024
