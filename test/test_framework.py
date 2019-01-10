@@ -41,7 +41,7 @@ class DummyCheckpoint(object):
 
     def objects(self):
         assert self.exists()
-        return {os.path.basename(path):path for path in self._files}
+        return {os.path.basename(path): path for path in self._files}
 
     def build(self, index):
         if not os.path.exists(self._model_dir):

@@ -265,4 +265,4 @@ def _align(src_tokens, tgt_tokens, attention):
     return alignments
 
 def _process_is_running(process):
-    return process is not None and process.poll() == None
+    return process is not None and process.poll() is None
