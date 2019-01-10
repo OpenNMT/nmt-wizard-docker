@@ -169,7 +169,6 @@ class Storage(object):
         """
         raise NotImplementedError()
 
-    @abc.abstractmethod
     def ls(self, remote_path):
         """Return a dictionary with all files in the remote directory
         """
@@ -400,6 +399,3 @@ class HTTPStorage(Storage):
                         res.status_code))
         else:
             raise NotImplementedError('http storage can not handle directories')
-
-    def ls(self, remote_path):
-        raise NotImplementedError()
