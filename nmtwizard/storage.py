@@ -131,9 +131,9 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         return client.ls(remote_path, recursive)
 
-    def delete(self, remote_path, directory=False, storage_id=None):
+    def delete(self, remote_path, recursive=False, storage_id=None):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-        return client.delete(remote_path, directory)
+        return client.delete(remote_path, recursive)
 
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
@@ -176,7 +176,7 @@ class Storage(object):
         """
         raise NotImplementedError()
 
-    def delete(self, remote_path, directory=False):
+    def delete(self, remote_path, recursive=False):
         """Delete a file or a directory from a storage
         """
         raise NotImplementedError()
@@ -204,15 +204,35 @@ class LocalStorage(Storage):
     def push(self, local_path, remote_path):
         self.get(local_path, remote_path, directory=os.path.isdir(local_path))
 
-    def delete(self, remote_path, directory=False):
-        if directory:
+    def delete(self, remote_path, recursive=False):
+        if recursive:
             if not os.path.isdir(remote_path):
-                raise ValueError("%s is not a directory" % remote_path)
-            shutil.rmtree(remote_path, ignore_errors=True)
+                os.remove(remote_path)
+            else:
+                shutil.rmtree(remote_path, ignore_errors=True)
         else:
             if not os.path.isfile(remote_path):
                 raise ValueError("%s is not a file" % remote_path)
             os.remove(remote_path)
+
+    def ls(self, remote_path, recursive=False):
+        listfile = []
+        if not os.path.isdir(remote_path):
+            raise ValueError("%s is not a directory" % remote_path)
+
+        def getfiles(path):
+            for f in os.listdir(path):
+                fullpath = os.path.join(path, f)
+                if os.path.isdir(fullpath):
+                    if recursive:
+                        getfiles(fullpath)
+                    else:
+                        listfile.append(fullpath+'/')
+                else:
+                    listfile.append(fullpath)
+
+        getfiles(remote_path)
+        return listfile
 
 
 class RemoteStorage(Storage):
@@ -249,7 +269,7 @@ class RemoteStorage(Storage):
         client = self._connectSCPClient()
         channel = client._open()
         channel.settimeout(client.socket_timeout)
-        channel.exec_command("scp -f " + client.sanitize(scp.asbytes(remote_path))) # nosec
+        channel.exec_command("scp -f " + client.sanitize(scp.asbytes(remote_path)))  # nosec
         while not channel.closed:
             # wait for command as long as we're open
             channel.sendall('\x00')
@@ -293,8 +313,7 @@ class RemoteStorage(Storage):
         client.put(local_path, remote_path, recursive=os.path.isdir(local_path))
         client.close()
 
-    def ls(self, remote_path, recursive=False):
-        client = self._connectSFTPClient()
+    def _ls(self, client, remote_path, recursive=False):
         listfile = []
 
         def getfiles(path):
@@ -308,8 +327,22 @@ class RemoteStorage(Storage):
                     listfile.append(os.path.join(path, f.filename))
 
         getfiles(remote_path)
-        client.close()
         return listfile
+
+    def ls(self, remote_path, recursive=False):
+        client = self._connectSFTPClient()
+        listfile = self._ls(client, remote_path, recursive)
+        return listfile
+
+    def delete(self, remote_path, recursive=False):
+        client = self._connectSFTPClient()
+        f = client.lstat(remote_path)
+        if S_ISDIR(f):
+            if not recursive:
+                raise ValueError("non recursive delete can not delete directory")
+            client.rmdir(remote_path)
+        else:
+            client.remove(remote_path)
 
 
 class S3Storage(Storage):
@@ -380,9 +413,9 @@ class S3Storage(Storage):
                 lsdir[path] = 0
         return lsdir.keys()
 
-    def delete(self, remote_path, directory=False):
+    def delete(self, remote_path, recursive=False):
         lsdir = self.ls(remote_path)
-        if directory:
+        if recursive:
             if remote_path in lsdir or not lsdir:
                 raise ValueError("%s is not a directory" % remote_path)
         else:

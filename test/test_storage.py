@@ -105,5 +105,17 @@ def test_local_storage(tmpdir):
 
     with pytest.raises(ValueError):
         storages.delete(str(tmpdir.join("localdir")))
-    storages.delete(str(tmpdir.join("localdir")), directory=True)
+    storages.delete(str(tmpdir.join("localdir")), recursive=True)
     assert not os.path.exists(str(tmpdir.join("localdir")))
+
+
+def test_local_ls(tmpdir):
+    s3 = storage.LocalStorage()
+    with pytest.raises(Exception):
+        lsdir = s3.ls(str(pytest.config.rootdir / "nothinghere"))
+    lsdir = s3.ls(str(pytest.config.rootdir / "corpus"))
+    assert len(lsdir) == 2
+    assert str(pytest.config.rootdir / "corpus" / "train")+"/" in lsdir
+    assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
+    lsdirrec = s3.ls(str(pytest.config.rootdir / "corpus"), True)
+    assert len(lsdirrec) > len(lsdir)
