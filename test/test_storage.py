@@ -109,37 +109,3 @@ def test_local_storage(tmpdir):
     assert not os.path.exists(str(tmpdir.join("localdir")))
 
 
-def test_s3_ls(tmpdir):
-    s3 = storage.S3Storage("0", "pn9-training")
-    lsdir = s3.ls("en_fr")
-    assert lsdir
-    lsdirrec = s3.ls("en_fr", True)
-    assert len(lsdirrec) > len(lsdir)
-    lsdir = s3.ls("nofilehere")
-    assert not lsdir
-
-def test_ssh_ls(tmpdir):
-    s3 = storage.RemoteStorage("1", "localhost", "senellart", "patKas1")
-    lsdir = s3.ls("Downloads/test")
-    assert lsdir == [u'Downloads/test/trr/', u'Downloads/test/uuu']
-    lsdir = s3.ls("Downloads/test", True)
-    assert lsdir == [u'Downloads/test/trr/pppuuu', u'Downloads/test/uuu']
-
-def test_s3_stream(tmpdir):
-    s3 = storage.S3Storage("0", "pn9-training")
-    size = 0
-    nchunk = 0
-    for chunk in s3.stream("ar_en/train/btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz"):
-        size += len(chunk)
-        nchunk += 1
-    assert size == 5609 and nchunk == 6
-
-def test_s3_get(tmpdir):
-    s3 = storage.S3Storage("0", "pn9-training")
-    s3.get("ar_en/train/btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz", str(tmpdir.join("file")))
-    assert os.path.isfile(str(tmpdir.join("file")))
-    os.mkdir(str(tmpdir.join("model0")))
-    s3.get("ar_en/train/btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz", str(tmpdir.join("model0")))
-    assert os.path.isfile(str(tmpdir
-                              .join("model0")
-                              .join("btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz")))
