@@ -157,6 +157,11 @@ class Storage(object):
         """
         raise NotImplementedError()
 
+    def delete(self, remote_path, directory=False):
+        """Delete a file or a directory from a storage
+        """
+        raise NotImplementedError()
+
     @abc.abstractmethod
     def stream(self, remote_path, buffer_size=1024):
         """return a generator on a remote file

@@ -5,6 +5,7 @@ import shutil
 import json
 import copy
 import six
+import pytest
 
 from nmtwizard.framework import Framework
 
@@ -125,7 +126,7 @@ def _read_config(model_dir):
         return json.load(config_file)
 
 def _test_dir():
-    return os.path.dirname(os.path.realpath(__file__))
+    return str(pytest.config.rootdir)
 
 def _setup_env(tmpdir, corpus_env=True):
     tmpdir = str(tmpdir)

@@ -1,5 +1,6 @@
 import os
 import requests_mock
+import pytest
 
 from nmtwizard import storage
 
@@ -35,3 +36,94 @@ def test_http_stream(tmpdir):
         size += len(chunk)
         nchunk += 1
     assert size == 1024*1024 and nchunk == 1024
+
+
+def test_storage_manager(tmpdir):
+    config = {
+                "s3_models": {
+                    "description": "model storage on S3",
+                    "type": "s3",
+                    "bucket": "my-model-storage",
+                    "aws_credentials": {
+                        "access_key_id": "AAAAAAAAAAAAAAAAAAAA",
+                        "secret_access_key": "abcdefghijklmnopqrstuvwxyz0123456789ABCD",
+                        "region_name": "us-east-2"
+                    },
+                    "default_ms": True
+                },
+                "s3_test": {
+                    "description": "some test files",
+                    "type": "s3",
+                    "bucket": "my-testfiles-storage",
+                    "aws_credentials": {
+                        "access_key_id": "AAAAAAAAAAAAAAAAAAAA",
+                        "secret_access_key": "abcdefghijklmnopqrstuvwxyz0123456789ABCD",
+                        "region_name": "us-east-2"
+                    }
+                },
+                "launcher": {
+                    "description": "launcher file storage",
+                    "type": "http",
+                    "get_pattern": "hereget/%s",
+                    "post_pattern": "herepost/%s"
+                }
+    }
+    storages = storage.StorageClient(config=config, tmp_dir=str(tmpdir))
+    s3_models_storage, path = storages._get_storage("s3_models:pathdir/mysupermodel")
+    assert isinstance(s3_models_storage, storage.S3Storage)
+    assert path == "pathdir/mysupermodel"
+    assert s3_models_storage._storage_id == "s3_models"
+
+    s3_models_storage, path = storages._get_storage("pathdir/mysupermodel", "s3_models")
+    assert isinstance(s3_models_storage, storage.S3Storage)
+
+    local_storage, path = storages._get_storage("/pathdir/mysupermodel")
+    assert isinstance(local_storage, storage.LocalStorage)
+    assert local_storage._storage_id == "local"
+
+    http_storage, path = storages._get_storage("launcher:/hereget/mysupermodel")
+    assert isinstance(http_storage, storage.HTTPStorage)
+    with pytest.raises(ValueError):
+        storages._get_storage("unknown:/hereget/mysupermodel")
+
+
+def test_local_storage(tmpdir):
+    storages = storage.StorageClient(tmp_dir=str(tmpdir))
+    corpus_dir = str(pytest.config.rootdir / "corpus")
+    storages.get(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"), str(tmpdir.join("localcopy")))
+    assert os.path.isfile(str(tmpdir.join("localcopy")))
+
+    # cannot transfer directory if not in remote mode
+    with pytest.raises(Exception):
+        storages.get(corpus_dir, str(tmpdir.join("localdir")))
+
+    storages.get(corpus_dir, str(tmpdir.join("localdir")), directory=True)
+    assert os.path.isfile(str(tmpdir.join("localdir", "train", "europarl-v7.de-en.10K.tok.de")))
+
+
+def test_s3_ls(tmpdir):
+    s3 = storage.S3Storage("0", "pn9-training")
+    ls = s3.ls("en_fr")
+    assert len(ls) > 0
+    ls = s3.ls("nofilehere")
+    assert len(ls) == 0
+
+
+def test_s3_stream(tmpdir):
+    s3 = storage.S3Storage("0", "pn9-training")
+    size = 0
+    nchunk = 0
+    for chunk in s3.stream("ar_en/train/btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz"):
+        size += len(chunk)
+        nchunk += 1
+    assert size == 5609 and nchunk == 6
+
+def test_s3_get(tmpdir):
+    s3 = storage.S3Storage("0", "pn9-training")
+    s3.get("ar_en/train/btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz", str(tmpdir.join("file")))
+    assert os.path.isfile(str(tmpdir.join("file")))
+    os.mkdir(str(tmpdir.join("model0")))
+    s3.get("ar_en/train/btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz", str(tmpdir.join("model0")))
+    assert os.path.isfile(str(tmpdir
+                              .join("model0")
+                              .join("btxt_2dir_ar-DZ-en-YY_Dialog__27090-tatoeba-DZ.ar.gz")))
