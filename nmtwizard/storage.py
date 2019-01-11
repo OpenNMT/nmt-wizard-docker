@@ -135,6 +135,14 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         return client.delete(remote_path, recursive)
 
+    def rename(self, old_remote_path, new_remote_path, storage_id=None):
+        client_old, old_remote_path = self._get_storage(old_remote_path, storage_id=storage_id)
+        client_new, new_remote_path = self._get_storage(new_remote_path, storage_id=storage_id)
+        if client_old._storage_id != client_new._storage_id:
+            raise ValueError('rename on different storages')
+        return client_old.rename(old_remote_path, new_remote_path)
+
+
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
     """Abstract class for storage implementations."""
@@ -177,6 +185,11 @@ class Storage(object):
         raise NotImplementedError()
 
     def delete(self, remote_path, recursive=False):
+        """Delete a file or a directory from a storage
+        """
+        raise NotImplementedError()
+
+    def rename(self, old_remote_path, new_remote_path):
         """Delete a file or a directory from a storage
         """
         raise NotImplementedError()
@@ -233,6 +246,9 @@ class LocalStorage(Storage):
 
         getfiles(remote_path)
         return listfile
+
+    def rename(self, old_remote_path, new_remote_path):
+        os.rename(old_remote_path, new_remote_path)
 
 
 class RemoteStorage(Storage):
@@ -332,6 +348,7 @@ class RemoteStorage(Storage):
     def ls(self, remote_path, recursive=False):
         client = self._connectSFTPClient()
         listfile = self._ls(client, remote_path, recursive)
+        client.close()
         return listfile
 
     def delete(self, remote_path, recursive=False):
@@ -343,6 +360,12 @@ class RemoteStorage(Storage):
             client.rmdir(remote_path)
         else:
             client.remove(remote_path)
+        client.close()
+
+    def rename(self, old_remote_path, new_remote_path):
+        client = self._connectSFTPClient()
+        client.posix_rename(old_remote_path, new_remote_path)
+        client.close()
 
 
 class S3Storage(Storage):
@@ -425,6 +448,10 @@ class S3Storage(Storage):
         for key in lsdir:
             self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=key)
 
+    def rename(self, old_remote_path, new_remote_path):
+        self._s3.Object(self._bucket_name, old_remote_path).copy_from(CopySource='%s/%s' % (self._bucket_name,
+                                                                                            new_remote_path))
+        self._s3.Object(self._bucket_name, old_remote_path).delete()
 
 class HTTPStorage(Storage):
     """Simple http file-only storage."""

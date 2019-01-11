@@ -93,8 +93,12 @@ def test_local_storage(tmpdir):
     storages.get(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"), str(tmpdir.join("localcopy")))
     assert os.path.isfile(str(tmpdir.join("localcopy")))
 
-    storages.delete(str(tmpdir.join("localcopy")))
+    storages.rename(str(tmpdir.join("localcopy")), str(tmpdir.join("localcopy2")))
     assert not os.path.exists(str(tmpdir.join("localcopy")))
+    assert os.path.isfile(str(tmpdir.join("localcopy2")))
+
+    storages.delete(str(tmpdir.join("localcopy2")))
+    assert not os.path.exists(str(tmpdir.join("localcopy2")))
 
     # cannot transfer directory if not in remote mode
     with pytest.raises(Exception):
