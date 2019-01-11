@@ -189,10 +189,7 @@ class Framework(Utility):
                 model_path=model_path,
                 gpuid=gpuid)
 
-    def exec_function(self, args):
-        """Main entrypoint."""
-        parser = argparse.ArgumentParser()
-
+    def declare_arguments(self, parser):
         subparsers = parser.add_subparsers(help='Run type', dest='cmd')
         parser_train = subparsers.add_parser('train', help='Run a training.')
 
@@ -219,7 +216,8 @@ class Framework(Utility):
                                        help='Preprocess data into a model.')
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
-        args = parser.parse_args(args=args)
+    def exec_function(self, args):
+        """Main entrypoint."""
         if self._config is None and self._model is None:
             parser.error('at least one of --config or --model options must be set')
 

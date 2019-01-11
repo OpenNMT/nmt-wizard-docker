@@ -84,6 +84,10 @@ class Utility(object):
         raise NotImplementedError()
 
     @abc.abstractmethod
+    def declare_arguments(self, parser):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
     def exec_function(self, args):
         """Launch the utility with provided params
         """
@@ -123,8 +127,7 @@ class Utility(object):
         parser.add_argument('--no_push', default=False, action='store_true',
                             help='Do not push model.')
 
-        parser.add_argument('utility_args', nargs=argparse.REMAINDER, help=self._parser.format_usage())
-
+        self.declare_arguments(parser)
         args = parser.parse_args(args=args)
 
         if args.task_id is None:
@@ -163,11 +166,10 @@ class Utility(object):
         self._model = args.model
         self._no_push = args.no_push
 
-        logger.info('Starting executing utility %s=%s with args [%s]',
-                    self.name, args.image, " ".join(args.utility_args))
+        logger.info('Starting executing utility %s=%s', self.name, args.image)
         start_time = time.time()
 
-        self.exec_function(args.utility_args)
+        self.exec_function(args)
 
         end_time = time.time()
         logger.info('Finished executing utility in %s seconds', str(end_time-start_time))
