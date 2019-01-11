@@ -8,8 +8,7 @@ import six
 import paramiko
 import scp
 import boto3
-
-from collections import Counter
+from stat import S_ISDIR
 
 from nmtwizard.logger import get_logger
 
@@ -128,10 +127,13 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
 
-    def ls(self, remote_path, storage_id=None):
+    def ls(self, remote_path, recursive=False, storage_id=None):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-        return client.ls(remote_path)
+        return client.ls(remote_path, recursive)
 
+    def delete(self, remote_path, directory=False, storage_id=None):
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        return client.delete(remote_path, directory)
 
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
@@ -157,11 +159,6 @@ class Storage(object):
         """
         raise NotImplementedError()
 
-    def delete(self, remote_path, directory=False):
-        """Delete a file or a directory from a storage
-        """
-        raise NotImplementedError()
-
     @abc.abstractmethod
     def stream(self, remote_path, buffer_size=1024):
         """return a generator on a remote file
@@ -174,8 +171,13 @@ class Storage(object):
         """
         raise NotImplementedError()
 
-    def ls(self, remote_path):
+    def ls(self, remote_path, recursive=False):
         """Return a dictionary with all files in the remote directory
+        """
+        raise NotImplementedError()
+
+    def delete(self, remote_path, directory=False):
+        """Delete a file or a directory from a storage
         """
         raise NotImplementedError()
 
@@ -202,6 +204,16 @@ class LocalStorage(Storage):
     def push(self, local_path, remote_path):
         self.get(local_path, remote_path, directory=os.path.isdir(local_path))
 
+    def delete(self, remote_path, directory=False):
+        if directory:
+            if not os.path.isdir(remote_path):
+                raise ValueError("%s is not a directory" % remote_path)
+            shutil.rmtree(remote_path, ignore_errors=True)
+        else:
+            if not os.path.isfile(remote_path):
+                raise ValueError("%s is not a file" % remote_path)
+            os.remove(remote_path)
+
 
 class RemoteStorage(Storage):
     """Storage on a remote SSH server."""
@@ -218,15 +230,23 @@ class RemoteStorage(Storage):
         ssh_client.load_system_host_keys()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh_client.connect(self._server, self._port, self._user, self._password)
+        return ssh_client
+
+    def _connectSCPClient(self):
+        ssh_client = self._connect()
         return scp.SCPClient(ssh_client.get_transport())
 
+    def _connectSFTPClient(self):
+        ssh_client = self._connect()
+        return ssh_client.open_sftp()
+
     def get(self, remote_path, local_path, directory=False):
-        client = self._connect()
+        client = self._connectSCPClient()
         client.get(remote_path, local_path, recursive=directory)
         client.close()
 
     def stream(self, remote_path, buffer_size=1024):
-        client = self._connect()
+        client = self._connectSCPClient()
         channel = client._open()
         channel.settimeout(client.socket_timeout)
         channel.exec_command("scp -f " + client.sanitize(scp.asbytes(remote_path)))
@@ -269,9 +289,27 @@ class RemoteStorage(Storage):
                     raise scp.SCPException('Error receiving, socket.timeout')
 
     def push(self, local_path, remote_path):
-        client = self._connect()
+        client = self._connectSCPClient()
         client.put(local_path, remote_path, recursive=os.path.isdir(local_path))
         client.close()
+
+    def ls(self, remote_path, recursive=False):
+        client = self._connectSFTPClient()
+        listfile = []
+
+        def getfiles(path):
+            for f in client.listdir_attr(path=path):
+                if S_ISDIR(f.st_mode):
+                    if recursive:
+                        getfiles(os.path.join(path, f.filename))
+                    else:
+                        listfile.append(os.path.join(path, f.filename)+'/')
+                else:
+                    listfile.append(os.path.join(path, f.filename))
+
+        getfiles(remote_path)
+        client.close()
+        return listfile
 
 
 class S3Storage(Storage):
@@ -329,20 +367,30 @@ class S3Storage(Storage):
 
         return generate()
 
-    def ls(self, remote_path):
-        objects = list(self._bucket.objects.filter(
-                             Prefix=remote_path
-                        ))
-        firstlevel = Counter()
+    def ls(self, remote_path, recursive=False):
+        objects = list(self._bucket.objects.filter(Prefix=remote_path))
+        lsdir = {}
         for obj in objects:
             path = obj.key
             p = path.find('/', len(remote_path)+1)
-            if p != -1:
-                path = path[0:p]
-                firstlevel[path] += 1
+            if not recursive and p != -1:
+                path = path[0:p+1]
+                lsdir[path] = 1
             else:
-                firstlevel[path] = 0
-        return dict((k, v) for k, v in six.iteritems(firstlevel))
+                lsdir[path] = 0
+        return lsdir.keys()
+
+    def delete(self, remote_path, directory=False):
+        lsdir = self.ls(remote_path)
+        if directory:
+            if remote_path in lsdir or len(lsdir) == 0:
+                raise ValueError("%s is not a directory" % remote_path)
+        else:
+            if remote_path not in lsdir:
+                raise ValueError("%s is not a file" % remote_path)
+
+        for key in lsdir:
+            self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=key)
 
 
 class HTTPStorage(Storage):

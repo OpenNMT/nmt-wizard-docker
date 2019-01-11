@@ -93,6 +93,9 @@ def test_local_storage(tmpdir):
     storages.get(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"), str(tmpdir.join("localcopy")))
     assert os.path.isfile(str(tmpdir.join("localcopy")))
 
+    storages.delete(str(tmpdir.join("localcopy")))
+    assert not os.path.exists(str(tmpdir.join("localcopy")))
+
     # cannot transfer directory if not in remote mode
     with pytest.raises(Exception):
         storages.get(corpus_dir, str(tmpdir.join("localdir")))
@@ -100,14 +103,27 @@ def test_local_storage(tmpdir):
     storages.get(corpus_dir, str(tmpdir.join("localdir")), directory=True)
     assert os.path.isfile(str(tmpdir.join("localdir", "train", "europarl-v7.de-en.10K.tok.de")))
 
+    with pytest.raises(ValueError):
+        storages.delete(str(tmpdir.join("localdir")))
+    storages.delete(str(tmpdir.join("localdir")), directory=True)
+    assert not os.path.exists(str(tmpdir.join("localdir")))
+
 
 def test_s3_ls(tmpdir):
     s3 = storage.S3Storage("0", "pn9-training")
-    ls = s3.ls("en_fr")
-    assert len(ls) > 0
-    ls = s3.ls("nofilehere")
-    assert len(ls) == 0
+    lsdir = s3.ls("en_fr")
+    assert lsdir
+    lsdirrec = s3.ls("en_fr", True)
+    assert len(lsdirrec) > len(lsdir)
+    lsdir = s3.ls("nofilehere")
+    assert not lsdir
 
+def test_ssh_ls(tmpdir):
+    s3 = storage.RemoteStorage("1", "localhost", "senellart", "patKas1")
+    lsdir = s3.ls("Downloads/test")
+    assert lsdir == [u'Downloads/test/trr/', u'Downloads/test/uuu']
+    lsdir = s3.ls("Downloads/test", True)
+    assert lsdir == [u'Downloads/test/trr/pppuuu', u'Downloads/test/uuu']
 
 def test_s3_stream(tmpdir):
     s3 = storage.S3Storage("0", "pn9-training")

@@ -5,7 +5,6 @@ import shutil
 import json
 import copy
 import six
-import pytest
 
 from nmtwizard.framework import Framework
 

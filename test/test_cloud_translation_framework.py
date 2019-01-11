@@ -2,6 +2,7 @@ import sys
 import os
 import pytest
 import filecmp
+import pytest
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -37,7 +38,7 @@ def _test_framework(tmpdir, framework_class):
     assert _count_lines(input_path) == _count_lines(output_path)
 
 def _test_real_framework(tmpdir, directory):
-    testdir = os.path.dirname(os.path.realpath(__file__))
+    testdir = os.path.dirname(str(pytest.config.rootdir))
     sys.path.insert(0, os.path.join(testdir, "..", "frameworks", directory))
     import entrypoint
     class_name = None
