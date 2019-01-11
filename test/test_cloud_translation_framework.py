@@ -2,7 +2,6 @@ import sys
 import os
 import pytest
 import filecmp
-import pytest
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 

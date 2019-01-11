@@ -249,7 +249,7 @@ class RemoteStorage(Storage):
         client = self._connectSCPClient()
         channel = client._open()
         channel.settimeout(client.socket_timeout)
-        channel.exec_command("scp -f " + client.sanitize(scp.asbytes(remote_path)))
+        channel.exec_command("scp -f " + client.sanitize(scp.asbytes(remote_path))) # nosec
         while not channel.closed:
             # wait for command as long as we're open
             channel.sendall('\x00')
@@ -383,7 +383,7 @@ class S3Storage(Storage):
     def delete(self, remote_path, directory=False):
         lsdir = self.ls(remote_path)
         if directory:
-            if remote_path in lsdir or len(lsdir) == 0:
+            if remote_path in lsdir or not lsdir:
                 raise ValueError("%s is not a directory" % remote_path)
         else:
             if remote_path not in lsdir:
