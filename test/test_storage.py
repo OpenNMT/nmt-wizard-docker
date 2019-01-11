@@ -107,5 +107,3 @@ def test_local_storage(tmpdir):
         storages.delete(str(tmpdir.join("localdir")))
     storages.delete(str(tmpdir.join("localdir")), directory=True)
     assert not os.path.exists(str(tmpdir.join("localdir")))
-
-
