@@ -31,15 +31,18 @@ class LocalStorage(Storage):
     def push(self, local_path, remote_path):
         if self._basedir:
             remote_path = os.path.join(self._basedir, remote_path)
-        if remote_path.endswith('/') or os.path.isdir(remote_path):
-            remote_path = os.path.join(remote_path, os.path.basename(local_path))
-        dirname = os.path.dirname(remote_path)
-        if os.path.exists(dirname):
-            if not os.path.isdir(dirname):
-                raise ValueError("%s is not a directory" % dirname)
+        if os.path.isdir(local_path):
+            shutil.copytree(local_path, remote_path)
         else:
-            os.makedirs(dirname)
-        self.get(local_path, remote_path, directory=os.path.isdir(local_path))
+            if remote_path.endswith('/') or os.path.isdir(remote_path):
+                remote_path = os.path.join(remote_path, os.path.basename(local_path))
+            dirname = os.path.dirname(remote_path)
+            if os.path.exists(dirname):
+                if not os.path.isdir(dirname):
+                    raise ValueError("%s is not a directory" % dirname)
+            else:
+                os.makedirs(dirname)
+            shutil.copy(local_path, remote_path)
 
     def delete(self, remote_path, recursive=False):
         if self._basedir:

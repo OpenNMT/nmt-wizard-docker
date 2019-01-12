@@ -169,7 +169,7 @@ def test_storages(tmpdir):
                                   storage_id=storage_id)
             # pushing a full directory
             storage_client.push(os.path.join(corpus_dir, "vocab"),
-                                "myremotedirectory",
+                                os.path.join("myremotedirectory", "vocab"),
                                 storage_id=storage_id)
             # getting a file back into local temp directory
             storage_client.get(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),

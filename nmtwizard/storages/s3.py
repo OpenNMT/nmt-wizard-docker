@@ -40,6 +40,8 @@ class S3Storage(Storage):
 
     def push(self, local_path, remote_path):
         if os.path.isfile(local_path):
+            if remote_path.endswith('/') or self.exists(remote_path+'/'):
+                remote_path = os.path.join(remote_path, os.path.basename(local_path))
             self._bucket.upload_file(local_path, remote_path)
         else:
             for root, _, files in os.walk(local_path):
@@ -72,7 +74,7 @@ class S3Storage(Storage):
         return lsdir.keys()
 
     def delete(self, remote_path, recursive=False):
-        lsdir = self.ls(remote_path)
+        lsdir = self.ls(remote_path, recursive)
         if recursive:
             if remote_path in lsdir or not lsdir:
                 raise ValueError("%s is not a directory" % remote_path)
@@ -84,6 +86,14 @@ class S3Storage(Storage):
             self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=key)
 
     def rename(self, old_remote_path, new_remote_path):
-        self._s3.Object(self._bucket_name, old_remote_path).copy_from(CopySource='%s/%s' % (self._bucket_name,
-                                                                                            new_remote_path))
+        self._s3.Object(self._bucket_name, new_remote_path).copy_from(CopySource='%s/%s' % (self._bucket_name,
+                                                                                            old_remote_path))
         self._s3.Object(self._bucket_name, old_remote_path).delete()
+
+    def exists(self, remote_path):
+        result = self._bucket.objects.filter(Prefix=remote_path)
+        try:
+            obj = iter(result).next()
+        except StopIteration:
+            return False
+        return obj.key == remote_path or obj.key.startswith(remote_path+"/")
