@@ -27,6 +27,7 @@ class StorageClient(object):
         """
         self._config = config
         self._tmp_dir = tmp_dir
+        self._storages = {}
 
     def _get_storage(self, path, storage_id=None):
         """Returns the storage implementation based on storage_id or infer it
@@ -41,29 +42,36 @@ class StorageClient(object):
                 path = fields[1]
 
         if storage_id is not None:
-            if self._config is None or storage_id not in self._config:
-                raise ValueError('unknown storage identifier %s' % storage_id)
-            config = self._config[storage_id]
-            if config['type'] == 's3':
-                credentials = config.get('aws_credentials', {})
-                client = S3Storage(storage_id,
-                                   config['bucket'],
-                                   access_key_id=credentials.get('access_key_id'),
-                                   secret_access_key=credentials.get('secret_access_key'),
-                                   region_name=credentials.get('region_name'))
-            elif config['type'] == 'ssh':
-                client = RemoteStorage(storage_id,
-                                       config['server'],
-                                       config['user'],
-                                       config['password'],
-                                       port=config.get('port', 22))
-            elif config['type'] == 'http':
-                client = HTTPStorage(storage_id,
-                                     config['get_pattern'],
-                                     pattern_push=config.get('post_pattern'),
-                                     pattern_list=config.get('list_pattern'))
+            if storage_id not in self._storages:
+                if self._config is None or storage_id not in self._config:
+                    raise ValueError('unknown storage identifier %s' % storage_id)
+                config = self._config[storage_id]
+                if config['type'] == 's3':
+                    credentials = config.get('aws_credentials', {})
+                    client = S3Storage(storage_id,
+                                       config['bucket'],
+                                       access_key_id=credentials.get('access_key_id'),
+                                       secret_access_key=credentials.get('secret_access_key'),
+                                       region_name=credentials.get('region_name'))
+                elif config['type'] == 'ssh':
+                    client = RemoteStorage(storage_id,
+                                           config['server'],
+                                           config['user'],
+                                           config['password'],
+                                           port=config.get('port', 22))
+                elif config['type'] == 'http':
+                    client = HTTPStorage(storage_id,
+                                         config['get_pattern'],
+                                         pattern_push=config.get('post_pattern'),
+                                         pattern_list=config.get('list_pattern'))
+                elif config['type'] == 'local':
+                    client = LocalStorage(storage_id,
+                                          basedir=config.get("basedir"))
+                else:
+                    raise ValueError('unsupported storage type %s for %s' % (config['type'], storage_id))
+                self._storages[storage_id] = client
             else:
-                raise ValueError('unsupported storage type %s for %s' % (config['type'], storage_id))
+                client = self._storages[storage_id]
         else:
             client = LocalStorage()
 
@@ -101,6 +109,8 @@ class StorageClient(object):
         elif not directory and os.path.isfile(local_path):
             logger.warning('File %s already exists', local_path)
         else:
+            if not directory and os.path.isdir(local_path):
+                local_path = os.path.join(local_path, os.path.basename(remote_path))
             tmp_path = os.path.join(self._tmp_dir, os.path.basename(local_path))
             logger.info('Downloading %s to %s through tmp %s', remote_path, local_path, tmp_path)
             client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
@@ -117,6 +127,10 @@ class StorageClient(object):
                 shutil.move(tmp_path, local_path)
         if check_integrity_fn is not None and not check_integrity_fn(local_path):
             raise RuntimeError('integrity check failed on %s' % local_path)
+
+    def stream(self, remote_path, buffer_size=1024, storage_id=None):
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        return client.stream(remote_path, buffer_size)
 
     def push(self, local_path, remote_path, storage_id=None):
         if not os.path.exists(local_path):
@@ -142,6 +156,9 @@ class StorageClient(object):
             raise ValueError('rename on different storages')
         return client_old.rename(old_remote_path, new_remote_path)
 
+    def exists(self, remote_path, storage_id=None):
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        return client.exists(remote_path)
 
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
@@ -194,30 +211,53 @@ class Storage(object):
         """
         raise NotImplementedError()
 
+    def exists(self, remote_path):
+        """Check if path is existing
+        """
+        raise NotImplementedError()
+
 
 class LocalStorage(Storage):
     """Storage using the local filesystem."""
 
-    def __init__(self):
-        super(LocalStorage, self).__init__("local")
+    def __init__(self, storage_id=None, basedir=None):
+        super(LocalStorage, self).__init__(storage_id or "local")
+        self._basedir = basedir
 
     def get(self, remote_path, local_path, directory=False):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         if directory:
             shutil.copytree(remote_path, local_path)
         else:
             shutil.copy(remote_path, local_path)
 
     def stream(self, remote_path, buffer_size=1024):
-        with open(remote_path, "rb") as f:
-            def generate():
-                for chunk in iter(lambda: body.read(buffer_size), b''):
-                    yield chunk
-            return generate()
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
+
+        def generate():
+                with open(remote_path, "rb") as f:
+                    for chunk in iter(lambda: f.read(buffer_size), b''):
+                        yield chunk
+        return generate()
 
     def push(self, local_path, remote_path):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
+        if remote_path.endswith('/') or os.path.isdir(remote_path):
+            remote_path = os.path.join(remote_path, os.path.basename(local_path))
+        dirname = os.path.dirname(remote_path)
+        if os.path.exists(dirname):
+            if not os.path.isdir(dirname):
+                raise ValueError("%s is not a directory" % dirname)
+        else:
+            os.makedirs(dirname)
         self.get(local_path, remote_path, directory=os.path.isdir(local_path))
 
     def delete(self, remote_path, recursive=False):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         if recursive:
             if not os.path.isdir(remote_path):
                 os.remove(remote_path)
@@ -229,6 +269,8 @@ class LocalStorage(Storage):
             os.remove(remote_path)
 
     def ls(self, remote_path, recursive=False):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         listfile = []
         if not os.path.isdir(remote_path):
             raise ValueError("%s is not a directory" % remote_path)
@@ -236,50 +278,95 @@ class LocalStorage(Storage):
         def getfiles(path):
             for f in os.listdir(path):
                 fullpath = os.path.join(path, f)
+                rel_fullpath = fullpath
+                if self._basedir:
+                    rel_fullpath = os.path.relpath(fullpath, self._basedir)
                 if os.path.isdir(fullpath):
                     if recursive:
                         getfiles(fullpath)
                     else:
-                        listfile.append(fullpath+'/')
+                        listfile.append(rel_fullpath+'/')
                 else:
-                    listfile.append(fullpath)
+                    listfile.append(rel_fullpath)
 
         getfiles(remote_path)
+
         return listfile
 
     def rename(self, old_remote_path, new_remote_path):
+        if self._basedir:
+            old_remote_path = os.path.join(self._basedir, old_remote_path)
+        if self._basedir:
+            new_remote_path = os.path.join(self._basedir, new_remote_path)
         os.rename(old_remote_path, new_remote_path)
+
+    def exists(self, remote_path):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
+        return os.path.exists(remote_path)
 
 
 class RemoteStorage(Storage):
-    """Storage on a remote SSH server."""
+    """Storage on a remote SSH server.
+       Connect with user/password or user/privatekey
+    """
 
-    def __init__(self, storage_id, server, user, password, port=22):
+    def __init__(self, storage_id, server, user, password, pkey=None, port=22):
         super(RemoteStorage, self).__init__(storage_id)
         self._server = server
         self._user = user
         self._password = password
+        if pkey is not None:
+            private_key_file = io.StringIO()
+            private_key_file.write('-----BEGIN RSA PRIVATE KEY-----\n%s\n'
+                                   '-----END RSA PRIVATE KEY-----\n' % pkey)
+            private_key_file.seek(0)
+            try:
+                pkey = paramiko.RSAKey.from_private_key(private_key_file)
+            except Exception as e:
+                raise RuntimeError("cannot parse private key (%s)" % str(e))
+        self._pkey = pkey
         self._port = port
+        self._sshclient = None
+        self._scpclient = None
+        self._sftpclient = None
+
+    def __del__(self):
+        if self._scpclient:
+            self._scpclient.close()
+        if self._sftpclient:
+            self._scpclient.close()
+        if self._sshclient:
+            self._sshclient.close()
 
     def _connect(self):
-        ssh_client = paramiko.SSHClient()
-        ssh_client.load_system_host_keys()
-        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(self._server, self._port, self._user, self._password)
-        return ssh_client
+        if self._sshclient is None:
+            self._ssh_client = paramiko.SSHClient()
+            self._ssh_client.load_system_host_keys()
+            self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            self._ssh_client.connect(self._server,
+                                     port=self._port,
+                                     username=self._user,
+                                     password=self._password,
+                                     pkey=self._pkey,
+                                     look_for_keys=False)
+        return self._ssh_client
 
     def _connectSCPClient(self):
-        ssh_client = self._connect()
-        return scp.SCPClient(ssh_client.get_transport())
+        if self._scpclient is None:
+            ssh_client = self._connect()
+            self._scpclient = scp.SCPClient(ssh_client.get_transport())
+        return self._scpclient
 
     def _connectSFTPClient(self):
-        ssh_client = self._connect()
-        return ssh_client.open_sftp()
+        if self._sftpclient is None:
+            ssh_client = self._connect()
+            self._sftpclient = ssh_client.open_sftp()
+        return self._sftpclient
 
     def get(self, remote_path, local_path, directory=False):
         client = self._connectSCPClient()
         client.get(remote_path, local_path, recursive=directory)
-        client.close()
 
     def stream(self, remote_path, buffer_size=1024):
         client = self._connectSCPClient()
@@ -327,7 +414,6 @@ class RemoteStorage(Storage):
     def push(self, local_path, remote_path):
         client = self._connectSCPClient()
         client.put(local_path, remote_path, recursive=os.path.isdir(local_path))
-        client.close()
 
     def _ls(self, client, remote_path, recursive=False):
         listfile = []
@@ -348,7 +434,6 @@ class RemoteStorage(Storage):
     def ls(self, remote_path, recursive=False):
         client = self._connectSFTPClient()
         listfile = self._ls(client, remote_path, recursive)
-        client.close()
         return listfile
 
     def delete(self, remote_path, recursive=False):
@@ -360,12 +445,10 @@ class RemoteStorage(Storage):
             client.rmdir(remote_path)
         else:
             client.remove(remote_path)
-        client.close()
 
     def rename(self, old_remote_path, new_remote_path):
         client = self._connectSFTPClient()
         client.posix_rename(old_remote_path, new_remote_path)
-        client.close()
 
 
 class S3Storage(Storage):

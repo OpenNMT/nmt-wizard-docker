@@ -1,6 +1,7 @@
 import os
 import requests_mock
 import pytest
+import json
 
 from nmtwizard import storage
 
@@ -123,3 +124,110 @@ def test_local_ls(tmpdir):
     assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
     lsdirrec = s3.ls(str(pytest.config.rootdir / "corpus"), True)
     assert len(lsdirrec) > len(lsdir)
+
+def test_storages(tmpdir):
+    with open(str(pytest.config.rootdir / "conftest.json")) as f:
+        config = json.load(f)
+    corpus_dir = str(pytest.config.rootdir / "corpus")
+    if "storages" in config:
+        with open(os.path.join(corpus_dir, "vocab", "en-vocab.txt")) as f:
+            en_vocab = f.read()
+
+        storage_client = storage.StorageClient(tmp_dir=str(tmpdir), config=config["storages"])
+        for storage_id in config["storages"]:
+            stor_tmp_dir = str(tmpdir.join("test_storages", storage_id))
+            os.makedirs(stor_tmp_dir)
+            # checking the main directory is here
+            maindir_exists = storage_client.exists(os.path.join("myremotedirectory"),
+                                                   storage_id=storage_id)
+            # first deleting directory - if it exists
+            try:
+                storage_client.delete(os.path.join("myremotedirectory"),
+                                      recursive=True,
+                                      storage_id=storage_id)
+            except Exception:
+                assert not maindir_exists, "cannot remove main directory"
+            # checking the directory is not there anymore
+            assert not storage_client.exists(os.path.join("myremotedirectory"),
+                                             storage_id=storage_id)
+            # pushing a file to a directory
+            storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                                "myremotedirectory/",
+                                storage_id=storage_id)
+            # checking directory and files are created
+            assert storage_client.exists(os.path.join("myremotedirectory"),
+                                         storage_id=storage_id)
+            assert storage_client.exists(os.path.join("myremotedirectory", "europarl-v7.de-en.10K.tok.de"),
+                                         storage_id=storage_id)
+            # pushing a file to a new file
+            storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                                os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
+                                storage_id=storage_id)
+            # renaming a file
+            storage_client.rename(os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
+                                  os.path.join("myremotedirectory", "test", "copy2-europarl-v7.de-en.10K.tok.de"),
+                                  storage_id=storage_id)
+            # pushing a full directory
+            storage_client.push(os.path.join(corpus_dir, "vocab"),
+                                "myremotedirectory",
+                                storage_id=storage_id)
+            # getting a file back into local temp directory
+            storage_client.get(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
+                               os.path.join(stor_tmp_dir),
+                               storage_id=storage_id)
+            print stor_tmp_dir
+            assert os.path.isfile(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+            with open(os.path.join(stor_tmp_dir, "en-vocab.txt")) as f:
+                back_en_vocab = f.read()
+            assert back_en_vocab == en_vocab
+            # getting an inexisting file
+            with pytest.raises(Exception):
+                storage_client.get(os.path.join("myremotedirectory", "vocab", "truc"),
+                                   os.path.join(stor_tmp_dir),
+                                   storage_id=storage_id)
+            # streaming a file back
+            size = 0
+            nchunk = 0
+            generator = storage_client.stream(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
+                                              buffer_size=100,
+                                              storage_id=storage_id)
+            for chunk in generator:
+                size += len(chunk)
+                nchunk += 1
+            assert size == len(en_vocab)
+            assert nchunk == int(len(en_vocab)/100.+0.99999)
+            # deleting a file
+            storage_client.delete(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
+                                  storage_id=storage_id)
+            assert not storage_client.exists(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
+                                             storage_id=storage_id)
+            # checking ls
+            lsdir = sorted(storage_client.ls(os.path.join("myremotedirectory"),
+                                             storage_id=storage_id))
+            assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
+                             'myremotedirectory/test/',
+                             'myremotedirectory/vocab/']
+            # checking ls
+            lsdir = sorted(storage_client.ls(os.path.join("myremotedirectory"),
+                                             recursive=True,
+                                             storage_id=storage_id))
+            assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
+                             'myremotedirectory/test/copy2-europarl-v7.de-en.10K.tok.de',
+                             'myremotedirectory/vocab/de-vocab.txt']
+            # getting directory back
+            with pytest.raises(Exception):
+                storage_client.get(os.path.join("myremotedirectory"),
+                                   os.path.join(stor_tmp_dir),
+                                   storage_id=storage_id)
+            storage_client.get(os.path.join("myremotedirectory"),
+                               os.path.join(stor_tmp_dir, "myremotedirectory"),
+                               directory=True,
+                               storage_id=storage_id)
+            local_listdir = sorted(os.listdir(os.path.join(stor_tmp_dir, "myremotedirectory")))
+            # deleting full directory
+            storage_client.delete(os.path.join("myremotedirectory"),
+                                  recursive=True,
+                                  storage_id=storage_id)
+            # checking directory is not there anymore
+            assert not storage_client.exists(os.path.join("myremotedirectory"),
+                                             storage_id=storage_id)
