@@ -88,8 +88,8 @@ class S3Storage(Storage):
             self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=key)
 
     def rename(self, old_remote_path, new_remote_path):
-        for object in self._bucket.objects.filter(Prefix=old_remote_path):
-            srcKey = object.key
+        for obj in self._bucket.objects.filter(Prefix=old_remote_path):
+            srcKey = obj.key
             if not srcKey.endswith('/'):
                 copySource = self._bucket_name + '/' + srcKey
                 if srcKey == old_remote_path:
