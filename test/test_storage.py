@@ -219,7 +219,6 @@ def test_storages(tmpdir, storages, storage_id):
     lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
                                           recursive=True,
                                           storage_id=storage_id))
-    print lsdir
     assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
                      'myremotedirectory/test/copy2-europarl-v7.de-en.10K.tok.de',
                      'myremotedirectory/vocab-2/de-vocab.txt']
