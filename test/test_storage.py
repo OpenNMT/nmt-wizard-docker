@@ -177,7 +177,7 @@ def test_storages(tmpdir):
                                os.path.join(stor_tmp_dir),
                                storage_id=storage_id)
             assert os.path.isfile(os.path.join(stor_tmp_dir, "en-vocab.txt"))
-            with open(os.path.join(stor_tmp_dir, "en-vocab.txt")) as f:
+            with open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "rb") as f:
                 back_en_vocab = f.read()
             assert back_en_vocab == en_vocab
             # getting an inexisting file
