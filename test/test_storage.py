@@ -118,12 +118,12 @@ def test_local_storage(tmpdir):
 def test_local_ls(tmpdir):
     s3 = storage.LocalStorage()
     with pytest.raises(Exception):
-        lsdir = s3.ls(str(pytest.config.rootdir / "nothinghere"))
-    lsdir = s3.ls(str(pytest.config.rootdir / "corpus"))
+        lsdir = s3.listdir(str(pytest.config.rootdir / "nothinghere"))
+    lsdir = s3.listdir(str(pytest.config.rootdir / "corpus"))
     assert len(lsdir) == 2
     assert str(pytest.config.rootdir / "corpus" / "train")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
-    lsdirrec = s3.ls(str(pytest.config.rootdir / "corpus"), True)
+    lsdirrec = s3.listdir(str(pytest.config.rootdir / "corpus"), True)
     assert len(lsdirrec) > len(lsdir)
 
 def test_storages(tmpdir):
@@ -202,13 +202,13 @@ def test_storages(tmpdir):
             assert not storage_client.exists(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
                                              storage_id=storage_id)
             # checking ls
-            lsdir = sorted(storage_client.ls(os.path.join("myremotedirectory"),
+            lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
                                              storage_id=storage_id))
             assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
                              'myremotedirectory/test/',
                              'myremotedirectory/vocab/']
             # checking ls
-            lsdir = sorted(storage_client.ls(os.path.join("myremotedirectory"),
+            lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
                                              recursive=True,
                                              storage_id=storage_id))
             assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',

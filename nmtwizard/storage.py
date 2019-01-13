@@ -10,7 +10,7 @@ from nmtwizard.storages.ssh import RemoteStorage
 from nmtwizard.storages.s3 import S3Storage
 from nmtwizard.storages.http import HTTPStorage
 
-logger = get_logger(__name__)
+LOGGER = get_logger(__name__)
 
 
 class StorageClient(object):
@@ -78,11 +78,12 @@ class StorageClient(object):
     def join(self, path, *paths):
         """Joins the paths according to the storage implementation."""
         client, rel_path = self._get_storage(path)
+
         if rel_path == path:
             return client.join(path, *paths)
-        else:
-            prefix, _ = path.split(':')
-            return '%s:%s' % (prefix, client.join(rel_path, *paths))  # Only join the actual path.
+
+        prefix, _ = path.split(':')
+        return '%s:%s' % (prefix, client.join(rel_path, *paths))  # Only join the actual path.
 
     def split(self, path):
         """Splits the path according to the storage implementation."""
@@ -91,9 +92,11 @@ class StorageClient(object):
 
     # Simple wrappers around get().
     def get_file(self, remote_path, local_path, storage_id=None):
+        """Retrieves a file from remote_path to local_path."""
         return self.get(remote_path, local_path, directory=False, storage_id=storage_id)
 
     def get_directory(self, remote_path, local_path, storage_id=None):
+        """Retrieves a full directory from remote_path to local_path."""
         return self.get(remote_path, local_path, directory=True, storage_id=storage_id)
 
     def get(self,
@@ -102,15 +105,16 @@ class StorageClient(object):
             directory=False,
             storage_id=None,
             check_integrity_fn=None):
+        """Retrieves file or directory from remote_path to local_path."""
         if directory and os.path.isdir(local_path):
-            logger.warning('Directory %s already exists', local_path)
+            LOGGER.warning('Directory %s already exists', local_path)
         elif not directory and os.path.isfile(local_path):
-            logger.warning('File %s already exists', local_path)
+            LOGGER.warning('File %s already exists', local_path)
         else:
             if not directory and os.path.isdir(local_path):
                 local_path = os.path.join(local_path, os.path.basename(remote_path))
             tmp_path = os.path.join(self._tmp_dir, os.path.basename(local_path))
-            logger.info('Downloading %s to %s through tmp %s', remote_path, local_path, tmp_path)
+            LOGGER.info('Downloading %s to %s through tmp %s', remote_path, local_path, tmp_path)
             client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
             client.get(remote_path, tmp_path, directory=directory)
             if not os.path.exists(tmp_path):
@@ -119,7 +123,7 @@ class StorageClient(object):
                 raise RuntimeError('integrity check failed on %s' % tmp_path)
             # in meantime, the file might have been copied
             if os.path.exists(local_path):
-                logger.warning('File/Directory created while copying - taking copy')
+                LOGGER.warning('File/Directory created while copying - taking copy')
             else:
                 check_integrity_fn = None  # No need to check again.
                 shutil.move(tmp_path, local_path)
@@ -127,33 +131,46 @@ class StorageClient(object):
             raise RuntimeError('integrity check failed on %s' % local_path)
 
     def stream(self, remote_path, buffer_size=1024, storage_id=None):
+        """Returns a generator to stream a remote_path file.
+        `buffer_size` is the maximal size of each chunk
+        """
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         return client.stream(remote_path, buffer_size)
 
     def push(self, local_path, remote_path, storage_id=None):
+        """Pushes a local_path file or directory to storage."""
         if not os.path.exists(local_path):
             raise RuntimeError('%s not found' % local_path)
         if local_path == remote_path:
             return
-        logger.info('Uploading %s to %s', local_path, remote_path)
+        LOGGER.info('Uploading %s to %s', local_path, remote_path)
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
 
-    def ls(self, remote_path, recursive=False, storage_id=None):
+    def listdir(self, remote_path, recursive=False, storage_id=None):
+        """Lists of the files on a storage:
+        * if `recursive` returns all of the files present recursively in the directory
+        * if not `recursive` returns only first level, directory are indicated with trailing '/'
+        """
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-        return client.ls(remote_path, recursive)
+        return client.listdir(remote_path, recursive)
 
     def delete(self, remote_path, recursive=False, storage_id=None):
+        """Deletes a file or directory from a storage."""
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         return client.delete(remote_path, recursive)
 
     def rename(self, old_remote_path, new_remote_path, storage_id=None):
+        """Renames a file or directory on storage from old_remote_path to new_remote_path."""
         client_old, old_remote_path = self._get_storage(old_remote_path, storage_id=storage_id)
         client_new, new_remote_path = self._get_storage(new_remote_path, storage_id=storage_id)
+
         if client_old._storage_id != client_new._storage_id:
             raise ValueError('rename on different storages')
+
         return client_old.rename(old_remote_path, new_remote_path)
 
     def exists(self, remote_path, storage_id=None):
+        """Checks if file or directory exists on storage."""
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         return client.exists(remote_path)

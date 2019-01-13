@@ -1,7 +1,9 @@
+"""Definition of `local` storage class"""
+
 import shutil
 import os
 
-from generic import Storage
+from nmtwizard.storages.generic import Storage
 
 class LocalStorage(Storage):
     """Storage using the local filesystem."""
@@ -23,9 +25,10 @@ class LocalStorage(Storage):
             remote_path = os.path.join(self._basedir, remote_path)
 
         def generate():
-                with open(remote_path, "rb") as f:
-                    for chunk in iter(lambda: f.read(buffer_size), b''):
-                        yield chunk
+            """generator function to stream local file"""
+            with open(remote_path, "rb") as f:
+                for chunk in iter(lambda: f.read(buffer_size), b''):
+                    yield chunk
         return generate()
 
     def push(self, local_path, remote_path):
@@ -57,14 +60,15 @@ class LocalStorage(Storage):
                 raise ValueError("%s is not a file" % remote_path)
             os.remove(remote_path)
 
-    def ls(self, remote_path, recursive=False):
+    def listdir(self, remote_path, recursive=False):
         if self._basedir:
             remote_path = os.path.join(self._basedir, remote_path)
         listfile = []
         if not os.path.isdir(remote_path):
             raise ValueError("%s is not a directory" % remote_path)
 
-        def getfiles(path):
+        def getfiles_rec(path):
+            """recursive listdir"""
             for f in os.listdir(path):
                 fullpath = os.path.join(path, f)
                 rel_fullpath = fullpath
@@ -72,13 +76,13 @@ class LocalStorage(Storage):
                     rel_fullpath = os.path.relpath(fullpath, self._basedir)
                 if os.path.isdir(fullpath):
                     if recursive:
-                        getfiles(fullpath)
+                        getfiles_rec(fullpath)
                     else:
                         listfile.append(rel_fullpath+'/')
                 else:
                     listfile.append(rel_fullpath)
 
-        getfiles(remote_path)
+        getfiles_rec(remote_path)
 
         return listfile
 

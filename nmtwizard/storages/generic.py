@@ -1,6 +1,6 @@
-import six
-import abc
 import os
+import abc
+import six
 
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
@@ -38,21 +38,25 @@ class Storage(object):
         """
         raise NotImplementedError()
 
-    def ls(self, remote_path, recursive=False):
+    @abc.abstractmethod
+    def listdir(self, remote_path, recursive=False):
         """Return a dictionary with all files in the remote directory
         """
         raise NotImplementedError()
 
+    @abc.abstractmethod
     def delete(self, remote_path, recursive=False):
         """Delete a file or a directory from a storage
         """
         raise NotImplementedError()
 
+    @abc.abstractmethod
     def rename(self, old_remote_path, new_remote_path):
         """Delete a file or a directory from a storage
         """
         raise NotImplementedError()
 
+    @abc.abstractmethod
     def exists(self, remote_path):
         """Check if path is existing
         """

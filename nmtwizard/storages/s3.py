@@ -1,7 +1,9 @@
+"""Definition of `s3` storage class"""
+
 import os
 import boto3
 
-from generic import Storage
+from nmtwizard.storages.generic import Storage
 
 class S3Storage(Storage):
     """Storage on Amazon S3."""
@@ -60,7 +62,7 @@ class S3Storage(Storage):
 
         return generate()
 
-    def ls(self, remote_path, recursive=False):
+    def listdir(self, remote_path, recursive=False):
         objects = list(self._bucket.objects.filter(Prefix=remote_path))
         lsdir = {}
         for obj in objects:
@@ -74,7 +76,7 @@ class S3Storage(Storage):
         return lsdir.keys()
 
     def delete(self, remote_path, recursive=False):
-        lsdir = self.ls(remote_path, recursive)
+        lsdir = self.listdir(remote_path, recursive)
         if recursive:
             if remote_path in lsdir or not lsdir:
                 raise ValueError("%s is not a directory" % remote_path)

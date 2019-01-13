@@ -1,7 +1,9 @@
+"""Definition of `http` storage class"""
+
 import os
 import requests
 
-from generic import Storage
+from nmtwizard.storages.generic import Storage
 
 class HTTPStorage(Storage):
     """Simple http file-only storage."""
@@ -62,3 +64,15 @@ class HTTPStorage(Storage):
                         res.status_code))
         else:
             raise NotImplementedError('http storage can not handle directories')
+
+    def listdir(self, remote_path, recursive=False):
+        raise NotImplementedError()
+
+    def delete(self, remote_path, recursive=False):
+        raise NotImplementedError()
+
+    def rename(self, old_remote_path, new_remote_path):
+        raise NotImplementedError()
+
+    def exists(self, remote_path):
+        raise NotImplementedError()
