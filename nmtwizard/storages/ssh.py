@@ -57,15 +57,30 @@ class RemoteStorage(Storage):
             self._scpclient = scp.SCPClient(ssh_client.get_transport())
         return self._scpclient
 
+    def _closeSCPClient(self):
+        # in case of exception, SCP client does not seem to be reusable
+        self._scpclient.close()
+        self._scpclient = None
+
     def _connectSFTPClient(self):
         if self._sftpclient is None:
             ssh_client = self._connect()
             self._sftpclient = ssh_client.open_sftp()
         return self._sftpclient
 
+    def _isdir(self, client, path):
+        try:
+            return S_ISDIR(client.stat(path).st_mode)
+        except IOError:
+            return False
+
     def get(self, remote_path, local_path, directory=False):
         client = self._connectSCPClient()
-        client.get(remote_path, local_path, recursive=directory)
+        try:
+            client.get(remote_path, local_path, recursive=directory)
+        except Exception as e:
+            self._closeSCPClient()
+            raise e
 
     def stream(self, remote_path, buffer_size=1024):
         client = self._connectSCPClient()
@@ -102,32 +117,59 @@ class RemoteStorage(Storage):
                             pos += len(s)
                             yield s
                         msg = channel.recv(512)
+                        channel.close()
                         if msg and msg[0:1] != b'\x00':
+                            self._closeSCPClient()
                             raise scp.SCPException(scp.asunicode(msg[1:]))
-                        client.close()
                     return generate()
                 except SocketTimeout:
                     channel.close()
+                    self._closeSCPClient()
                     raise scp.SCPException('Error receiving, socket.timeout')
 
     def push(self, local_path, remote_path):
-        client = self._connectSCPClient()
-        client.put(local_path, remote_path, recursive=os.path.isdir(local_path))
+        client = self._connectSFTPClient()
+        if os.path.isfile(local_path):
+            if remote_path.endswith('/') or self._isdir(client, remote_path):
+                remote_path = os.path.join(remote_path, os.path.basename(local_path))
+            dirname = os.path.dirname(remote_path)
+            # build the full directory up to remote_path
+            folders = os.path.split(dirname)
+            full_path = []
+            for f in folders:
+                full_path.append(f)
+                subpath = os.path.join(*folders)
+                if not self.exists(subpath):
+                    client.mkdir(subpath)
+            client.put(local_path, remote_path)
+        else:
+            def push_rec(local_path, remote_path):
+                if not self._isdir(client, remote_path):
+                    client.mkdir(remote_path)
+                files = os.listdir(local_path)
+                for f in files:
+                    local_filepath = os.path.join(local_path, f)
+                    remote_filepath = os.path.join(remote_path, f)
+                    if os.path.isdir(local_filepath):
+                        push_rec(local_filepath, remote_filepath)
+                    else:
+                        client.put(local_filepath, remote_filepath)
+            push_rec(local_path, remote_path)
 
     def _ls(self, client, remote_path, recursive=False):
         listfile = []
 
-        def getfiles(path):
+        def getfiles_rec(path):
             for f in client.listdir_attr(path=path):
                 if S_ISDIR(f.st_mode):
                     if recursive:
-                        getfiles(os.path.join(path, f.filename))
+                        getfiles_rec(os.path.join(path, f.filename))
                     else:
                         listfile.append(os.path.join(path, f.filename)+'/')
                 else:
                     listfile.append(os.path.join(path, f.filename))
 
-        getfiles(remote_path)
+        getfiles_rec(remote_path)
         return listfile
 
     def ls(self, remote_path, recursive=False):
@@ -137,14 +179,30 @@ class RemoteStorage(Storage):
 
     def delete(self, remote_path, recursive=False):
         client = self._connectSFTPClient()
-        f = client.lstat(remote_path)
-        if S_ISDIR(f):
+        if self._isdir(client, remote_path):
+            def rm_rec(path):
+                files = client.listdir(path=path)
+                for f in files:
+                    filepath = os.path.join(path, f)
+                    if self._isdir(client, filepath):
+                        rm_rec(filepath)
+                    else:
+                        client.remove(filepath)
+                client.rmdir(path)
             if not recursive:
                 raise ValueError("non recursive delete can not delete directory")
-            client.rmdir(remote_path)
+            rm_rec(remote_path)
         else:
             client.remove(remote_path)
 
     def rename(self, old_remote_path, new_remote_path):
         client = self._connectSFTPClient()
         client.posix_rename(old_remote_path, new_remote_path)
+
+    def exists(self, remote_path):
+        client = self._connectSFTPClient()
+        try:
+            client.stat(remote_path)
+        except IOError:
+            return False
+        return True

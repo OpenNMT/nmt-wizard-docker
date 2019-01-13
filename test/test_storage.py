@@ -145,8 +145,8 @@ def test_storages(tmpdir):
                 storage_client.delete(os.path.join("myremotedirectory"),
                                       recursive=True,
                                       storage_id=storage_id)
-            except Exception:
-                assert not maindir_exists, "cannot remove main directory"
+            except Exception as e:
+                assert not maindir_exists, "cannot remove main directory (%s)" % str(e)
             # checking the directory is not there anymore
             assert not storage_client.exists(os.path.join("myremotedirectory"),
                                              storage_id=storage_id)
@@ -175,7 +175,6 @@ def test_storages(tmpdir):
             storage_client.get(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
                                os.path.join(stor_tmp_dir),
                                storage_id=storage_id)
-            print stor_tmp_dir
             assert os.path.isfile(os.path.join(stor_tmp_dir, "en-vocab.txt"))
             with open(os.path.join(stor_tmp_dir, "en-vocab.txt")) as f:
                 back_en_vocab = f.read()

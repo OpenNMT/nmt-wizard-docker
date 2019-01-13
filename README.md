@@ -106,7 +106,8 @@ python entrypoint.py --storage_config storages.json --model_storage storage_id_2
 If the configuration is not provided or a storage identifier is not set, the host filesystem is used.
 
 Available storage types are:
-* `ssh`: transfer files or directories using ssh, requires `server` name, `user` and `password`
+* `ssh`: transfer files or directories using ssh, requires `server` name, `user` and `password` or `pkey`
+* `local`: local file storage, `basedir` (optional) defines base directory for relative paths
 * `s3`: transfer files or directories using ssh, requires `bucket` and `aws_credentials`
 * `http`: transfer files only using simple GET and POST requests. Requires `get_pattern` and `push_pattern` that are urls using `%s` string placeholders, expanded with python `%` operator: for instance `http://opennmt.net/%s/`
 
@@ -320,7 +321,7 @@ Reload the model on the reserved resource. In its simplest form, this route will
 
 Serving is currently supported by the following frameworks:
 
-* `google_transate`
+* `google_translate`
 * `opennmt_lua`
 * `opennmt_tf`
 
