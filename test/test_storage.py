@@ -2,6 +2,7 @@ import os
 import requests_mock
 import pytest
 import json
+import math
 
 from nmtwizard import storage
 
@@ -194,7 +195,7 @@ def test_storages(tmpdir):
                 size += len(chunk)
                 nchunk += 1
             assert size == len(en_vocab)
-            assert nchunk == int(len(en_vocab)/100.+0.99999)
+            assert nchunk >= int(math.ceil(len(en_vocab)/100.))
             # deleting a file
             storage_client.delete(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
                                   storage_id=storage_id)
