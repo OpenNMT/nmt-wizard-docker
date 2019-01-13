@@ -55,7 +55,8 @@ class StorageClient(object):
                     client = RemoteStorage(storage_id,
                                            config['server'],
                                            config['user'],
-                                           config['password'],
+                                           config.get('password'),
+                                           config.get('pkey'),
                                            port=config.get('port', 22))
                 elif config['type'] == 'http':
                     client = HTTPStorage(storage_id,

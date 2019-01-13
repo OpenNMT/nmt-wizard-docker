@@ -88,9 +88,18 @@ class S3Storage(Storage):
             self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=key)
 
     def rename(self, old_remote_path, new_remote_path):
-        self._s3.Object(self._bucket_name, new_remote_path).copy_from(CopySource='%s/%s' % (self._bucket_name,
-                                                                                            old_remote_path))
-        self._s3.Object(self._bucket_name, old_remote_path).delete()
+        for object in self._bucket.objects.filter(Prefix=old_remote_path):
+            srcKey = object.key
+            if not srcKey.endswith('/'):
+                copySource = self._bucket_name + '/' + srcKey
+                if srcKey == old_remote_path:
+                    # it is a file that we are copying
+                    destFileKey = new_remote_path
+                else:
+                    fileName = srcKey.split('/')[-1]
+                    destFileKey = new_remote_path + '/' + fileName
+                self._s3.Object(self._bucket_name, destFileKey).copy_from(CopySource=copySource)
+            self._s3.Object(self._bucket_name, srcKey).delete()
 
     def exists(self, remote_path):
         result = self._bucket.objects.filter(Prefix=remote_path)
