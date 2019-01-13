@@ -131,7 +131,7 @@ def test_storages(tmpdir):
         config = json.load(f)
     corpus_dir = str(pytest.config.rootdir / "corpus")
     if "storages" in config:
-        with open(os.path.join(corpus_dir, "vocab", "en-vocab.txt")) as f:
+        with open(os.path.join(corpus_dir, "vocab", "en-vocab.txt"), "rb") as f:
             en_vocab = f.read()
 
         storage_client = storage.StorageClient(tmp_dir=str(tmpdir), config=config["storages"])
@@ -203,14 +203,14 @@ def test_storages(tmpdir):
                                              storage_id=storage_id)
             # checking ls
             lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
-                                             storage_id=storage_id))
+                                                  storage_id=storage_id))
             assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
                              'myremotedirectory/test/',
                              'myremotedirectory/vocab/']
             # checking ls
             lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
-                                             recursive=True,
-                                             storage_id=storage_id))
+                                                  recursive=True,
+                                                  storage_id=storage_id))
             assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
                              'myremotedirectory/test/copy2-europarl-v7.de-en.10K.tok.de',
                              'myremotedirectory/vocab/de-vocab.txt']
