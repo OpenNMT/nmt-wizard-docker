@@ -71,9 +71,10 @@ class LocalStorage(Storage):
             """recursive listdir"""
             for f in os.listdir(path):
                 fullpath = os.path.join(path, f)
-                rel_fullpath = fullpath
                 if self._basedir:
                     rel_fullpath = os.path.relpath(fullpath, self._basedir)
+                else:
+                    rel_fullpath = fullpath
                 if os.path.isdir(fullpath):
                     if recursive:
                         getfiles_rec(fullpath)

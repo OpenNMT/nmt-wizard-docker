@@ -20,7 +20,7 @@ class RemoteStorage(Storage):
        Connect with user/password or user/privatekey
     """
 
-    def __init__(self, storage_id, server, user, password, pkey=None, port=22):
+    def __init__(self, storage_id, server, user, password, pkey=None, port=22, basedir=None):
         super(RemoteStorage, self).__init__(storage_id)
         self._server = server
         self._user = user
@@ -39,12 +39,13 @@ class RemoteStorage(Storage):
         self._ssh_client = None
         self._scp_client = None
         self._sftp_client = None
+        self._basedir = basedir
 
     def __del__(self):
         if self._scp_client:
             self._scp_client.close()
         if self._sftp_client:
-            self._scp_client.close()
+            self._sftp_client.close()
         if self._ssh_client:
             self._ssh_client.close()
 
@@ -79,6 +80,8 @@ class RemoteStorage(Storage):
         return self._sftp_client
 
     def get(self, remote_path, local_path, directory=False):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         client = self._connectSCPClient()
         try:
             client.get(remote_path, local_path, recursive=directory)
@@ -87,6 +90,8 @@ class RemoteStorage(Storage):
             raise err
 
     def stream(self, remote_path, buffer_size=1024):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         client = self._connectSCPClient()
         channel = client._open()
         channel.settimeout(client.socket_timeout)
@@ -130,6 +135,8 @@ class RemoteStorage(Storage):
                     raise scp.SCPException('Error receiving, socket.timeout')
 
     def push(self, local_path, remote_path):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         client = self._connectSFTPClient()
         if os.path.isfile(local_path):
             if remote_path.endswith('/') or _isdir(client, remote_path):
@@ -159,17 +166,24 @@ class RemoteStorage(Storage):
             push_rec(local_path, remote_path)
 
     def _ls(self, client, remote_path, recursive=False):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         listfile = []
 
         def getfiles_rec(path):
             for f in client.listdir_attr(path=path):
+                fullpath = os.path.join(path, f.filename)
+                if self._basedir:
+                    rel_fullpath = os.path.relpath(fullpath, self._basedir)
+                else:
+                    rel_fullpath = fullpath
                 if S_ISDIR(f.st_mode):
                     if recursive:
-                        getfiles_rec(os.path.join(path, f.filename))
+                        getfiles_rec(fullpath)
                     else:
-                        listfile.append(os.path.join(path, f.filename)+'/')
+                        listfile.append(rel_fullpath+'/')
                 else:
-                    listfile.append(os.path.join(path, f.filename))
+                    listfile.append(rel_fullpath)
 
         getfiles_rec(remote_path)
         return listfile
@@ -180,6 +194,8 @@ class RemoteStorage(Storage):
         return listfile
 
     def delete(self, remote_path, recursive=False):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         client = self._connectSFTPClient()
         if _isdir(client, remote_path):
             def rm_rec(path):
@@ -198,10 +214,15 @@ class RemoteStorage(Storage):
             client.remove(remote_path)
 
     def rename(self, old_remote_path, new_remote_path):
+        if self._basedir:
+            old_remote_path = os.path.join(self._basedir, old_remote_path)
+            new_remote_path = os.path.join(self._basedir, new_remote_path)
         client = self._connectSFTPClient()
         client.posix_rename(old_remote_path, new_remote_path)
 
     def exists(self, remote_path):
+        if self._basedir:
+            remote_path = os.path.join(self._basedir, remote_path)
         client = self._connectSFTPClient()
         try:
             client.stat(remote_path)

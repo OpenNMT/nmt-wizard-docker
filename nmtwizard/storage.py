@@ -57,7 +57,8 @@ class StorageClient(object):
                                            config['user'],
                                            config.get('password'),
                                            config.get('pkey'),
-                                           port=config.get('port', 22))
+                                           port=config.get('port', 22),
+                                           basedir=config.get('basedir'))
                 elif config['type'] == 'http':
                     client = HTTPStorage(storage_id,
                                          config['get_pattern'],

@@ -89,17 +89,17 @@ class S3Storage(Storage):
 
     def rename(self, old_remote_path, new_remote_path):
         for obj in self._bucket.objects.filter(Prefix=old_remote_path):
-            srcKey = obj.key
-            if not srcKey.endswith('/'):
-                copySource = self._bucket_name + '/' + srcKey
-                if srcKey == old_remote_path:
+            src_key = obj.key
+            if not src_key.endswith('/'):
+                copy_source = self._bucket_name + '/' + src_key
+                if src_key == old_remote_path:
                     # it is a file that we are copying
-                    destFileKey = new_remote_path
+                    dest_file_key = new_remote_path
                 else:
-                    fileName = srcKey.split('/')[-1]
-                    destFileKey = new_remote_path + '/' + fileName
-                self._s3.Object(self._bucket_name, destFileKey).copy_from(CopySource=copySource)
-            self._s3.Object(self._bucket_name, srcKey).delete()
+                    filename = src_key.split('/')[-1]
+                    dest_file_key = new_remote_path + '/' + filename
+                self._s3.Object(self._bucket_name, dest_file_key).copy_from(CopySource=copy_source)
+            self._s3.Object(self._bucket_name, src_key).delete()
 
     def exists(self, remote_path):
         result = self._bucket.objects.filter(Prefix=remote_path)
