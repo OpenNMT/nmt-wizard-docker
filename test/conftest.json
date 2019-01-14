@@ -1,0 +1,11 @@
+{
+	"storages": {
+		"local_abs": {
+			"type": "local"
+		},
+		"local_rel": {
+			"type": "local",
+			"basedir": "/tmp"
+		}
+	}
+}
