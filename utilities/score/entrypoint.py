@@ -1,15 +1,10 @@
 import os
-import six
 import re
-import time
-import random
 import subprocess
 import json
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
-from nmtwizard.utility import resolve_environment_variables
-from nmtwizard.storage import StorageClient
 
 logger = get_logger(__name__)
 
@@ -26,22 +21,12 @@ class ScoreUtility(Utility):
     def declare_arguments(self, parser):
         subparsers = parser.add_subparsers(help='Run type', dest='cmd')
         parser_score = subparsers.add_parser('score', help='Evaluate translation.')
-        parser_score.add_argument('-i', '--input', required=True, nargs='?',
+        parser_score.add_argument('-i', '--input', required=True,
                                   help='Input file.')
-        parser_score.add_argument('-r', '--ref', required=True, nargs='?',
+        parser_score.add_argument('-r', '--ref', required=True,
                                   help='Reference file.')
-        parser_score.add_argument('-l', '--lang', default='en', nargs='?',
+        parser_score.add_argument('-l', '--lang', default='en',
                                   help='Lang ID')
-
-    def convert_to_local_file(self, nextval):
-        inputs = nextval.split(',')
-        local_inputs = []
-        for input in inputs:
-            local_input = os.path.join(self._data_dir, self._storage.split(input)[-1])
-            print("--", input, local_input)
-            self._storage.get_file(input, local_input)
-            local_inputs.append(local_input)
-        return ','.join(local_inputs)
 
     def eval_BLEU(self, tgtfile, reffile):
         result = subprocess.check_output('perl ' + self._tools_dir + '/BLEU/multi-bleu-detok_cjk.perl ' + reffile + ' < ' + tgtfile, shell=True)
@@ -49,8 +34,8 @@ class ScoreUtility(Utility):
         return bleu.group(1)
 
     def exec_function(self, args):
-        val_tgt = self.convert_to_local_file(args.input)
-        val_ref = self.convert_to_local_file(args.ref)
+        val_tgt = args.input
+        val_ref = args.ref
 
         score = {}
         score['BLEU'] = self.eval_BLEU(val_tgt, val_ref)
