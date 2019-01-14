@@ -22,8 +22,20 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 
 3\. Run:
 
-### Training
+### Local run
 
 ```bash
 python utilities/score/entrypoint.py score -i ${CORPUS_DIR}/eval/tgt.txt -r ${CORPUS_DIR}/eval/ref.txt -l en
+```
+
+### Docker run
+
+```bash
+docker run -i \
+  -v $PWD/test/corpus:/root/corpus \
+  utilities/score \
+  score \
+  -i /root/corpus/eval/tgt.txt \
+  -r /root/corpus/eval/ref.txt \
+  -l en
 ```
