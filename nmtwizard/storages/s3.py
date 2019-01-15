@@ -67,12 +67,15 @@ class S3Storage(Storage):
         lsdir = {}
         for obj in objects:
             path = obj.key
-            p = path.find('/', len(remote_path)+1)
-            if not recursive and p != -1:
-                path = path[0:p+1]
-                lsdir[path] = 1
+            if path == remote_path or remote_path.endswith('/') or path.startswith(remote_path + '/'):
+                p = path.find('/', len(remote_path)+1)
+                if not recursive and p != -1:
+                    path = path[0:p+1]
+                    lsdir[path] = 1
+                else:
+                    lsdir[path] = 0
             else:
-                lsdir[path] = 0
+                print("skipping %s (in %s)" % (path, remote_path))
         return lsdir.keys()
 
     def delete(self, remote_path, recursive=False):
@@ -103,8 +106,7 @@ class S3Storage(Storage):
 
     def exists(self, remote_path):
         result = self._bucket.objects.filter(Prefix=remote_path)
-        try:
-            obj = iter(result).next()
-        except StopIteration:
-            return False
-        return obj.key == remote_path or obj.key.startswith(remote_path+"/")
+        for obj in result:
+            if obj.key == remote_path or obj.key.startswith(remote_path+"/"):
+                return True
+        return False
