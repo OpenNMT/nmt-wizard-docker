@@ -120,9 +120,10 @@ def test_local_ls(tmpdir):
     with pytest.raises(Exception):
         lsdir = s3.listdir(str(pytest.config.rootdir / "nothinghere"))
     lsdir = s3.listdir(str(pytest.config.rootdir / "corpus"))
-    assert len(lsdir) == 2
+    assert len(lsdir) == 3
     assert str(pytest.config.rootdir / "corpus" / "train")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
+    assert str(pytest.config.rootdir / "corpus" / "eval")+"/" in lsdir
     lsdirrec = s3.listdir(str(pytest.config.rootdir / "corpus"), True)
     assert len(lsdirrec) > len(lsdir)
 
