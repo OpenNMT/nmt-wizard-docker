@@ -7,7 +7,7 @@ import json
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
 
-logger = get_logger(__name__)
+LOGGER = get_logger(__name__)
 
 class ScoreUtility(Utility):
 
@@ -38,7 +38,6 @@ class ScoreUtility(Utility):
             local_inputs = []
             for remote_input in inputs:
                 local_input = os.path.join(self._data_dir, self._storage.split(remote_input)[-1])
-                print("--", remote_input, local_input)
                 self._storage.get_file(remote_input, local_input)
                 local_inputs.append(local_input)
             new_val.append(','.join(local_inputs))
@@ -62,7 +61,7 @@ class ScoreUtility(Utility):
 
         score = {}
         for i, output in enumerate(list_output):
-            tgt_base = re.match("^.*/([^/]*)$", output).group(1)
+            tgt_base = re.match("^.*/([^/]*)$", args.output[i]).group(1)
             score[tgt_base] = {}
             score[tgt_base]['BLEU'] = self.eval_BLEU(output, list_ref[i])
 

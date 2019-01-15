@@ -28,7 +28,8 @@ python utilities/score/entrypoint.py score \
      test/corpus/eval/testset2.out \
   -r test/corpus/eval/testset1.ref \
      test/corpus/eval/testset2.ref.1,test/corpus/eval/testset2.ref.2 \
-  -l en
+  -l en \
+  -f scores.json
 ```
 
 ### Docker run
