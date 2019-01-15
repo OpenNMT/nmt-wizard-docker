@@ -143,11 +143,11 @@ class RemoteStorage(Storage):
                 remote_path = os.path.join(remote_path, os.path.basename(local_path))
             dirname = os.path.dirname(remote_path)
             # build the full directory up to remote_path
-            folders = os.path.split(dirname)
+            folders = dirname.split(os.sep)
             full_path = []
             for f in folders:
                 full_path.append(f)
-                subpath = os.path.join(*folders)
+                subpath = os.sep.join(full_path)
                 if not self.exists(subpath):
                     client.mkdir(subpath)
             client.put(local_path, remote_path)

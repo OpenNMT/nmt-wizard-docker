@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import tempfile
 
 from nmtwizard.logger import get_logger
 
@@ -24,7 +25,7 @@ class StorageClient(object):
             and its configuration.
         """
         self._config = config
-        self._tmp_dir = tmp_dir
+        self._tmp_dir = tmp_dir or tempfile.mkdtemp()
         self._storages = {}
 
     def _get_storage(self, path, storage_id=None):
