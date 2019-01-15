@@ -31,15 +31,17 @@ class ScoreUtility(Utility):
     def convert_to_local_file(self, nextval):
         inputs = nextval.split(',')
         local_inputs = []
-        for input in inputs:
-            local_input = os.path.join(self._data_dir, self._storage.split(input)[-1])
-            print("--", input, local_input)
-            self._storage.get_file(input, local_input)
+        for remote_input in inputs:
+            local_input = os.path.join(self._data_dir, self._storage.split(remote_input)[-1])
+            print("--", remote_input, local_input)
+            self._storage.get_file(remote_input, local_input)
             local_inputs.append(local_input)
         return ','.join(local_inputs)
 
     def eval_BLEU(self, tgtfile, reffile):
-        result = subprocess.check_output('perl ' + self._tools_dir + '/BLEU/multi-bleu-detok_cjk.perl ' + reffile + ' < ' + tgtfile, shell=True)
+        result = subprocess.check_output('perl ' + self._tools_dir +
+                                         '/BLEU/multi-bleu-detok_cjk.perl ' + reffile +
+                                         ' < ' + tgtfile, shell=True)  # nosec
         bleu = re.match("^BLEU\s=\s([\d\.]+),", result.decode('ascii'))
         return bleu.group(1)
 
