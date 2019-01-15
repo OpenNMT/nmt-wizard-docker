@@ -23,7 +23,12 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 ### Local run
 
 ```bash
-python utilities/score/entrypoint.py score -i test/corpus/eval/tgt.txt -r test/corpus/eval/ref.txt -l en
+python utilities/score/entrypoint.py score \
+  -o test/corpus/eval/testset1.out \
+     test/corpus/eval/testset2.out \
+  -r test/corpus/eval/testset1.ref \
+     test/corpus/eval/testset2.ref.1,test/corpus/eval/testset2.ref.2 \
+  -l en
 ```
 
 ### Docker run
@@ -33,7 +38,9 @@ docker run -i \
   -v $PWD/test/corpus:/root/corpus \
   utilities/score \
   score \
-  -i /root/corpus/eval/tgt.txt \
-  -r /root/corpus/eval/ref.txt \
+  -o /root/corpus/eval/testset1.out \
+     /root/corpus/eval/testset2.out \
+  -r /root/corpus/eval/testset1.ref \
+     /root/corpus/eval/testset2.ref.1,/root/corpus/eval/testset2.ref.2 \
   -l en
 ```
