@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 import subprocess
 import json
 
@@ -25,6 +26,8 @@ class ScoreUtility(Utility):
                                   help='Output file from translation.')
         parser_score.add_argument('-r', '--ref', required=True, nargs='+',
                                   help='Reference file.')
+        parser_score.add_argument('-f', '--file', default='-',
+                                  help='file to save score result to.')
         parser_score.add_argument('-l', '--lang', default='en',
                                   help='Lang ID')
 
@@ -43,23 +46,34 @@ class ScoreUtility(Utility):
 
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
-        result = subprocess.check_output('perl ' + self._tools_dir +
-                                         '/BLEU/multi-bleu-detok_cjk.perl ' + reffile +
-                                         ' < ' + tgtfile, shell=True)  # nosec
-        bleu = re.match("^BLEU\s=\s([\d\.]+),", result.decode('ascii'))
+        result = subprocess.check_output('perl %s %s < %s' % (
+                                            os.path.join(self._tools_dir, 'BLEU', 'multi-bleu-detok_cjk.perl'),
+                                            reffile,
+                                            tgtfile), shell=True)  # nosec
+        bleu = re.match(r"^BLEU\s=\s([\d\.]+),", result.decode('ascii'))
         return bleu.group(1)
 
     def exec_function(self, args):
-        val_tgt = self.convert_to_local_file(args.output)
-        val_ref = self.convert_to_local_file(args.ref)
+        list_output = self.convert_to_local_file(args.output)
+        list_ref = self.convert_to_local_file(args.ref)
+
+        if len(list_output) != len(list_ref):
+            raise ValueError("`--output` and `--ref` should have same number of parameters")
 
         score = {}
-        for i in range(len(val_tgt)):
-            tgt_base = re.match("^.*/([^/]*)$", val_tgt[i]).group(1)
+        for i, output in enumerate(list_output):
+            tgt_base = re.match("^.*/([^/]*)$", output).group(1)
             score[tgt_base] = {}
-            score[tgt_base]['BLEU'] = self.eval_BLEU(val_tgt[i], val_ref[i])
+            score[tgt_base]['BLEU'] = self.eval_BLEU(output, list_ref[i])
 
-        print(json.dumps(score))
+        # dump score to stdout, or transfer to storage as specified
+        if args.file == '-':
+            print(json.dumps(score))
+        else:
+            with tempfile.NamedTemporaryFile() as file_handler:
+                file_handler.write(json.dumps(score))
+                file_handler.flush()
+                self._storage.push(file_handler.name, args.file)
 
 
 if __name__ == '__main__':
