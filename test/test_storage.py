@@ -163,6 +163,14 @@ def test_storages(tmpdir, storages, storage_id):
     storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
                         os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
                         storage_id=storage_id)
+    # pushing a file to a new file on a completely new directory
+    if storage_client.exists(storage_id+":"+os.path.join("myremotedirectory-new")):
+        storage_client.delete(os.path.join("myremotedirectory-new"),
+                              recursive=True,
+                              storage_id=storage_id)
+    storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                        os.path.join("myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                        storage_id=storage_id)
     # renaming a file
     storage_client.rename(os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
                           os.path.join("myremotedirectory", "test", "copy2-europarl-v7.de-en.10K.tok.de"),
