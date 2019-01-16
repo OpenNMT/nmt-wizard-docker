@@ -37,7 +37,7 @@ python utilities/score/entrypoint.py score \
 ```bash
 docker run -i \
   -v $PWD/test/corpus:/root/corpus \
-  utilities/score \
+  nmtwizard/score \
   score \
   -o /root/corpus/eval/testset1.out \
      /root/corpus/eval/testset2.out \

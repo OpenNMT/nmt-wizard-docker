@@ -50,7 +50,7 @@ class ScoreUtility(Utility):
                                             reffile,
                                             tgtfile), shell=True)  # nosec
         bleu = re.match(r"^BLEU\s=\s([\d\.]+),", result.decode('ascii'))
-        return bleu.group(1)
+        return float(bleu.group(1))
 
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
