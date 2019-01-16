@@ -40,6 +40,9 @@ class LocalStorage(Storage):
             if remote_path.endswith('/') or os.path.isdir(remote_path):
                 remote_path = os.path.join(remote_path, os.path.basename(local_path))
             dirname = os.path.dirname(remote_path)
+            # for local file, there is no path
+            if dirname == '':
+                dirname = '.'
             if os.path.exists(dirname):
                 if not os.path.isdir(dirname):
                     raise ValueError("%s is not a directory" % dirname)

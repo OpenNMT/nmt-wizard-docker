@@ -70,7 +70,8 @@ class ScoreUtility(Utility):
             print(json.dumps(score))
         else:
             with tempfile.NamedTemporaryFile() as file_handler:
-                file_handler.write(json.dumps(score))
+                # python3 compatibility
+                file_handler.write(json.dumps(score).encode('utf-8'))
                 file_handler.flush()
                 self._storage.push(file_handler.name, args.file)
 
