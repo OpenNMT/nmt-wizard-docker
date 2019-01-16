@@ -61,8 +61,7 @@ class ScoreUtility(Utility):
 
         score = {}
         for i, output in enumerate(list_output):
-            tgt_base = re.match("^.*/([^/]*)$", args.output[i]).group(1)
-            score[tgt_base] = {}
+            score[args.output[i]] = {}
             score[tgt_base]['BLEU'] = self.eval_BLEU(output, list_ref[i])
 
         # dump score to stdout, or transfer to storage as specified
