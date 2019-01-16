@@ -49,8 +49,11 @@ class ScoreUtility(Utility):
                                             os.path.join(self._tools_dir, 'BLEU', 'multi-bleu-detok_cjk.perl'),
                                             reffile,
                                             tgtfile), shell=True)  # nosec
-        bleu = re.match(r"^BLEU\s=\s([\d\.]+),", result.decode('ascii'))
-        return float(bleu.group(1))
+        bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode('ascii'))
+        bleu_score = {}
+        bleu_score['BLEU'] = float(bleu.group(1))
+        bleu_score['BLEU-1'] = float(bleu.group(2))
+        return bleu_score
 
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
@@ -63,12 +66,11 @@ class ScoreUtility(Utility):
         for i, output in enumerate(list_output):
             tgt_base = re.match("^.*/([^/]*)$", args.output[i]).group(1)
             score[tgt_base] = {}
-            score[tgt_base]['BLEU'] = self.eval_BLEU(output, list_ref[i])
+            score[tgt_base] = self.eval_BLEU(output, list_ref[i])
 
         # dump score to stdout, or transfer to storage as specified
-        if args.file == '-':
-            print(json.dumps(score))
-        else:
+        print(json.dumps(score))
+        if args.file != '-':
             with tempfile.NamedTemporaryFile() as file_handler:
                 # python3 compatibility
                 file_handler.write(json.dumps(score).encode('utf-8'))
