@@ -1,4 +1,5 @@
 FROM ubuntu:16.04
+FROM python:3
 
 WORKDIR /root
 
@@ -16,5 +17,6 @@ ADD nmtwizard /root/nmtwizard
 
 ADD utilities/score/entrypoint.py /root/
 ADD utilities/score/BLEU /root/tools/BLEU
+ADD utilities/score/TER /root/tools/TER
 
 ENTRYPOINT ["python", "entrypoint.py"]
