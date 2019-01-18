@@ -55,6 +55,26 @@ class ScoreUtility(Utility):
         bleu_score['BLEU-1'] = float(bleu.group(2))
         return bleu_score
 
+    def eval_TER(self, tgtfile, reffile):
+        reffile_group = reffile.split(',')
+        with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
+            with open(tgtfile) as f:
+                for i, line in enumerate(f):
+                    file_tgt.write('%s\t(%d-)\n' % (line.rstrip(), i))
+            for ref in reffile_group:
+                with open(ref) as f:
+                    for i, line in enumerate(f):
+                        file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
+            file_tgt.flush()
+            file_ref.flush()
+            subprocess.check_output(['perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
+                                  '-r', file_ref.name,
+                                  '-h', file_tgt.name,
+                                  '-s', '-N'])
+            result = subprocess.check_output(['tail', '-1', file_tgt.name+'.sys.sum'])
+            ter = re.match(r"^.*?([\d\.]+)$", result.decode('ascii').rstrip())
+            return float(ter.group(1))
+
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
         list_ref = self.convert_to_local_file(args.ref)
@@ -64,15 +84,14 @@ class ScoreUtility(Utility):
 
         score = {}
         for i, output in enumerate(list_output):
-            score[args.output[i]] = {}
             score[args.output[i]] = self.eval_BLEU(output, list_ref[i])
+            score[args.output[i]]['TER'] = self.eval_TER(output, list_ref[i])
 
         # dump score to stdout, or transfer to storage as specified
         print(json.dumps(score))
         if args.file != '-':
-            with tempfile.NamedTemporaryFile() as file_handler:
-                # python3 compatibility
-                file_handler.write(json.dumps(score).encode('utf-8'))
+            with tempfile.NamedTemporaryFile(mode='w') as file_handler:
+                file_handler.write(json.dumps(score))
                 file_handler.flush()
                 self._storage.push(file_handler.name, args.file)
 
