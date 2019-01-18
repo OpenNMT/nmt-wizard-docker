@@ -90,9 +90,8 @@ class ScoreUtility(Utility):
         # dump score to stdout, or transfer to storage as specified
         print(json.dumps(score))
         if args.file != '-':
-            with tempfile.NamedTemporaryFile() as file_handler:
-                # python3 compatibility
-                file_handler.write(json.dumps(score).encode('utf-8'))
+            with tempfile.NamedTemporaryFile(mode='w') as file_handler:
+                file_handler.write(json.dumps(score))
                 file_handler.flush()
                 self._storage.push(file_handler.name, args.file)
 
