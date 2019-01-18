@@ -1,11 +1,9 @@
 FROM ubuntu:16.04
-FROM python:3
 
 WORKDIR /root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python-pip \
-        git \
         perl \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*

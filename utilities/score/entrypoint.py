@@ -57,14 +57,14 @@ class ScoreUtility(Utility):
 
     def eval_TER(self, tgtfile, reffile):
         reffile_group = reffile.split(',')
-        with tempfile.NamedTemporaryFile() as file_tgt, tempfile.NamedTemporaryFile() as file_ref:
+        with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
             with open(tgtfile) as f:
                 for i, line in enumerate(f):
-                    file_tgt.write(('%s\t(%d-)\n' % (line.rstrip(), i)).encode('utf-8'))
+                    file_tgt.write('%s\t(%d-)\n' % (line.rstrip(), i))
             for ref in reffile_group:
                 with open(ref) as f:
                     for i, line in enumerate(f):
-                        file_ref.write(('%s\t(%d-)\n' % (line.rstrip(), i)).encode('utf-8'))
+                        file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
             file_tgt.flush()
             file_ref.flush()
             subprocess.check_output(['perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
