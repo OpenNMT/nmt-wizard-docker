@@ -35,6 +35,7 @@ class OpenNMTTFFramework(Framework):
               tgt_file,
               src_vocab_info,
               tgt_vocab_info,
+              align_file=None,
               model_path=None,
               gpuid=0):
         if src_vocab_info['changed'] or tgt_vocab_info['changed']:
@@ -62,6 +63,8 @@ class OpenNMTTFFramework(Framework):
         run_config['data']['target_words_vocabulary'] = tgt_vocab_info['current']
         run_config['data']['train_features_file'] = src_file
         run_config['data']['train_labels_file'] = tgt_file
+        if os.path.exists(align_file) :
+            run_config['data']['train_alignments'] = align_file
         if 'train_steps' not in run_config['train']:
             run_config['train']['single_pass'] = True
             run_config['train']['train_steps'] = None
