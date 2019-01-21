@@ -76,7 +76,6 @@ class Utility(object):
             os.makedirs(self._data_dir)
         if not os.path.exists(self._tmp_dir):
             os.makedirs(self._tmp_dir)
-        self._parser = argparse.ArgumentParser()
 
     @property
     @abc.abstractmethod
