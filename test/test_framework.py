@@ -66,6 +66,7 @@ class DummyFramework(Framework):
               tgt_file,
               src_vocab_info,
               tgt_vocab_info,
+              align_file=None,
               model_path=None,
               gpuid=0):
         # Verify that input files exist.
