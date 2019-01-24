@@ -10,10 +10,14 @@ from nmtwizard.logger import get_logger
 LOGGER = get_logger(__name__)
 
 class ScoreUtility(Utility):
-
     def __init__(self):
         super(ScoreUtility, self).__init__()
         self._tools_dir = os.getenv('TOOLS_DIR', '/root/tools')
+        self.metric_lang = {
+            # comma separated if there are multi languages
+            "BLEU": "all",
+            "TER": "all"
+            }
 
     @property
     def name(self):
@@ -30,6 +34,8 @@ class ScoreUtility(Utility):
                                   help='file to save score result to.')
         parser_score.add_argument('-l', '--lang', default='en',
                                   help='Lang ID')
+        parser_score.add_argument('-tok', '--tok_config',
+                                  help='Configuration for tokenizer')
 
     def convert_to_local_file(self, nextval):
         new_val = []
@@ -42,6 +48,14 @@ class ScoreUtility(Utility):
                 local_inputs.append(local_input)
             new_val.append(','.join(local_inputs))
         return new_val
+
+    def check_supported_metric(self, lang):
+        metric_supported = []
+        for metric, lang_defined in self.metric_lang.items():
+            lang_group = lang_defined.split(',')
+            if 'all' in lang_group or lang in lang_group:
+                metric_supported.append(metric)
+        return metric_supported
 
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
@@ -82,10 +96,17 @@ class ScoreUtility(Utility):
         if len(list_output) != len(list_ref):
             raise ValueError("`--output` and `--ref` should have same number of parameters")
 
+        metric_supported = self.check_supported_metric(args.lang)
         score = {}
         for i, output in enumerate(list_output):
-            score[args.output[i]] = self.eval_BLEU(output, list_ref[i])
-            score[args.output[i]]['TER'] = self.eval_TER(output, list_ref[i])
+            score[args.output[i]] = {}
+            for metric in metric_supported:
+                if metric == 'BLEU':
+                    bleu_score = self.eval_BLEU(output, list_ref[i])
+                    for k, v in bleu_score.items():
+                        score[args.output[i]][k] = v
+                if metric == 'TER':
+                    score[args.output[i]][metric] = self.eval_TER(output, list_ref[i])
 
         # dump score to stdout, or transfer to storage as specified
         print(json.dumps(score))
