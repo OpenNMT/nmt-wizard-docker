@@ -65,6 +65,10 @@ class OpenNMTTFFramework(Framework):
         run_config['data']['train_labels_file'] = tgt_file
         if align_file is not None and os.path.exists(align_file) :
             run_config['data']['train_alignments'] = align_file
+            if "params" not in run_config:
+                  run_config["params"] = {}
+            if "guided_alignment_type" not in run_config["params"]:
+                  run_config["params"]["guided_alignment_type"] = "ce"
         if 'train_steps' not in run_config['train']:
             run_config['train']['single_pass'] = True
             run_config['train']['train_steps'] = None
