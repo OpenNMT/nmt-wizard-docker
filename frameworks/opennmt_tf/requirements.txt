@@ -1,4 +1,4 @@
-OpenNMT-tf==1.17.0
+OpenNMT-tf==1.17.1
 boto3
 paramiko
 pyonmttok==1.*

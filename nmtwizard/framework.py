@@ -56,6 +56,7 @@ class Framework(Utility):
               tgt_file,
               src_vocab_info,
               tgt_vocab_info,
+              align_file=None,
               model_path=None,
               gpuid=0):
         """Trains for one epoch.
@@ -64,6 +65,7 @@ class Framework(Utility):
           config: The run configuration.
           src_file: The local path to the preprocessed (if any) source file.
           tgt_file: The local path to the preprocessed (if any) target file.
+          align_file: The local path to the alignment file (between source and target).
           src_vocab_info: Source vocabulary metadata (see _get_vocab_info).
           tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
           model_path: The path to a model to load from.
@@ -184,6 +186,7 @@ class Framework(Utility):
                 config,
                 os.path.join(data_dir, 'train.%s' % config['source']),
                 os.path.join(data_dir, 'train.%s' % config['target']),
+                os.path.join(data_dir, 'train.align'),
                 src_vocab_info,
                 tgt_vocab_info,
                 model_path=model_path,
