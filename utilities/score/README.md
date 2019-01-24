@@ -36,6 +36,13 @@ python utilities/score/entrypoint.py score \
   -l en \
   -f scores.json
 ```
+```bash
+python utilities/score/entrypoint.py score \
+  -o test/corpus/eval/testset3.out \
+  -r test/corpus/eval/testset3.ref \
+  -l zh
+```
+
 
 ### Docker run
 

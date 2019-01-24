@@ -6,6 +6,7 @@ import json
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
+from nmtwizard import tokenizer
 
 LOGGER = get_logger(__name__)
 
@@ -57,6 +58,14 @@ class ScoreUtility(Utility):
                 metric_supported.append(metric)
         return metric_supported
 
+    def tokenize_files(self, file_list, lang_tokenizer):
+        outfile_group = []
+        for file in file_list:
+            outfile = tempfile.NamedTemporaryFile(delete=False)
+            tokenizer.tokenize_file(lang_tokenizer, file, outfile.name)
+            outfile_group.append(outfile.name)
+        return outfile_group
+
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
         result = subprocess.check_output('perl %s %s < %s' % (
@@ -70,12 +79,11 @@ class ScoreUtility(Utility):
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
-        reffile_group = reffile.split(',')
         with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
             with open(tgtfile) as f:
                 for i, line in enumerate(f):
                     file_tgt.write('%s\t(%d-)\n' % (line.rstrip(), i))
-            for ref in reffile_group:
+            for ref in reffile:
                 with open(ref) as f:
                     for i, line in enumerate(f):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
@@ -97,8 +105,20 @@ class ScoreUtility(Utility):
             raise ValueError("`--output` and `--ref` should have same number of parameters")
 
         metric_supported = self.check_supported_metric(args.lang)
+
+        tok_config = args.tok_config
+        if tok_config is None:
+            tok_config = {"mode": "aggressive"}
+            if args.lang == 'zh':
+              tok_config['segment_alphabet'] = ['Han']
+              tok_config['segment_alphabet_change'] = True
+        lang_tokenizer = tokenizer.build_tokenizer(tok_config)
+
         score = {}
         for i, output in enumerate(list_output):
+            output_tok = self.tokenize_files([output], lang_tokenizer)
+            reffile_tok = self.tokenize_files(list_ref[i].split(','), lang_tokenizer)
+
             score[args.output[i]] = {}
             for metric in metric_supported:
                 if metric == 'BLEU':
@@ -106,7 +126,11 @@ class ScoreUtility(Utility):
                     for k, v in bleu_score.items():
                         score[args.output[i]][k] = v
                 if metric == 'TER':
-                    score[args.output[i]][metric] = self.eval_TER(output, list_ref[i])
+                    score[args.output[i]][metric] = self.eval_TER(output_tok[0], reffile_tok)
+
+            os.remove(output_tok[0])
+            for file in reffile_tok:
+                os.remove(file)
 
         # dump score to stdout, or transfer to storage as specified
         print(json.dumps(score))
