@@ -63,7 +63,7 @@ class OpenNMTTFFramework(Framework):
         run_config['data']['target_words_vocabulary'] = tgt_vocab_info['current']
         run_config['data']['train_features_file'] = src_file
         run_config['data']['train_labels_file'] = tgt_file
-        if os.path.exists(align_file) :
+        if align_file is not None and os.path.exists(align_file) :
             run_config['data']['train_alignments'] = align_file
         if 'train_steps' not in run_config['train']:
             run_config['train']['single_pass'] = True
