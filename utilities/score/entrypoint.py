@@ -6,14 +6,19 @@ import json
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
+from nmtwizard import tokenizer
 
 LOGGER = get_logger(__name__)
 
 class ScoreUtility(Utility):
-
     def __init__(self):
         super(ScoreUtility, self).__init__()
         self._tools_dir = os.getenv('TOOLS_DIR', '/root/tools')
+        self.metric_lang = {
+            # comma separated if there are multi languages
+            "BLEU": "all",
+            "TER": "all"
+            }
 
     @property
     def name(self):
@@ -30,6 +35,8 @@ class ScoreUtility(Utility):
                                   help='file to save score result to.')
         parser_score.add_argument('-l', '--lang', default='en',
                                   help='Lang ID')
+        parser_score.add_argument('-tok', '--tok_config',
+                                  help='Configuration for tokenizer')
 
     def convert_to_local_file(self, nextval):
         new_val = []
@@ -42,6 +49,22 @@ class ScoreUtility(Utility):
                 local_inputs.append(local_input)
             new_val.append(','.join(local_inputs))
         return new_val
+
+    def check_supported_metric(self, lang):
+        metric_supported = []
+        for metric, lang_defined in self.metric_lang.items():
+            lang_group = lang_defined.split(',')
+            if 'all' in lang_group or lang in lang_group:
+                metric_supported.append(metric)
+        return metric_supported
+
+    def tokenize_files(self, file_list, lang_tokenizer):
+        outfile_group = []
+        for file in file_list:
+            outfile = tempfile.NamedTemporaryFile(delete=False)
+            tokenizer.tokenize_file(lang_tokenizer, file, outfile.name)
+            outfile_group.append(outfile.name)
+        return outfile_group
 
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
@@ -56,12 +79,11 @@ class ScoreUtility(Utility):
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
-        reffile_group = reffile.split(',')
         with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
             with open(tgtfile) as f:
                 for i, line in enumerate(f):
                     file_tgt.write('%s\t(%d-)\n' % (line.rstrip(), i))
-            for ref in reffile_group:
+            for ref in reffile:
                 with open(ref) as f:
                     for i, line in enumerate(f):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
@@ -82,10 +104,33 @@ class ScoreUtility(Utility):
         if len(list_output) != len(list_ref):
             raise ValueError("`--output` and `--ref` should have same number of parameters")
 
+        metric_supported = self.check_supported_metric(args.lang)
+
+        tok_config = args.tok_config
+        if tok_config is None:
+            tok_config = {"mode": "aggressive"}
+            if args.lang == 'zh':
+              tok_config['segment_alphabet'] = ['Han']
+              tok_config['segment_alphabet_change'] = True
+        lang_tokenizer = tokenizer.build_tokenizer(tok_config)
+
         score = {}
         for i, output in enumerate(list_output):
-            score[args.output[i]] = self.eval_BLEU(output, list_ref[i])
-            score[args.output[i]]['TER'] = self.eval_TER(output, list_ref[i])
+            output_tok = self.tokenize_files([output], lang_tokenizer)
+            reffile_tok = self.tokenize_files(list_ref[i].split(','), lang_tokenizer)
+
+            score[args.output[i]] = {}
+            for metric in metric_supported:
+                if metric == 'BLEU':
+                    bleu_score = self.eval_BLEU(output, list_ref[i])
+                    for k, v in bleu_score.items():
+                        score[args.output[i]][k] = v
+                if metric == 'TER':
+                    score[args.output[i]][metric] = self.eval_TER(output_tok[0], reffile_tok)
+
+            os.remove(output_tok[0])
+            for file in reffile_tok:
+                os.remove(file)
 
         # dump score to stdout, or transfer to storage as specified
         print(json.dumps(score))
