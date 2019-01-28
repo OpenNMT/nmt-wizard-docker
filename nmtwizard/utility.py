@@ -9,6 +9,7 @@ import re
 import shutil
 import uuid
 import six
+import sys
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
