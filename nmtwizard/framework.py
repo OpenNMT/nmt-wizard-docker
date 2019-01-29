@@ -186,9 +186,9 @@ class Framework(Utility):
                 config,
                 os.path.join(data_dir, 'train.%s' % config['source']),
                 os.path.join(data_dir, 'train.%s' % config['target']),
-                os.path.join(data_dir, 'train.align'),
                 src_vocab_info,
                 tgt_vocab_info,
+                align_file=os.path.join(data_dir, 'train.align'),
                 model_path=model_path,
                 gpuid=gpuid)
 
