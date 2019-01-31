@@ -74,9 +74,10 @@ class ScoreUtility(Utility):
                                             reffile,
                                             tgtfile), shell=True)  # nosec
         bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode('ascii'))
-        bleu_score = {}
-        bleu_score['BLEU'] = float(bleu.group(1))
-        bleu_score['BLEU-1'] = float(bleu.group(2))
+        bleu_score = {'BLEU': 0, 'BLEU-1': 0}
+        if bleu is not None:
+            bleu_score['BLEU'] = float(bleu.group(1))
+            bleu_score['BLEU-1'] = float(bleu.group(2))
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
@@ -96,27 +97,32 @@ class ScoreUtility(Utility):
                                   '-s', '-N'])
             result = subprocess.check_output(['tail', '-1', file_tgt.name+'.sys.sum'])
             ter = re.match(r"^.*?([\d\.]+)$", result.decode('ascii').rstrip())
-            return float(ter.group(1))
+            if ter is not None:
+                return float(ter.group(1))
+
+            return 0
 
     def eval_Otem_Utem(self, tgtfile, reffile):
         reffile_prefix = reffile[0] + 'prefix'
         for idx, file in enumerate(reffile):
             subprocess.check_output(['ln', '-s', file, '%s%d' % (reffile_prefix, idx)])
 
-        otem_utem_score = {}
+        otem_utem_score = {'OTEM': 0, 'UTEM': 0}
         result = subprocess.check_output(['python',
                                             os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
                                             tgtfile,
                                             reffile_prefix], stderr=subprocess.STDOUT)
         otem = re.match(r"^OTEM\s=\s([\d\.]+),", result.decode('ascii'))
-        otem_utem_score['OTEM'] = float(otem.group(1))
+        if otem is not None:
+            otem_utem_score['OTEM'] = float(otem.group(1))
 
         result = subprocess.check_output(['python',
                                             os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
                                             tgtfile,
                                             reffile_prefix], stderr=subprocess.STDOUT)
         utem = re.match(r"^UTEM\s=\s([\d\.]+),", result.decode('ascii'))
-        otem_utem_score['UTEM'] = float(utem.group(1))
+        if utem is not None:
+            otem_utem_score['UTEM'] = float(utem.group(1))
 
         for idx in range(len(reffile)):
             os.remove('%s%d' % (reffile_prefix, idx))
