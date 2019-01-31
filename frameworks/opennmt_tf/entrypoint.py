@@ -174,7 +174,7 @@ class OpenNMTTFFramework(Framework):
             model_type=config['options'].get('model_type'),
             model_file=config['options'].get('model'),
             model_path=model_path)
-        run_config = copy.deepcopy(config['options']['config'])
+        run_config = copy.deepcopy(config['options'].get('config', {}))
         run_config['model_dir'] = model_dir
         if 'data' not in run_config:
             run_config['data'] = {}
