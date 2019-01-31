@@ -69,7 +69,7 @@ class ScoreUtility(Utility):
 
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
-        result = subprocess.check_output('perl %s %s < %s' % (
+        result = subprocess.check_output('/usr/bin/perl %s %s < %s' % (
                                             os.path.join(self._tools_dir, 'BLEU', 'multi-bleu-detok_cjk.perl'),
                                             reffile,
                                             tgtfile), shell=True)  # nosec
@@ -91,7 +91,7 @@ class ScoreUtility(Utility):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
             file_tgt.flush()
             file_ref.flush()
-            subprocess.check_output(['perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
+            subprocess.check_output(['/usr/bin/perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
                                   '-r', file_ref.name,
                                   '-h', file_tgt.name,
                                   '-s', '-N'])
@@ -105,10 +105,10 @@ class ScoreUtility(Utility):
     def eval_Otem_Utem(self, tgtfile, reffile):
         reffile_prefix = reffile[0] + 'prefix'
         for idx, f in enumerate(reffile):
-            subprocess.check_output(['ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
+            subprocess.check_output(['/bin/ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
 
         otem_utem_score = {'OTEM': 0, 'UTEM': 0}
-        result = subprocess.check_output(['python',
+        result = subprocess.check_output(['/usr/bin/python',
                                             os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
                                             tgtfile,
                                             reffile_prefix], stderr=subprocess.STDOUT)
@@ -116,7 +116,7 @@ class ScoreUtility(Utility):
         if otem is not None:
             otem_utem_score['OTEM'] = float(otem.group(1))
 
-        result = subprocess.check_output(['python',
+        result = subprocess.check_output(['/usr/bin/python',
                                             os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
                                             tgtfile,
                                             reffile_prefix], stderr=subprocess.STDOUT)
