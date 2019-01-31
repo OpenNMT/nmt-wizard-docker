@@ -104,8 +104,8 @@ class ScoreUtility(Utility):
 
     def eval_Otem_Utem(self, tgtfile, reffile):
         reffile_prefix = reffile[0] + 'prefix'
-        for idx, file in enumerate(reffile):
-            subprocess.check_output(['ln', '-s', file, '%s%d' % (reffile_prefix, idx)])
+        for idx, f in enumerate(reffile):
+            subprocess.check_output(['ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
 
         otem_utem_score = {'OTEM': 0, 'UTEM': 0}
         result = subprocess.check_output(['python',
