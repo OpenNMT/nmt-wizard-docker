@@ -17,7 +17,8 @@ class ScoreUtility(Utility):
         self.metric_lang = {
             # comma separated if there are multi languages
             "BLEU": "all",
-            "TER": "all"
+            "TER": "all",
+            "Otem-Utem": "all"
             }
 
     @property
@@ -97,6 +98,31 @@ class ScoreUtility(Utility):
             ter = re.match(r"^.*?([\d\.]+)$", result.decode('ascii').rstrip())
             return float(ter.group(1))
 
+    def eval_Otem_Utem(self, tgtfile, reffile):
+        reffile_prefix = reffile[0] + 'prefix'
+        for idx, file in enumerate(reffile):
+            subprocess.check_output(['ln', '-s', file, '%s%d' % (reffile_prefix, idx)])
+
+        otem_utem_score = {}
+        result = subprocess.check_output(['python',
+                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
+                                            tgtfile,
+                                            reffile_prefix], stderr=subprocess.STDOUT)
+        otem = re.match(r"^OTEM\s=\s([\d\.]+),", result.decode('ascii'))
+        otem_utem_score['OTEM'] = float(otem.group(1))
+
+        result = subprocess.check_output(['python',
+                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
+                                            tgtfile,
+                                            reffile_prefix], stderr=subprocess.STDOUT)
+        utem = re.match(r"^UTEM\s=\s([\d\.]+),", result.decode('ascii'))
+        otem_utem_score['UTEM'] = float(utem.group(1))
+
+        for idx in range(len(reffile)):
+            os.remove('%s%d' % (reffile_prefix, idx))
+
+        return otem_utem_score
+
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
         list_ref = self.convert_to_local_file(args.ref)
@@ -127,6 +153,10 @@ class ScoreUtility(Utility):
                         score[args.output[i]][k] = v
                 if metric == 'TER':
                     score[args.output[i]][metric] = self.eval_TER(output_tok[0], reffile_tok)
+                if metric == 'Otem-Utem':
+                    otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
+                    for k, v in otem_utem_score.items():
+                        score[args.output[i]][k] = v
 
             os.remove(output_tok[0])
             for file in reffile_tok:
