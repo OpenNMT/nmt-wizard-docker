@@ -17,7 +17,8 @@ class ScoreUtility(Utility):
         self.metric_lang = {
             # comma separated if there are multi languages
             "BLEU": "all",
-            "TER": "all"
+            "TER": "all",
+            "Otem-Utem": "all"
             }
 
     @property
@@ -68,14 +69,15 @@ class ScoreUtility(Utility):
 
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
-        result = subprocess.check_output('perl %s %s < %s' % (
+        result = subprocess.check_output('/usr/bin/perl %s %s < %s' % (
                                             os.path.join(self._tools_dir, 'BLEU', 'multi-bleu-detok_cjk.perl'),
                                             reffile,
                                             tgtfile), shell=True)  # nosec
         bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode('ascii'))
-        bleu_score = {}
-        bleu_score['BLEU'] = float(bleu.group(1))
-        bleu_score['BLEU-1'] = float(bleu.group(2))
+        bleu_score = {'BLEU': 0, 'BLEU-1': 0}
+        if bleu is not None:
+            bleu_score['BLEU'] = float(bleu.group(1))
+            bleu_score['BLEU-1'] = float(bleu.group(2))
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
@@ -89,13 +91,43 @@ class ScoreUtility(Utility):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
             file_tgt.flush()
             file_ref.flush()
-            subprocess.check_output(['perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
+            subprocess.check_output(['/usr/bin/perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
                                   '-r', file_ref.name,
                                   '-h', file_tgt.name,
                                   '-s', '-N'])
             result = subprocess.check_output(['tail', '-1', file_tgt.name+'.sys.sum'])
             ter = re.match(r"^.*?([\d\.]+)$", result.decode('ascii').rstrip())
-            return float(ter.group(1))
+            if ter is not None:
+                return float(ter.group(1))
+
+            return 0
+
+    def eval_Otem_Utem(self, tgtfile, reffile):
+        reffile_prefix = reffile[0] + 'prefix'
+        for idx, f in enumerate(reffile):
+            subprocess.check_output(['/bin/ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
+
+        otem_utem_score = {'OTEM': 0, 'UTEM': 0}
+        result = subprocess.check_output(['/usr/bin/python',
+                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
+                                            tgtfile,
+                                            reffile_prefix], stderr=subprocess.STDOUT)
+        otem = re.match(r"^OTEM\s=\s([\d\.]+),", result.decode('ascii'))
+        if otem is not None:
+            otem_utem_score['OTEM'] = float(otem.group(1))
+
+        result = subprocess.check_output(['/usr/bin/python',
+                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
+                                            tgtfile,
+                                            reffile_prefix], stderr=subprocess.STDOUT)
+        utem = re.match(r"^UTEM\s=\s([\d\.]+),", result.decode('ascii'))
+        if utem is not None:
+            otem_utem_score['UTEM'] = float(utem.group(1))
+
+        for idx in range(len(reffile)):
+            os.remove('%s%d' % (reffile_prefix, idx))
+
+        return otem_utem_score
 
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
@@ -127,6 +159,10 @@ class ScoreUtility(Utility):
                         score[args.output[i]][k] = v
                 if metric == 'TER':
                     score[args.output[i]][metric] = self.eval_TER(output_tok[0], reffile_tok)
+                if metric == 'Otem-Utem':
+                    otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
+                    for k, v in otem_utem_score.items():
+                        score[args.output[i]][k] = v
 
             os.remove(output_tok[0])
             for file in reffile_tok:
