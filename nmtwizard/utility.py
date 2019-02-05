@@ -29,7 +29,10 @@ def getenv(m):
         var = 'CORPUS_DIR'
     elif 'TRAIN_' in var:
         var = var.replace('TRAIN_', '')
-    return os.getenv(var, '')
+    value = os.getenv(var)
+    if value is None:
+        raise ValueError('Environment variable %s is not defined' % var)
+    return value
 
 def resolve_environment_variables(config):
     """Returns a new configuration with all environment variables replaced."""
