@@ -187,6 +187,18 @@ class Utility(object):
         data.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
+    def convert_to_local_file(self, nextval):
+        new_val = []
+        for val in nextval:
+            inputs = val.split(',')
+            local_inputs = []
+            for remote_input in inputs:
+                local_input = os.path.join(self._data_dir, self._storage.split(remote_input)[-1])
+                self._storage.get_file(remote_input, local_input)
+                local_inputs.append(local_input)
+            new_val.append(','.join(local_inputs))
+        return new_val
+
 
 def build_model_dir(model_dir, objects, config, check_integrity_fn):
     """Prepares the model directory based on the model package."""

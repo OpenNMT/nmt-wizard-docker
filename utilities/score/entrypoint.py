@@ -39,18 +39,6 @@ class ScoreUtility(Utility):
         parser_score.add_argument('-tok', '--tok_config',
                                   help='Configuration for tokenizer')
 
-    def convert_to_local_file(self, nextval):
-        new_val = []
-        for val in nextval:
-            inputs = val.split(',')
-            local_inputs = []
-            for remote_input in inputs:
-                local_input = os.path.join(self._data_dir, self._storage.split(remote_input)[-1])
-                self._storage.get_file(remote_input, local_input)
-                local_inputs.append(local_input)
-            new_val.append(','.join(local_inputs))
-        return new_val
-
     def check_supported_metric(self, lang):
         metric_supported = []
         for metric, lang_defined in self.metric_lang.items():
