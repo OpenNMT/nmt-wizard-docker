@@ -29,7 +29,10 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 
 If you run this utility locally, you need some additional packages:
 ```bash
+# For Otem-Utem
 cd utilities/score; git clone https://github.com/DeepLearnXMU/Otem-Utem.git
+# For NIST
+apt-get install libsort-naturally-perl libxml-parser-perl libxml-twig-perl
 ```
 ```bash
 python utilities/score/entrypoint.py score \

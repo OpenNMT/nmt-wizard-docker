@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-pip \
         git \
         perl \
+        libsort-naturally-perl \
+        libxml-parser-perl \
+        libxml-twig-perl \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
@@ -17,6 +20,7 @@ ADD nmtwizard /root/nmtwizard
 ADD utilities/score/entrypoint.py /root/
 ADD utilities/score/BLEU /root/tools/BLEU
 ADD utilities/score/TER /root/tools/TER
+ADD utilities/score/NIST /root/tools/NIST
 
 ARG OTEMUTEM_URL
 ENV OTEMUTEM_URL=${OTEMUTEM_URL:-https://github.com/DeepLearnXMU/Otem-Utem.git}
