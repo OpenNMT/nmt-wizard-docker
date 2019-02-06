@@ -254,7 +254,7 @@ class Framework(Utility):
             if parent_model is not None and config['modelType'] not in ('checkpoint', 'base', 'preprocess'):
                 raise ValueError('cannot train from a model that is not a training checkpoint, '
                                  'a base model, or a preprocess model')
-            self.train_wrapper(
+            return self.train_wrapper(
                 self._task_id,
                 config,
                 self._storage,
@@ -276,7 +276,7 @@ class Framework(Utility):
         elif args.cmd == 'trans':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('translation requires a training checkpoint')
-            self.trans_wrapper(
+            return self.trans_wrapper(
                 config,
                 model_path,
                 self._storage,
@@ -309,7 +309,7 @@ class Framework(Utility):
                 if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
                     raise ValueError('cannot preprocess from a model that is not a training '
                                      'checkpoint or a base model')
-                self.preprocess_into_model(
+                return self.preprocess_into_model(
                     self._task_id,
                     config,
                     self._storage,
@@ -403,6 +403,9 @@ class Framework(Utility):
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
+        return {
+            'num_sentences': build_info.get('sentenceCount')
+        }
 
     def build_vocab(self,
                     model_id,
@@ -441,6 +444,8 @@ class Framework(Utility):
         local_config = resolve_environment_variables(config)
         failed_translation = 0
         translate_fn = self.translate_as_release if as_release else self.trans
+        translated_lines = 0
+        generated_tokens = 0
 
         for input, output in zip(inputs, outputs):
             try:
@@ -460,6 +465,9 @@ class Framework(Utility):
                              gpuid=gpuid)
                 if metadata is not None:
                     path_input = (path_input, metadata)
+                num_lines, num_tokens = file_stats(path_output)
+                translated_lines += num_lines
+                generated_tokens += num_tokens
                 path_output = self._postprocess_file(local_config, path_input, path_output)
                 storage.push(path_output, output)
                 end_time = time.time()
@@ -473,6 +481,10 @@ class Framework(Utility):
 
         if failed_translation == len(inputs):
             raise RuntimeError("All translation failed, see error logs")
+        return {
+            'num_sentences': translated_lines,
+            'num_tokens': generated_tokens
+        }
 
     def release_wrapper(self,
                         config,
@@ -577,6 +589,9 @@ class Framework(Utility):
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
+        return {
+            'num_sentences': build_info.get('sentenceCount')
+        }
 
     def _get_vocab_info(self, side, config, local_config, model_config=None):
         if config.get('tokenization', {}).get(side, {}).get('vocabulary') is None:
@@ -765,3 +780,12 @@ def extract_model_resources(objects, config):
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
     return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data')
+
+def file_stats(path):
+    num_lines = 0
+    num_tokens = 0
+    with open(path, "rb") as f:
+        for line in f:
+            num_lines += 1
+            num_tokens += len(line.strip().split())
+    return num_lines, num_tokens
