@@ -106,7 +106,10 @@ class S3Storage(Storage):
 
     def exists(self, remote_path):
         result = self._bucket.objects.filter(Prefix=remote_path)
-        for obj in result:
-            if obj.key == remote_path or obj.key.startswith(remote_path+"/"):
-                return True
-        return False
+        try:
+            obj = iter(result).next()
+        except StopIteration:
+            return False
+        return (obj.key == remote_path
+                or (remote_path.endswith('/') and obj.key.startswith(remote_path))
+                or obj.key.startswith(remote_path + '/'))
