@@ -27,6 +27,10 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 
 ### Local run
 
+If you run this utility locally, you need some additional packages:
+```bash
+cd utilities/score; git clone https://github.com/DeepLearnXMU/Otem-Utem.git
+```
 ```bash
 python utilities/score/entrypoint.py score \
   -o test/corpus/eval/testset1.out \

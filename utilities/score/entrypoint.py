@@ -132,6 +132,9 @@ class ScoreUtility(Utility):
             if args.lang == 'zh':
               tok_config['segment_alphabet'] = ['Han']
               tok_config['segment_alphabet_change'] = True
+        # to avoid SentencePiece sampling
+        if 'sp_nbest_size' in tok_config:
+            tok_config['sp_nbest_size'] = 0
         lang_tokenizer = tokenizer.build_tokenizer(tok_config)
 
         score = {}
