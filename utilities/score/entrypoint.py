@@ -48,6 +48,17 @@ class ScoreUtility(Utility):
                 metric_supported.append(metric)
         return metric_supported
 
+    def build_tokenizer_by_config(self, tok_config, lang):
+        if tok_config is None:
+            tok_config = {"mode": "aggressive"}
+            if lang == 'zh':
+              tok_config['segment_alphabet'] = ['Han']
+              tok_config['segment_alphabet_change'] = True
+        # to avoid SentencePiece sampling
+        if 'sp_nbest_size' in tok_config:
+            tok_config['sp_nbest_size'] = 0
+        return tokenizer.build_tokenizer(tok_config)
+
     def tokenize_files(self, file_list, lang_tokenizer):
         outfile_group = []
         for file in file_list:
@@ -159,17 +170,7 @@ class ScoreUtility(Utility):
             raise ValueError("`--output` and `--ref` should have same number of parameters")
 
         metric_supported = self.check_supported_metric(args.lang)
-
-        tok_config = args.tok_config
-        if tok_config is None:
-            tok_config = {"mode": "aggressive"}
-            if args.lang == 'zh':
-              tok_config['segment_alphabet'] = ['Han']
-              tok_config['segment_alphabet_change'] = True
-        # to avoid SentencePiece sampling
-        if 'sp_nbest_size' in tok_config:
-            tok_config['sp_nbest_size'] = 0
-        lang_tokenizer = tokenizer.build_tokenizer(tok_config)
+        lang_tokenizer = self.build_tokenizer_by_config(args.tok_config, args.lang)
 
         score = {}
         for i, output in enumerate(list_output):
