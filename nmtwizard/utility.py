@@ -10,6 +10,7 @@ import shutil
 import uuid
 import six
 import sys
+import requests
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
@@ -111,6 +112,9 @@ class Utility(object):
                                   "(push notifications of activity)."))
         parser.add_argument('-bi', '--beat_interval', default=30, type=int,
                             help="Interval of beat requests in seconds.")
+        parser.add_argument('--statistics_url', default=None,
+                            help=('Endpoint that listens to statistics summaries generated '
+                                  'at the end of the execution'))
 
         parser.add_argument('-ms', '--model_storage', default=None,
                             help='Model storage in the form <storage_id>:[<path>].')
@@ -171,11 +175,17 @@ class Utility(object):
 
         logger.info('Starting executing utility %s=%s', self.name, args.image)
         start_time = time.time()
-
-        self.exec_function(args)
-
+        stats = self.exec_function(args)
         end_time = time.time()
         logger.info('Finished executing utility in %s seconds', str(end_time-start_time))
+
+        if args.statistics_url is not None:
+            requests.post(args.statistics_url, data={
+                'task_id': self._task_id,
+                'start_time': start_time,
+                'end_time': end_time,
+                'statistics': stats or {}
+            })
 
     def _merge_multi_training_files(self, data_path, train_dir, source, target):
         merged_dir = os.path.join(self._data_dir, 'merged')
