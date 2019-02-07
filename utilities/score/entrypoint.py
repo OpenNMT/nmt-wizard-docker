@@ -18,7 +18,8 @@ class ScoreUtility(Utility):
             # comma separated if there are multi languages
             "BLEU": "all",
             "TER": "all",
-            "Otem-Utem": "all"
+            "Otem-Utem": "all",
+            "NIST": "all"
             }
 
     @property
@@ -46,6 +47,17 @@ class ScoreUtility(Utility):
             if 'all' in lang_group or lang in lang_group:
                 metric_supported.append(metric)
         return metric_supported
+
+    def build_tokenizer_by_config(self, tok_config, lang):
+        if tok_config is None:
+            tok_config = {"mode": "aggressive"}
+            if lang == 'zh':
+              tok_config['segment_alphabet'] = ['Han']
+              tok_config['segment_alphabet_change'] = True
+        # to avoid SentencePiece sampling
+        if 'sp_nbest_size' in tok_config:
+            tok_config['sp_nbest_size'] = 0
+        return tokenizer.build_tokenizer(tok_config)
 
     def tokenize_files(self, file_list, lang_tokenizer):
         outfile_group = []
@@ -117,6 +129,39 @@ class ScoreUtility(Utility):
 
         return otem_utem_score
 
+    def eval_NIST_create_tempfile(self, typename, filename, inputfiles):
+        file_handle = open(filename, "wb")
+        subprocess.call(['/usr/bin/perl',
+                                            os.path.join(self._tools_dir, 'NIST', 'xml_wrap.pl'),
+                                            typename] + inputfiles,
+                                            stdout=file_handle)
+
+    def eval_NIST(self, tgtfile, reffile):
+        file_prefix = tempfile.NamedTemporaryFile(delete=False)
+        file_src_xml = file_prefix.name + '_src.xml'
+        self.eval_NIST_create_tempfile('src', file_src_xml, [tgtfile])
+        file_tst_xml = file_prefix.name + '_tst.xml'
+        self.eval_NIST_create_tempfile('tst', file_tst_xml, [tgtfile])
+        file_ref_xml = file_prefix.name + '_ref.xml'
+        self.eval_NIST_create_tempfile('ref', file_ref_xml, reffile)
+
+        result = subprocess.check_output(['/usr/bin/perl',
+                                            os.path.join(self._tools_dir, 'NIST', 'mteval-v14.pl'),
+                                            '-s', file_src_xml,
+                                            '-t', file_tst_xml,
+                                            '-r', file_ref_xml])
+        nist = re.match(r"^.*NIST\sscore\s=\s([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
+
+        os.remove(file_prefix.name)
+        os.remove(file_src_xml)
+        os.remove(file_tst_xml)
+        os.remove(file_ref_xml)
+
+        if nist is not None:
+            return float(nist.group(1))
+
+        return 0
+
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
         list_ref = self.convert_to_local_file(args.ref)
@@ -125,14 +170,7 @@ class ScoreUtility(Utility):
             raise ValueError("`--output` and `--ref` should have same number of parameters")
 
         metric_supported = self.check_supported_metric(args.lang)
-
-        tok_config = args.tok_config
-        if tok_config is None:
-            tok_config = {"mode": "aggressive"}
-            if args.lang == 'zh':
-              tok_config['segment_alphabet'] = ['Han']
-              tok_config['segment_alphabet_change'] = True
-        lang_tokenizer = tokenizer.build_tokenizer(tok_config)
+        lang_tokenizer = self.build_tokenizer_by_config(args.tok_config, args.lang)
 
         score = {}
         for i, output in enumerate(list_output):
@@ -151,6 +189,8 @@ class ScoreUtility(Utility):
                     otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
                     for k, v in otem_utem_score.items():
                         score[args.output[i]][k] = v
+                if metric == 'NIST':
+                    score[args.output[i]][metric] = self.eval_NIST(output_tok[0], reffile_tok)
 
             os.remove(output_tok[0])
             for file in reffile_tok:

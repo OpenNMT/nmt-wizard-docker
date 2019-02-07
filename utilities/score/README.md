@@ -4,6 +4,7 @@
 - BLEU: [multi-bleu-detok.perl](https://github.com/OpenNMT/OpenNMT-tf/blob/master/third_party/multi-bleu-detok.perl) with CJK tokenizating (Character based).
 - TER: [Version 6b](http://www.cs.umd.edu/~snover/tercom/)
 - Otem-Utem: [Over- and Under-Translation Evaluation Metric for NMT](https://github.com/DeepLearnXMU/Otem-Utem)
+- NIST: [mteval-v14.pl](https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/mteval-v14.pl) from moses
 
 ## Direct run
 
@@ -27,6 +28,13 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 
 ### Local run
 
+If you run this utility locally, you need some additional packages:
+```bash
+# For Otem-Utem
+cd utilities/score; git clone https://github.com/DeepLearnXMU/Otem-Utem.git
+# For NIST
+apt-get install libsort-naturally-perl libxml-parser-perl libxml-twig-perl
+```
 ```bash
 python utilities/score/entrypoint.py score \
   -o test/corpus/eval/testset1.out \
