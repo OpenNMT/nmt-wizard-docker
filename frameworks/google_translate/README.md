@@ -25,7 +25,7 @@ export PYTHONPATH=$PWD
 ### Translation
 
 ```bash
-echo 'Hello world!'' > /tmp/test.txt
+echo 'Hello world!' > /tmp/test.txt
 python frameworks/google_translate/entrypoint.py \
     -c frameworks/google_translate/config/trans_ende_example.json \
     trans -i /tmp/test.txt -o /tmp/test.txt.out
@@ -39,7 +39,7 @@ mkdir /tmp/google_translate
 echo 'Hello world!' > /tmp/google_translate/test.txt
 
 cat frameworks/google_translate/config/trans_ende_example.json | docker run -i --rm \
-    -v /tmp/google_translate:/root/mount
+    -v /tmp/google_translate:/root/mount \
     -v $HOME/credentials/Gateway-Translate-API.json:/root/Gateway-Translate-API.json \
     -e GOOGLE_APPLICATION_CREDENTIALS=/root/Gateway-Translate-API.json \
     nmtwizard/google-translate \
