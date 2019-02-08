@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-pip \
         git \
         perl \
+        default-jre \
         libsort-naturally-perl \
         libxml-parser-perl \
         libxml-twig-perl \

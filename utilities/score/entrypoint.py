@@ -91,14 +91,14 @@ class ScoreUtility(Utility):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
             file_tgt.flush()
             file_ref.flush()
-            subprocess.check_output(['/usr/bin/perl', os.path.join(self._tools_dir, 'TER', 'tercom_v6b.pl'),
+            result = subprocess.check_output(['/usr/bin/java', '-jar',
+                                  os.path.join(self._tools_dir, 'TER', 'tercom.7.25.jar'),
                                   '-r', file_ref.name,
                                   '-h', file_tgt.name,
                                   '-s', '-N'])
-            result = subprocess.check_output(['tail', '-1', file_tgt.name+'.sys.sum'])
-            ter = re.match(r"^.*?([\d\.]+)$", result.decode('ascii').rstrip())
+            ter = re.match(r"^.*Total\sTER:\s([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
             if ter is not None:
-                return float(ter.group(1))
+                return round(float(ter.group(1))*100, 2)
 
             return 0
 
