@@ -192,20 +192,27 @@ class ScoreUtility(Utility):
             output_tok = self.tokenize_files([output], lang_tokenizer)
             reffile_tok = self.tokenize_files(list_ref[i].split(','), lang_tokenizer)
 
+            print("Starting to evaluate ... %s" % args.output[i])
             score[args.output[i]] = {}
             for metric in metric_supported:
                 if metric == 'BLEU':
                     bleu_score = self.eval_BLEU(output, list_ref[i])
                     for k, v in bleu_score.items():
+                        print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'TER':
-                    score[args.output[i]][metric] = self.eval_TER(output_tok[0], reffile_tok)
+                    v = self.eval_TER(output_tok[0], reffile_tok)
+                    print("%s: %.2f" % (metric, v))
+                    score[args.output[i]][metric] = v
                 if metric == 'Otem-Utem':
                     otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
                     for k, v in otem_utem_score.items():
+                        print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'NIST':
-                    score[args.output[i]][metric] = self.eval_NIST(output_tok[0], reffile_tok)
+                    v = self.eval_NIST(output_tok[0], reffile_tok)
+                    print("%s: %.2f" % (metric, v))
+                    score[args.output[i]][metric] = v
 
             os.remove(output_tok[0])
             for file in reffile_tok:
