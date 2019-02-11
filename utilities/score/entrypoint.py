@@ -68,8 +68,8 @@ class ScoreUtility(Utility):
             outfile_group.append(outfile.name)
         return outfile_group
 
-    def exec_command_with_timeout(self, cmd, timeout=300):
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    def exec_command_with_timeout(self, cmd, timeout=300, shell=False):
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell)
 
         iterations = 0
         while p.poll() is None and iterations < timeout:
@@ -83,7 +83,7 @@ class ScoreUtility(Utility):
 
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
-        result = subprocess.check_output('/usr/bin/perl %s %s < %s' % (
+        result = self.exec_command_with_timeout('/usr/bin/perl %s %s < %s' % (
                                             os.path.join(self._tools_dir, 'BLEU', 'multi-bleu-detok_cjk.perl'),
                                             reffile,
                                             tgtfile), shell=True)  # nosec
@@ -119,21 +119,21 @@ class ScoreUtility(Utility):
     def eval_Otem_Utem(self, tgtfile, reffile):
         reffile_prefix = reffile[0] + 'prefix'
         for idx, f in enumerate(reffile):
-            subprocess.check_output(['/bin/ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
+            subprocess.call(['/bin/ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
 
         otem_utem_score = {'OTEM': 0, 'UTEM': 0}
-        result = subprocess.check_output(['/usr/bin/python',
+        result = self.exec_command_with_timeout(['/usr/bin/python',
                                             os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
                                             tgtfile,
-                                            reffile_prefix], stderr=subprocess.STDOUT)
+                                            reffile_prefix])
         otem = re.match(r"^OTEM\s=\s([\d\.]+),", result.decode('ascii'))
         if otem is not None:
             otem_utem_score['OTEM'] = float(otem.group(1))
 
-        result = subprocess.check_output(['/usr/bin/python',
+        result = self.exec_command_with_timeout(['/usr/bin/python',
                                             os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
                                             tgtfile,
-                                            reffile_prefix], stderr=subprocess.STDOUT)
+                                            reffile_prefix])
         utem = re.match(r"^UTEM\s=\s([\d\.]+),", result.decode('ascii'))
         if utem is not None:
             otem_utem_score['UTEM'] = float(utem.group(1))
@@ -159,7 +159,7 @@ class ScoreUtility(Utility):
         file_ref_xml = file_prefix.name + '_ref.xml'
         self.eval_NIST_create_tempfile('ref', file_ref_xml, reffile)
 
-        result = subprocess.check_output(['/usr/bin/perl',
+        result = self.exec_command_with_timeout(['/usr/bin/perl',
                                             os.path.join(self._tools_dir, 'NIST', 'mteval-v14.pl'),
                                             '-s', file_src_xml,
                                             '-t', file_tst_xml,
