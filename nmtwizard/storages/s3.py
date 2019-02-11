@@ -67,7 +67,8 @@ class S3Storage(Storage):
         lsdir = {}
         for obj in objects:
             path = obj.key
-            if path == remote_path or remote_path.endswith('/') or path.startswith(remote_path + '/'):
+            if remote_path == '' or \
+               path == remote_path or remote_path.endswith('/') or path.startswith(remote_path + '/'):
                 p = path.find('/', len(remote_path)+1)
                 if not recursive and p != -1:
                     path = path[0:p+1]
@@ -111,5 +112,6 @@ class S3Storage(Storage):
         except StopIteration:
             return False
         return (obj.key == remote_path
+                or remote_path == ''
                 or (remote_path.endswith('/') and obj.key.startswith(remote_path))
                 or obj.key.startswith(remote_path + '/'))
