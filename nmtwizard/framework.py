@@ -672,7 +672,6 @@ class Framework(Utility):
         elif 'src_tokenizer' in state:
             input = input.encode('utf-8')
             tokens, _ = state['src_tokenizer'].tokenize(input)
-            tokens = [token.decode('utf-8') for token in tokens]
         else:
             tokens = input.split()
         return tokens
@@ -683,7 +682,6 @@ class Framework(Utility):
         elif 'tgt_tokenizer' in state:
             output = [out.encode('utf-8') for out in target]
             text = state['tgt_tokenizer'].detokenize(output)
-            text.decode('utf-8')
         else:
             text = ' '.join(target)
         return text
