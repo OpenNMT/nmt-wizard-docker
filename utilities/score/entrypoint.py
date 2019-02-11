@@ -95,6 +95,7 @@ class ScoreUtility(Utility):
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
+        ter = None
         with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
             with open(tgtfile) as f:
                 for i, line in enumerate(f):
@@ -111,10 +112,10 @@ class ScoreUtility(Utility):
                                   '-h', file_tgt.name,
                                   '-s', '-N'])
             ter = re.match(r"^.*Total\sTER:\s([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
-            if ter is not None:
-                return round(float(ter.group(1))*100, 2)
+        if ter is not None:
+            return round(float(ter.group(1))*100, 2)
 
-            return 0
+        return 0
 
     def eval_Otem_Utem(self, tgtfile, reffile):
         reffile_prefix = reffile[0] + 'prefix'
