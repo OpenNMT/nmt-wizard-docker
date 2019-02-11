@@ -2,7 +2,7 @@
 
 ## Metrics
 - BLEU: [multi-bleu-detok.perl](https://github.com/OpenNMT/OpenNMT-tf/blob/master/third_party/multi-bleu-detok.perl) with CJK tokenizating (Character based).
-- TER: [Version 6b](http://www.cs.umd.edu/~snover/tercom/)
+- TER: [Version 0.7.25](http://www.cs.umd.edu/~snover/tercom/)
 - Otem-Utem: [Over- and Under-Translation Evaluation Metric for NMT](https://github.com/DeepLearnXMU/Otem-Utem)
 - NIST: [mteval-v14.pl](https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/mteval-v14.pl) from moses
 
