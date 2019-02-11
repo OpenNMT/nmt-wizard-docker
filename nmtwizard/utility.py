@@ -180,7 +180,7 @@ class Utility(object):
         logger.info('Finished executing utility in %s seconds', str(end_time-start_time))
 
         if args.statistics_url is not None:
-            requests.post(args.statistics_url, data={
+            requests.post(args.statistics_url, json={
                 'task_id': self._task_id,
                 'start_time': start_time,
                 'end_time': end_time,
