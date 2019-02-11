@@ -3,6 +3,7 @@ import re
 import tempfile
 import subprocess
 import json
+import time
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
@@ -67,6 +68,19 @@ class ScoreUtility(Utility):
             outfile_group.append(outfile.name)
         return outfile_group
 
+    def exec_command_with_timeout(self, cmd, timeout=300):
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+
+        iterations = 0
+        while p.poll() is None and iterations < timeout:
+            iterations += 1
+            time.sleep(1)
+        if p.poll() is None:
+            print("Time out, kill process...")
+            p.kill()
+
+        return p.stdout.read()
+
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(',', ' ')
         result = subprocess.check_output('/usr/bin/perl %s %s < %s' % (
@@ -91,7 +105,7 @@ class ScoreUtility(Utility):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
             file_tgt.flush()
             file_ref.flush()
-            result = subprocess.check_output(['/usr/bin/java', '-jar',
+            result = self.exec_command_with_timeout(['/usr/bin/java', '-jar',
                                   os.path.join(self._tools_dir, 'TER', 'tercom.7.25.jar'),
                                   '-r', file_ref.name,
                                   '-h', file_tgt.name,
