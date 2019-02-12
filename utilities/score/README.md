@@ -5,7 +5,7 @@
 - TER: [Version 0.7.25](http://www.cs.umd.edu/~snover/tercom/)
 - Otem-Utem: [Over- and Under-Translation Evaluation Metric for NMT](https://github.com/DeepLearnXMU/Otem-Utem)
 - NIST: [mteval-v14.pl](https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/mteval-v14.pl) from moses
-- Meteor: [Version 1.5](http://www.cs.cmu.edu/~alavie/METEOR)
+- Meteor: [Version 1.5](http://www.cs.cmu.edu/~alavie/METEOR) for **cz de en es fr ru** only
 
 ## Direct run
 
