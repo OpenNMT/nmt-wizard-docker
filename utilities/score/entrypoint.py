@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import re
 import tempfile
@@ -20,7 +21,8 @@ class ScoreUtility(Utility):
             "BLEU": "all",
             "TER": "all",
             "Otem-Utem": "all",
-            "NIST": "all"
+            "NIST": "all",
+            "Meteor": "cz,de,en,es,fr,ru"
             }
 
     @property
@@ -95,7 +97,6 @@ class ScoreUtility(Utility):
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
-        ter = None
         with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
             with open(tgtfile) as f:
                 for i, line in enumerate(f):
@@ -112,10 +113,10 @@ class ScoreUtility(Utility):
                                   '-h', file_tgt.name,
                                   '-s', '-N'])
             ter = re.match(r"^.*Total\sTER:\s([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
-        if ter is not None:
-            return round(float(ter.group(1))*100, 2)
+            if ter is not None:
+                return round(float(ter.group(1))*100, 2)
 
-        return 0
+            return 0
 
     def eval_Otem_Utem(self, tgtfile, reffile):
         reffile_prefix = reffile[0] + 'prefix'
@@ -177,6 +178,29 @@ class ScoreUtility(Utility):
 
         return 0
 
+    def eval_METEOR(self, tgtfile, reffile, lang):
+        reffile = reffile.split(',')
+        with tempfile.NamedTemporaryFile(mode='w') as file_ref:
+            file_handles = []
+            for ref in reffile:
+                file_handles.append(open(ref))
+            nRef = len(file_handles)
+            for line in file_handles[0]:
+                file_ref.write(line)
+                for idx in range(1, nRef):
+                    line = file_handles[idx].readline()
+                    file_ref.write(line)
+            file_ref.flush()
+            result = self.exec_command_with_timeout(['/usr/bin/java', '-Xmx2G', '-jar',
+                                  os.path.join(self._tools_dir, 'METEOR', 'meteor-1.5.jar'),
+                                  tgtfile, file_ref.name,
+                                  '-l', lang.lower(), '-norm', '-r', str(nRef)])
+            meteor = re.match(r"^.*Final\sscore:\s+([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
+            if meteor is not None:
+                return round(float(meteor.group(1))*100, 2)
+
+            return 0
+
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
         list_ref = self.convert_to_local_file(args.ref)
@@ -211,6 +235,11 @@ class ScoreUtility(Utility):
                         score[args.output[i]][k] = v
                 if metric == 'NIST':
                     v = self.eval_NIST(output_tok[0], reffile_tok)
+                    print("%s: %.2f" % (metric, v))
+                    score[args.output[i]][metric] = v
+                if metric == 'Meteor':
+                    # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
+                    v = self.eval_METEOR(output, list_ref[i], args.lang)
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
 
