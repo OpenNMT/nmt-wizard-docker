@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsort-naturally-perl \
         libxml-parser-perl \
         libxml-twig-perl \
+        wget \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
@@ -33,5 +34,13 @@ RUN git clone --depth 1 --single-branch ${OTEMUTEM_URL} /root/OTEMUTEM && \
 	mkdir /root/tools/Otem-Utem && \
 	cp /root/OTEMUTEM/*.py /root/tools/Otem-Utem && \
 	rm -rf /root/OTEMUTEM
+
+ARG METEOR_URL
+ENV METEOR_URL=${METEOR_URL:-http://www.cs.cmu.edu/~alavie/METEOR/download/meteor-1.5.tar.gz}
+
+RUN wget $METEOR_URL && \
+  tar xvf meteor-1.5.tar.gz && \
+  mv meteor-1.5 /root/tools/METEOR && \
+  rm meteor-1.5.tar.gz
 
 ENTRYPOINT ["python", "entrypoint.py"]

@@ -5,6 +5,7 @@
 - TER: [Version 0.7.25](http://www.cs.umd.edu/~snover/tercom/)
 - Otem-Utem: [Over- and Under-Translation Evaluation Metric for NMT](https://github.com/DeepLearnXMU/Otem-Utem)
 - NIST: [mteval-v14.pl](https://github.com/moses-smt/mosesdecoder/blob/master/scripts/generic/mteval-v14.pl) from moses
+- Meteor: [Version 1.5](http://www.cs.cmu.edu/~alavie/METEOR)
 
 ## Direct run
 
@@ -34,6 +35,8 @@ If you run this utility locally, you need some additional packages:
 cd utilities/score; git clone https://github.com/DeepLearnXMU/Otem-Utem.git
 # For NIST
 apt-get install libsort-naturally-perl libxml-parser-perl libxml-twig-perl
+# For Meteor
+wget http://www.cs.cmu.edu/~alavie/METEOR/download/meteor-1.5.tar.gz; tar xvf meteor-1.5.tar.gz; mv meteor-1.5 utilities/score/METEOR
 ```
 ```bash
 python utilities/score/entrypoint.py score \
