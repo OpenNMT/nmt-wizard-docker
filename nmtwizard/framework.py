@@ -404,7 +404,7 @@ class Framework(Utility):
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
         return {
-            'num_sentences': build_info.get('sentenceCount')
+            'num_sentences': config['build'].get('sentenceCount')
         }
 
     def build_vocab(self,
