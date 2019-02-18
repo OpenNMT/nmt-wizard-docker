@@ -35,6 +35,11 @@ class StorageClient(object):
         fields = path.split(':')
         return len(fields) == 2 and fields[0] in self._config
 
+    def parse_managed_path(self, path):
+        """Returns the storage ID and the full path from a managed path."""
+        fields = path.split(':')
+        return fields[0], fields[1]
+
     def _get_storage(self, path, storage_id=None):
         """Returns the storage implementation based on storage_id or infer it
         from the path. Defaults to the local filesystem.

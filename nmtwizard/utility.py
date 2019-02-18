@@ -38,21 +38,38 @@ def getenv(m, training=True):
         raise ValueError('Environment variable %s is not defined' % var)
     return value
 
+def _map_config_fn(a, fn):
+    if isinstance(a, dict):
+        new_a = {}
+        for k, v in six.iteritems(a):
+            new_a[k] = _map_config_fn(v, fn)
+        return new_a
+    elif isinstance(a, list):
+        new_a = []
+        for v in a:
+            new_a.append(_map_config_fn(v, fn))
+        return new_a
+    else:
+        return fn(a)
+
 def resolve_environment_variables(config, training=True):
     """Returns a new configuration with all environment variables replaced."""
-    if isinstance(config, dict):
-        new_config = {}
-        for k, v in six.iteritems(config):
-            new_config[k] = resolve_environment_variables(v, training=training)
-        return new_config
-    elif isinstance(config, list):
-        new_config = []
-        for i, _ in enumerate(config):
-            new_config.append(resolve_environment_variables(config[i], training=training))
-        return new_config
-    elif isinstance(config, six.string_types):
-        return ENVVAR_RE.sub(lambda m: getenv(m, training=training), config)
-    return config
+    def _map_fn(value):
+        if not isinstance(value, six.string_types):
+            return value
+        return ENVVAR_RE.sub(lambda m: getenv(m, training=training), value)
+    return _map_config_fn(config, _map_fn)
+
+def resolve_remote_files(config, local_dir, storage_client):
+    """Downloads remote files present in config locally."""
+    def _map_fn(value):
+        if not storage_client.is_managed_path(value):
+            return value
+        storage_id, remote_path = storage_client.parse_managed_path(value)
+        local_path = os.path.join(local_dir, "%s_%s" % (storage_id, os.path.basename(remote_path)))
+        storage_client.get_file(remote_path, local_path, storage_id=storage_id)
+        return local_path
+    return _map_config_fn(config, _map_fn)
 
 def load_config(config_arg):
     """Loads the configuration from a string, a file, or the standard input."""
