@@ -22,6 +22,7 @@ class S3Storage(Storage):
         self._bucket = self._s3.Bucket(bucket_name)
 
     def get(self, remote_path, local_path, directory=False):
+        remote_path = _sanitize_path(remote_path)
         if not directory:
             if os.path.isdir(local_path):
                 local_path = os.path.join(local_path, os.path.basename(remote_path))
@@ -41,6 +42,7 @@ class S3Storage(Storage):
                 self._bucket.download_file(obj.key, path)
 
     def push(self, local_path, remote_path):
+        remote_path = _sanitize_path(remote_path)
         if os.path.isfile(local_path):
             if remote_path.endswith('/') or self.exists(remote_path+'/'):
                 remote_path = os.path.join(remote_path, os.path.basename(local_path))
@@ -54,6 +56,7 @@ class S3Storage(Storage):
                     self._bucket.upload_file(path, s3_path)
 
     def stream(self, remote_path, buffer_size=1024):
+        remote_path = _sanitize_path(remote_path)
         body = self._s3.Object(self._bucket_name, remote_path).get()['Body']
 
         def generate():
@@ -63,6 +66,7 @@ class S3Storage(Storage):
         return generate()
 
     def listdir(self, remote_path, recursive=False):
+        remote_path = _sanitize_path(remote_path)
         objects = list(self._bucket.objects.filter(Prefix=remote_path))
         lsdir = {}
         for obj in objects:
@@ -80,6 +84,7 @@ class S3Storage(Storage):
         return lsdir.keys()
 
     def delete(self, remote_path, recursive=False):
+        remote_path = _sanitize_path(remote_path)
         lsdir = self.listdir(remote_path, recursive)
         if recursive:
             if remote_path in lsdir or not lsdir:
@@ -92,6 +97,8 @@ class S3Storage(Storage):
             self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=key)
 
     def rename(self, old_remote_path, new_remote_path):
+        old_remote_path = _sanitize_path(old_remote_path)
+        new_remote_path = _sanitize_path(new_remote_path)
         for obj in self._bucket.objects.filter(Prefix=old_remote_path):
             src_key = obj.key
             if not src_key.endswith('/'):
@@ -106,6 +113,7 @@ class S3Storage(Storage):
             self._s3.Object(self._bucket_name, src_key).delete()
 
     def exists(self, remote_path):
+        remote_path = _sanitize_path(remote_path)
         result = self._bucket.objects.filter(Prefix=remote_path)
         try:
             obj = iter(result).next()
@@ -115,3 +123,11 @@ class S3Storage(Storage):
                 or remote_path == ''
                 or (remote_path.endswith('/') and obj.key.startswith(remote_path))
                 or obj.key.startswith(remote_path + '/'))
+
+
+def _sanitize_path(path):
+    # S3 does not work with paths but keys. This function possibly adapts a
+    # path-like representation to a S3 key.
+    if path.startswith('/'):
+        return path[1:]
+    return path

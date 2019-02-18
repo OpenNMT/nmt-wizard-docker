@@ -12,7 +12,8 @@ import six
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample
-from nmtwizard.utility import Utility, merge_config, resolve_environment_variables
+from nmtwizard.utility import Utility, merge_config
+from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
 from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
 from nmtwizard import serving
@@ -333,17 +334,18 @@ class Framework(Utility):
         logger.info('Starting training model %s', model_id)
         start_time = time.time()
 
-        local_config = resolve_environment_variables(config)
+        parent_model_type = config.get('modelType') if model_path is not None else None
+
+        local_config = self._finalize_config(
+            config, download_files=parent_model_type != 'preprocess')
         local_model_config = (
-            resolve_environment_variables(model_config)
+            self._finalize_config(model_config)
             if model_config is not None else None)
 
         src_vocab_info = self._get_vocab_info(
             'source', config, local_config, model_config=local_model_config)
         tgt_vocab_info = self._get_vocab_info(
             'target', config, local_config, model_config=local_model_config)
-
-        parent_model_type = config.get('modelType') if model_path is not None else None
 
         if parent_model_type == 'preprocess':
             train_dir = 'data'
@@ -415,7 +417,7 @@ class Framework(Utility):
                     image,
                     push_model=True):
         start_time = time.time()
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, download_files=True)
         objects, tokenization_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
@@ -441,7 +443,7 @@ class Framework(Utility):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
 
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, download_files=True, training=False)
         failed_translation = 0
         translate_fn = self.translate_as_release if as_release else self.trans
         translated_lines = 0
@@ -494,7 +496,7 @@ class Framework(Utility):
                         destination,
                         gpuid=0,
                         push_model=True):
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, download_files=True, training=False)
         objects = self.release(local_config, model_path, gpuid=gpuid)
         extract_model_resources(objects, config)
         model_id = config['model'] + '_release'
@@ -510,7 +512,7 @@ class Framework(Utility):
             storage.push(objects_dir, storage.join(destination, model_id))
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, download_files=True, training=False)
         serving.start_server(
             host,
             port,
@@ -525,7 +527,7 @@ class Framework(Utility):
         logger.info('Starting preprocessing data ')
         start_time = time.time()
 
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, download_files=True)
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
 
@@ -545,7 +547,7 @@ class Framework(Utility):
         logger.info('Starting preprocessing %s', model_id)
         start_time = time.time()
 
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, download_files=True)
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
         if num_samples == 0:
@@ -740,6 +742,13 @@ class Framework(Utility):
             build_info['cumSentenceCount'] = (
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
+
+    def _finalize_config(self, config, download_files=False, training=True):
+        config = resolve_environment_variables(config, training=True)
+        if download_files:
+            config = resolve_remote_files(config, self._data_dir, self._storage)
+        return config
+
 
 def map_config_fn(config, fn):
     if isinstance(config, list):

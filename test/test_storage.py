@@ -248,3 +248,12 @@ def test_storages(tmpdir, storages, storage_id):
     # checking directory is not there anymore
     assert not storage_client.exists(os.path.join("myremotedirectory"),
                                      storage_id=storage_id)
+
+def test_is_managed_path():
+    config = {"s3_models": {}, "s3_test": {}, "launcher": {}}
+    client = storage.StorageClient(config=config)
+    assert not client.is_managed_path("/home/ubuntu/file.txt")
+    assert not client.is_managed_path(":ubuntu/file.txt")
+    assert not client.is_managed_path("storage:ubuntu/file.txt")
+    assert client.is_managed_path("s3_models:ubuntu/file.txt")
+    assert client.is_managed_path("s3_test:")
