@@ -24,31 +24,34 @@ ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
 
 logger = get_logger(__name__)
 
-def getenv(m):
+def getenv(m, training=True):
     var = m.group(1)
-    if var == 'TRAIN_DIR':
-        var = 'CORPUS_DIR'
-    elif 'TRAIN_' in var:
-        var = var.replace('TRAIN_', '')
+    if 'TRAIN_' in var:
+        if not training:
+            return "${%s}" % var
+        if var == 'TRAIN_DIR':
+            var = 'CORPUS_DIR'
+        else:
+            var = var.replace('TRAIN_', '')
     value = os.getenv(var)
     if value is None:
         raise ValueError('Environment variable %s is not defined' % var)
     return value
 
-def resolve_environment_variables(config):
+def resolve_environment_variables(config, training=True):
     """Returns a new configuration with all environment variables replaced."""
     if isinstance(config, dict):
         new_config = {}
         for k, v in six.iteritems(config):
-            new_config[k] = resolve_environment_variables(v)
+            new_config[k] = resolve_environment_variables(v, training=training)
         return new_config
     elif isinstance(config, list):
         new_config = []
         for i, _ in enumerate(config):
-            new_config.append(resolve_environment_variables(config[i]))
+            new_config.append(resolve_environment_variables(config[i], training=training))
         return new_config
     elif isinstance(config, six.string_types):
-        return ENVVAR_RE.sub(lambda m: getenv(m), config)
+        return ENVVAR_RE.sub(lambda m: getenv(m, training=training), config)
     return config
 
 def load_config(config_arg):

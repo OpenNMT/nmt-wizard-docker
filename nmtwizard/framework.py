@@ -441,7 +441,7 @@ class Framework(Utility):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
 
-        local_config = resolve_environment_variables(config)
+        local_config = resolve_environment_variables(config, training=False)
         failed_translation = 0
         translate_fn = self.translate_as_release if as_release else self.trans
         translated_lines = 0
@@ -494,7 +494,7 @@ class Framework(Utility):
                         destination,
                         gpuid=0,
                         push_model=True):
-        local_config = resolve_environment_variables(config)
+        local_config = resolve_environment_variables(config, training=False)
         objects = self.release(local_config, model_path, gpuid=gpuid)
         extract_model_resources(objects, config)
         model_id = config['model'] + '_release'
@@ -510,7 +510,7 @@ class Framework(Utility):
             storage.push(objects_dir, storage.join(destination, model_id))
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
-        local_config = resolve_environment_variables(config)
+        local_config = resolve_environment_variables(config, training=False)
         serving.start_server(
             host,
             port,
