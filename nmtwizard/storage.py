@@ -28,6 +28,13 @@ class StorageClient(object):
         self._tmp_dir = tmp_dir or tempfile.mkdtemp()
         self._storages = {}
 
+    def is_managed_path(self, path):
+        """Returns True if the path references a storage managed by this client."""
+        if self._config is None:
+            return False
+        fields = path.split(':')
+        return len(fields) == 2 and fields[0] in self._config
+
     def _get_storage(self, path, storage_id=None):
         """Returns the storage implementation based on storage_id or infer it
         from the path. Defaults to the local filesystem.
