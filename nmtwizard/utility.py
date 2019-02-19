@@ -63,7 +63,7 @@ def resolve_environment_variables(config, training=True):
 def resolve_remote_files(config, local_dir, storage_client):
     """Downloads remote files present in config locally."""
     def _map_fn(value):
-        if not storage_client.is_managed_path(value):
+        if not isinstance(value, six.string_types) or not storage_client.is_managed_path(value):
             return value
         storage_id, remote_path = storage_client.parse_managed_path(value)
         local_path = os.path.join(local_dir, "%s_%s" % (storage_id, os.path.basename(remote_path)))

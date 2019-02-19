@@ -41,11 +41,11 @@ def test_resolve_remote_files(tmpdir):
         "b": "non_storage:b.txt",
         "c": "tmp:remote/a.txt",
         "d": "tmp2:a.txt",
+        "e": True
     }
     config = utility.resolve_remote_files(config, str(tmpdir.join("local")), client)
     c_path = tmpdir.join("local").join("tmp_a.txt")
     d_path = tmpdir.join("local").join("tmp2_a.txt")
-    print(config)
     assert config["a"] == "/home/ubuntu/a.txt"
     assert config["b"] == "non_storage:b.txt"
     assert config["c"] == str(c_path)
