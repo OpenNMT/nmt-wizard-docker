@@ -744,7 +744,7 @@ class Framework(Utility):
         return build_info
 
     def _finalize_config(self, config, download_files=False, training=True):
-        config = resolve_environment_variables(config, training=True)
+        config = resolve_environment_variables(config, training=training)
         if download_files:
             config = resolve_remote_files(config, self._data_dir, self._storage)
         return config
