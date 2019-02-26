@@ -203,6 +203,14 @@ class ScoreUtility(Utility):
 
             return 0
 
+    def check_file_exist(self, file_list):
+        all_file_exist = True
+        for fname in file_list:
+            if not os.path.isfile(fname):
+                print("ERROR: File %s not exists, ignore...", fname)
+                all_file_exist = False
+        return all_file_exist
+
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
         list_ref = self.convert_to_local_file(args.ref)
@@ -215,8 +223,12 @@ class ScoreUtility(Utility):
 
         score = {}
         for i, output in enumerate(list_output):
+            list_ref_files = list_ref[i].split(',')
+            if not self.check_file_exist([output] + list_ref_files):
+                continue
+
             output_tok = self.tokenize_files([output], lang_tokenizer)
-            reffile_tok = self.tokenize_files(list_ref[i].split(','), lang_tokenizer)
+            reffile_tok = self.tokenize_files(list_ref_files, lang_tokenizer)
 
             print("Starting to evaluate ... %s" % args.output[i])
             thread_list = {}
