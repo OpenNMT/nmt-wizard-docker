@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 import json
 import time
+from multiprocessing.pool import ThreadPool
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
@@ -24,6 +25,7 @@ class ScoreUtility(Utility):
             "NIST": "all",
             "Meteor": "cz,de,en,es,fr,ru"
             }
+        self.pool = ThreadPool(processes=int(os.getenv("NB_CPU", "5")))
 
     @property
     def name(self):
@@ -201,6 +203,14 @@ class ScoreUtility(Utility):
 
             return 0
 
+    def check_file_exist(self, file_list):
+        all_file_exist = True
+        for fname in file_list:
+            if not os.path.isfile(fname):
+                print("ERROR: File %s not exists, ignore...", fname)
+                all_file_exist = False
+        return all_file_exist
+
     def exec_function(self, args):
         list_output = self.convert_to_local_file(args.output)
         list_ref = self.convert_to_local_file(args.ref)
@@ -213,33 +223,50 @@ class ScoreUtility(Utility):
 
         score = {}
         for i, output in enumerate(list_output):
+            list_ref_files = list_ref[i].split(',')
+            if not self.check_file_exist([output] + list_ref_files):
+                continue
+
             output_tok = self.tokenize_files([output], lang_tokenizer)
-            reffile_tok = self.tokenize_files(list_ref[i].split(','), lang_tokenizer)
+            reffile_tok = self.tokenize_files(list_ref_files, lang_tokenizer)
 
             print("Starting to evaluate ... %s" % args.output[i])
+            thread_list = {}
+            for metric in metric_supported:
+                if metric == 'BLEU':
+                    thread_list[metric] = self.pool.apply_async(self.eval_BLEU, (output, list_ref[i]))
+                if metric == 'TER':
+                    thread_list[metric] = self.pool.apply_async(self.eval_TER, (output_tok[0], reffile_tok))
+                if metric == 'Otem-Utem':
+                    thread_list[metric] = self.pool.apply_async(self.eval_Otem_Utem, (output_tok[0], reffile_tok))
+                if metric == 'NIST':
+                    thread_list[metric] = self.pool.apply_async(self.eval_NIST, (output_tok[0], reffile_tok))
+                if metric == 'Meteor':
+                    # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
+                    thread_list[metric] = self.pool.apply_async(self.eval_METEOR, (output, list_ref[i], args.lang))
+
             score[args.output[i]] = {}
             for metric in metric_supported:
                 if metric == 'BLEU':
-                    bleu_score = self.eval_BLEU(output, list_ref[i])
+                    bleu_score = thread_list[metric].get()
                     for k, v in bleu_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'TER':
-                    v = self.eval_TER(output_tok[0], reffile_tok)
+                    v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
                 if metric == 'Otem-Utem':
-                    otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
+                    otem_utem_score = thread_list[metric].get()
                     for k, v in otem_utem_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'NIST':
-                    v = self.eval_NIST(output_tok[0], reffile_tok)
+                    v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
                 if metric == 'Meteor':
-                    # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
-                    v = self.eval_METEOR(output, list_ref[i], args.lang)
+                    v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
 
