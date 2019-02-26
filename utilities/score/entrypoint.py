@@ -220,26 +220,36 @@ class ScoreUtility(Utility):
             score[args.output[i]] = {}
             for metric in metric_supported:
                 if metric == 'BLEU':
+                    start_time = time.time()
                     bleu_score = self.eval_BLEU(output, list_ref[i])
+                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
                     for k, v in bleu_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'TER':
+                    start_time = time.time()
                     v = self.eval_TER(output_tok[0], reffile_tok)
+                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
                 if metric == 'Otem-Utem':
+                    start_time = time.time()
                     otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
+                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
                     for k, v in otem_utem_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'NIST':
+                    start_time = time.time()
                     v = self.eval_NIST(output_tok[0], reffile_tok)
+                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
                 if metric == 'Meteor':
                     # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
+                    start_time = time.time()
                     v = self.eval_METEOR(output, list_ref[i], args.lang)
+                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
 
