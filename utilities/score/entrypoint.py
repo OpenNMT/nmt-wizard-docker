@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 import json
 import time
+from multiprocessing.pool import ThreadPool
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
@@ -24,6 +25,7 @@ class ScoreUtility(Utility):
             "NIST": "all",
             "Meteor": "cz,de,en,es,fr,ru"
             }
+        self.pool = ThreadPool(processes=5)
 
     @property
     def name(self):
@@ -217,39 +219,42 @@ class ScoreUtility(Utility):
             reffile_tok = self.tokenize_files(list_ref[i].split(','), lang_tokenizer)
 
             print("Starting to evaluate ... %s" % args.output[i])
+            thread_list = {}
+            for metric in metric_supported:
+                if metric == 'BLEU':
+                    thread_list[metric] = self.pool.apply_async(self.eval_BLEU, (output, list_ref[i]))
+                if metric == 'TER':
+                    thread_list[metric] = self.pool.apply_async(self.eval_TER, (output_tok[0], reffile_tok))
+                if metric == 'Otem-Utem':
+                    thread_list[metric] = self.pool.apply_async(self.eval_Otem_Utem, (output_tok[0], reffile_tok))
+                if metric == 'NIST':
+                    thread_list[metric] = self.pool.apply_async(self.eval_NIST, (output_tok[0], reffile_tok))
+                if metric == 'Meteor':
+                    # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
+                    thread_list[metric] = self.pool.apply_async(self.eval_METEOR, (output, list_ref[i], args.lang))
+
             score[args.output[i]] = {}
             for metric in metric_supported:
                 if metric == 'BLEU':
-                    start_time = time.time()
-                    bleu_score = self.eval_BLEU(output, list_ref[i])
-                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
+                    bleu_score = thread_list[metric].get()
                     for k, v in bleu_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'TER':
-                    start_time = time.time()
-                    v = self.eval_TER(output_tok[0], reffile_tok)
-                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
+                    v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
                 if metric == 'Otem-Utem':
-                    start_time = time.time()
-                    otem_utem_score = self.eval_Otem_Utem(output_tok[0], reffile_tok)
-                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
+                    otem_utem_score = thread_list[metric].get()
                     for k, v in otem_utem_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
                 if metric == 'NIST':
-                    start_time = time.time()
-                    v = self.eval_NIST(output_tok[0], reffile_tok)
-                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
+                    v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
                 if metric == 'Meteor':
-                    # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
-                    start_time = time.time()
-                    v = self.eval_METEOR(output, list_ref[i], args.lang)
-                    print("%s seconds:\t%s" % (metric, time.time() - start_time))
+                    v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
 
