@@ -25,7 +25,7 @@ class ScoreUtility(Utility):
             "NIST": "all",
             "Meteor": "cz,de,en,es,fr,ru"
             }
-        self.pool = ThreadPool(processes=5)
+        self.pool = ThreadPool(processes=int(os.getenv("NB_CPU", "5")))
 
     @property
     def name(self):
