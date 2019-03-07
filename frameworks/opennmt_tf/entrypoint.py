@@ -74,6 +74,8 @@ class OpenNMTTFFramework(Framework):
             run_config['train']['train_steps'] = None
         if 'sample_buffer_size' not in run_config['train']:
             run_config['train']['sample_buffer_size'] = -1
+        if 'average_last_checkpoints' not in run_config['train']:
+            run_config['train']['average_last_checkpoints'] = 0
         runner = onmt.Runner(
             model,
             run_config,
