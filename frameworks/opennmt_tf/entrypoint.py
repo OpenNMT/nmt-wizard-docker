@@ -88,7 +88,7 @@ class OpenNMTTFFramework(Framework):
         runner = self._make_predict_runner(config, model_path)
         runner.infer(input, predictions_file=output)
 
-    def release(self, config, model_path, gpuid=0):
+    def release(self, config, model_path, optimization_level=None, gpuid=0):
         export_dir = self._export_model(config, model_path)
         return {'1': export_dir}  # TensorFlow Serving expects a version number (here we use 1).
 

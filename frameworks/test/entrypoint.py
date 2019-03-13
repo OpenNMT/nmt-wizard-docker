@@ -73,7 +73,7 @@ class TestFramework(Framework):
     def forward_request(self, *arg, **kwargs):
         raise NotImplementedError()
 
-    def release(self, config, model_path, gpuid=0):
+    def release(self, *args, **kwargs):
         raise NotImplementedError('release is not supported yet for test framework')
 
     def _get_training_options(self,
