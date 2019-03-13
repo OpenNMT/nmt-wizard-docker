@@ -81,8 +81,10 @@ class OpenNMTTFFramework(Framework):
             run_config,
             num_devices=utils.count_devices(gpuid),
             auto_config=config['options'].get('auto_config', False))
-        runner.train()
-        return self._list_model_files(model_dir)
+        output_dir = runner.train()
+        if output_dir != model_dir:
+            shutil.copy(os.path.join(model_dir, "model_description.py"), output_dir)
+        return self._list_model_files(output_dir)
 
     def trans(self, config, model_path, input, output, gpuid=0):
         runner = self._make_predict_runner(config, model_path)

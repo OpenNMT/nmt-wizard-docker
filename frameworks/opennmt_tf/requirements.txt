@@ -1,4 +1,4 @@
-OpenNMT-tf==1.21.6
+git+git://github.com/OpenNMT/OpenNMT-tf.git@60b8ababfa4d8810be5140fc96535bed91ca2015
 boto3
 paramiko
 pyonmttok==1.*
