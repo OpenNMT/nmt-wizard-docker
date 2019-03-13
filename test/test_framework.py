@@ -86,7 +86,7 @@ class DummyFramework(Framework):
     def trans(self, *args, **kwargs):
         pass
 
-    def release(self, config, model_path, gpuid=0):
+    def release(self, config, model_path, optimization_level=None, gpuid=0):
         return DummyCheckpoint(model_path).objects()
 
     def serve(self, *args, **kwargs):

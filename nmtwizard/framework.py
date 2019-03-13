@@ -90,7 +90,13 @@ class Framework(Utility):
         """
         raise NotImplementedError()
 
-    def translate_as_release(self, config, model_path, input, output, gpuid=0):
+    def translate_as_release(self,
+                             config,
+                             model_path,
+                             input,
+                             output,
+                             optimization_level=None,
+                             gpuid=0):
         """Translates a file in release condition.
 
         This is useful when the released model contains optimizations that
@@ -105,17 +111,21 @@ class Framework(Utility):
           model_path: The path to the checkpoint to release.
           input: The local path to the preprocessed (if any) source file.
           output: The local path to the file that should contain the translation.
+          optimization_level: An integer defining the level of optimization to
+            apply to the released model. 0 = no optimization, 1 = quantization.
           gpuid: The GPU identifier.
         """
         return self.trans(config, model_path, input, output, gpuid=gpuid)
 
     @abc.abstractmethod
-    def release(self, config, model_path, gpuid=0):
+    def release(self, config, model_path, optimization_level=None, gpuid=0):
         """Releases a model for serving.
 
         Args:
           config: The run configuration.
           model_path: The path to the model to release.
+          optimization_level: An integer defining the level of optimization to
+            apply to the released model. 0 = no optimization, 1 = quantization.
           gpuid: The GPU identifier.
 
         Returns:
@@ -204,10 +214,18 @@ class Framework(Utility):
                                   help='Output file.')
         parser_trans.add_argument('--as_release', default=False, action='store_true',
                                   help='Translate from a released model.')
+        parser_trans.add_argument('--release_optimization_level', type=int, default=1,
+                                  help=('Control the level of optimization applied to '
+                                        'released models (for compatible frameworks). '
+                                        '0 = no optimization, 1 = quantization.'))
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
         parser_release.add_argument('-d', '--destination', default=None,
                                     help='Released model storage (defaults to the model storage).')
+        parser_release.add_argument('-o', '--optimization_level', type=int, default=1,
+                                    help=('Control the level of optimization applied to '
+                                          'released models (for compatible frameworks). '
+                                          '0 = no optimization, 1 = quantization.'))
 
         parser_serve = subparsers.add_parser('serve', help='Serve a model.')
         parser_serve.add_argument('-hs', '--host', default="0.0.0.0",
@@ -284,6 +302,7 @@ class Framework(Utility):
                 args.input,
                 args.output,
                 as_release=args.as_release,
+                release_optimization_level=args.release_optimization_level,
                 gpuid=self._gpuid)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
@@ -296,6 +315,7 @@ class Framework(Utility):
                 self._storage,
                 self._image,
                 args.destination,
+                optimization_level=args.optimization_level,
                 gpuid=self._gpuid,
                 push_model=not self._no_push)
         elif args.cmd == 'serve':
@@ -437,15 +457,28 @@ class Framework(Utility):
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
-    def trans_wrapper(self, config, model_path, storage,
-                      inputs, outputs, as_release=False, gpuid=0):
+    def trans_wrapper(self,
+                      config,
+                      model_path,
+                      storage,
+                      inputs,
+                      outputs,
+                      as_release=False,
+                      release_optimization_level=None,
+                      gpuid=0):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
 
+        def translate_fn(*args, **kwargs):
+            if as_release:
+                return self.translate_as_release(
+                    *args, optimization_level=release_optimization_level, **kwargs)
+            else:
+                return self.trans(*args, **kwargs)
+
         local_config = self._finalize_config(config, download_files=True, training=False)
         failed_translation = 0
-        translate_fn = self.translate_as_release if as_release else self.trans
         translated_lines = 0
         generated_tokens = 0
 
@@ -494,10 +527,15 @@ class Framework(Utility):
                         storage,
                         image,
                         destination,
+                        optimization_level=None,
                         gpuid=0,
                         push_model=True):
         local_config = self._finalize_config(config, download_files=True, training=False)
-        objects = self.release(local_config, model_path, gpuid=gpuid)
+        objects = self.release(
+            local_config,
+            model_path,
+            optimization_level=optimization_level,
+            gpuid=gpuid)
         extract_model_resources(objects, config)
         model_id = config['model'] + '_release'
         config['model'] = model_id
