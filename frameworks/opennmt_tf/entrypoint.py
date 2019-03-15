@@ -183,7 +183,10 @@ class OpenNMTTFFramework(Framework):
         if 'data' not in run_config:
             run_config['data'] = {}
         run_config['data'] = self._register_vocab(config, run_config['data'])
-        return onmt.Runner(model, run_config)
+        return onmt.Runner(
+            model,
+            run_config,
+            auto_config=config['options'].get('auto_config', False))
 
     def _export_model(self, config, model_path):
         # Hide GPU when exporting the model.
