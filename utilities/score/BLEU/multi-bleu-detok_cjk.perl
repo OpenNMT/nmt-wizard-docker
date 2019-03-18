@@ -204,7 +204,7 @@ sub tokenization
 	$norm_text =~ s/([0-9])(-)/$1 $2 /g; # tokenize dash when preceded by a digit
 
 # for CJK
-	$norm_text =~ s/([\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}])/ $1 /g;
+	$norm_text =~ s/([\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}\p{Thai}])/ $1 /g;
 	$norm_text =~ s/\s+/ /g; # one space only between words
 	$norm_text =~ s/^\s+//;  # no leading space
 	$norm_text =~ s/\s+$//;  # no trailing space
