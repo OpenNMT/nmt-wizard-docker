@@ -44,13 +44,13 @@ class ScoreUtility(Utility):
                                   help='Lang ID')
         parser_score.add_argument('-tok', '--tok_config',
                                   help='Configuration for tokenizer')
-        parser_score.add_argument('-a', '--allmetric', action='store_true',
-                                  help='Evaluate all metrics, or ignore TER and METEOR')
+        parser_score.add_argument('-m', '--metrics', default=['BLEU', 'Otem-Utem', 'NIST'], nargs='+',
+                                  help='Specify metrics to evaluate, by default ignore TER and METEOR')
 
-    def check_supported_metric(self, lang, allmetric):
+    def check_supported_metric(self, lang, allmetrics):
         metric_supported = []
         for metric, lang_defined in self.metric_lang.items():
-            if (not allmetric) and (metric == 'TER' or metric == 'Meteor'):
+            if metric not in allmetrics:
                 continue
             lang_group = lang_defined.split(',')
             if 'all' in lang_group or lang in lang_group:
@@ -222,7 +222,7 @@ class ScoreUtility(Utility):
         if len(list_output) != len(list_ref):
             raise ValueError("`--output` and `--ref` should have same number of parameters")
 
-        metric_supported = self.check_supported_metric(args.lang, args.allmetric)
+        metric_supported = self.check_supported_metric(args.lang, args.metrics)
         lang_tokenizer = self.build_tokenizer_by_config(args.tok_config, args.lang)
 
         score = {}
