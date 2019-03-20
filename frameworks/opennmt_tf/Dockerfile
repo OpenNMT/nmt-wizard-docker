@@ -13,7 +13,6 @@ RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/lib
 WORKDIR /root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git \
         python-pip \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
