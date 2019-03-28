@@ -116,15 +116,15 @@ def test_local_storage(tmpdir):
 
 
 def test_local_ls(tmpdir):
-    s3 = storage.LocalStorage()
+    localstorage = storage.LocalStorage()
     with pytest.raises(Exception):
-        lsdir = s3.listdir(str(pytest.config.rootdir / "nothinghere"))
-    lsdir = s3.listdir(str(pytest.config.rootdir / "corpus"))
+        lsdir = localstorage.listdir(str(pytest.config.rootdir / "nothinghere"))
+    lsdir = localstorage.listdir(str(pytest.config.rootdir / "corpus"))
     assert len(lsdir) == 3
     assert str(pytest.config.rootdir / "corpus" / "train")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "eval")+"/" in lsdir
-    lsdirrec = s3.listdir(str(pytest.config.rootdir / "corpus"), True)
+    lsdirrec = localstorage.listdir(str(pytest.config.rootdir / "corpus"), True)
     assert len(lsdirrec) > len(lsdir)
 
 def test_storages(tmpdir, storages, storage_id):
@@ -170,9 +170,19 @@ def test_storages(tmpdir, storages, storage_id):
         storage_client.delete(os.path.join("myremotedirectory-new"),
                               recursive=True,
                               storage_id=storage_id)
-    storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
-                        os.path.join("/myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
-                        storage_id=storage_id)
+    if storages[storage_id]["type"] == "local" and "basedir" not in storages[storage_id]:
+        # access to absolute path for local storage without basedir means absolute path... this won't work
+        with pytest.raises(Exception):
+            storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                                os.path.join("/myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                                storage_id=storage_id)
+        storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                            os.path.join("myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                            storage_id=storage_id)
+    else:
+        storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                            os.path.join("/myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                            storage_id=storage_id)
     # renaming a file
     storage_client.rename(os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
                           os.path.join("myremotedirectory", "test", "copy2-europarl-v7.de-en.10K.tok.de"),

@@ -97,9 +97,9 @@ class LocalStorage(Storage):
         return os.path.exists(remote_path)
 
     def build_path(self, path):
-        if path.startswith('/'):
-            path = path[1:]
         if self._basedir:
+            if path.startswith('/'):
+                path = path[1:]
             path = os.path.join(self._basedir, path)
         return path
 
