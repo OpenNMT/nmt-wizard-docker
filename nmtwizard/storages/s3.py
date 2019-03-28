@@ -2,6 +2,7 @@
 
 import os
 import boto3
+import tempfile
 
 from nmtwizard.storages.generic import Storage
 
@@ -22,16 +23,41 @@ class S3Storage(Storage):
         self._bucket = self._s3.Bucket(bucket_name)
 
     def get(self, remote_path, local_path, directory=False):
+        if directory is None:
+            directory = self.isdir(remote_path)
         remote_path = _sanitize_path(remote_path)
         if not directory:
-            if os.path.isdir(local_path):
-                local_path = os.path.join(local_path, os.path.basename(remote_path))
-            self._bucket.download_file(remote_path, local_path)
+            (local_dir, basename) = os.path.split(local_path)
+            if os.path.isdir(local_path) or (local_dir != "" and basename == ""):
+                local_path = os.path.join(local_dir, os.path.basename(remote_path))
+                basename = remote_path
+            else:
+                local_dir = os.path.dirname(local_path)
+            md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
+            if local_dir != "" and not os.path.exists(local_dir):
+                os.makedirs(local_dir)
+            if os.path.exists(local_path) and os.path.exists(md5_path):
+                with open(md5_path) as f:
+                    md5 = f.read()
+                obj = _bucket.Object(remote_path)
+                if obj.e_tag == md5:
+                    return
+            with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+                self._bucket.download_file(remote_path, tmpfile.name)
+                os.rename(tmpfile.name, local_path)
+                obj = self._bucket.Object(remote_path)
+                with open(md5_path, "w") as fw:
+                    fw.write(obj.e_tag)
         else:
+            allfiles = {}
+            for root, dirs, files in os.walk(local_path):
+                for f in files:
+                    allfiles[os.path.join(root, f)] = 1
             objects = list(self._bucket.objects.filter(Prefix=remote_path))
             if not objects:
                 raise RuntimeError('%s not found' % remote_path)
-            os.mkdir(local_path)
+            if not os.path.exists(local_path):
+                os.mkdir(local_path)
             for obj in objects:
                 directories = obj.key.split('/')[1:-1]
                 if directories:
@@ -39,7 +65,15 @@ class S3Storage(Storage):
                     if not os.path.exists(directory_path):
                         os.makedirs(directory_path)
                 path = os.path.join(local_path, os.path.join(*obj.key.split('/')[1:]))
-                self._bucket.download_file(obj.key, path)
+                (local_dir, basename) = os.path.split(path)
+                md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
+                if path in allfiles:
+                    del allfiles[path]
+                    if md5_path in allfiles:
+                        del allfiles[md5_path]
+                self.get(obj.key, path)
+            for f in allfiles:
+                os.remove(f)
 
     def push(self, local_path, remote_path):
         remote_path = _sanitize_path(remote_path)
@@ -115,15 +149,13 @@ class S3Storage(Storage):
     def exists(self, remote_path):
         remote_path = _sanitize_path(remote_path)
         result = self._bucket.objects.filter(Prefix=remote_path)
-        try:
-            obj = iter(result).next()
-        except StopIteration:
-            return False
-        return (obj.key == remote_path
-                or remote_path == ''
-                or (remote_path.endswith('/') and obj.key.startswith(remote_path))
-                or obj.key.startswith(remote_path + '/'))
-
+        for obj in result:
+            if (obj.key == remote_path or
+                    remote_path == '' or
+                    remote_path.endswith('/') or
+                    obj.key.startswith(remote_path + '/')):
+                return True
+        return False
 
 def _sanitize_path(path):
     # S3 does not work with paths but keys. This function possibly adapts a

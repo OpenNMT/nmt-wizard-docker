@@ -80,18 +80,22 @@ class RemoteStorage(Storage):
         return self._sftp_client
 
     def get(self, remote_path, local_path, directory=False):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
+        remote_path = self.build_path(remote_path)
+
         client = self._connectSCPClient()
+
+        if directory is None:
+            clientftp = self._connectSFTPClient()
+            directory = _isdir(clientftp, remote_path)
+
         try:
             client.get(remote_path, local_path, recursive=directory)
         except Exception as err:
             self._closeSCPClient()
-            raise err
+            raise
 
     def stream(self, remote_path, buffer_size=1024):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
+        remote_path = self.build_path(remote_path)
         client = self._connectSCPClient()
         channel = client._open()
         channel.settimeout(client.socket_timeout)
@@ -135,11 +139,11 @@ class RemoteStorage(Storage):
                     raise scp.SCPException('Error receiving, socket.timeout')
 
     def push(self, local_path, remote_path):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
+        full_remote_path = self.build_path(remote_path)
         client = self._connectSFTPClient()
         if os.path.isfile(local_path):
-            if remote_path.endswith('/') or _isdir(client, remote_path):
+            if remote_path.endswith('/') or _isdir(client, full_remote_path):
+                full_remote_path = os.path.join(full_remote_path, os.path.basename(local_path))
                 remote_path = os.path.join(remote_path, os.path.basename(local_path))
             dirname = os.path.dirname(remote_path)
             # build the full directory up to remote_path
@@ -148,9 +152,9 @@ class RemoteStorage(Storage):
             for f in folders:
                 full_path.append(f)
                 subpath = os.sep.join(full_path)
-                if not self.exists(subpath):
-                    client.mkdir(subpath)
-            client.put(local_path, remote_path)
+                if subpath != '' and not self.exists(subpath):
+                    client.mkdir(self.build_path(subpath))
+            client.put(local_path, full_remote_path)
         else:
             def push_rec(local_path, remote_path):
                 if not _isdir(client, remote_path):
@@ -163,39 +167,33 @@ class RemoteStorage(Storage):
                         push_rec(local_filepath, remote_filepath)
                     else:
                         client.put(local_filepath, remote_filepath)
-            push_rec(local_path, remote_path)
+            push_rec(local_path, full_remote_path)
 
     def _ls(self, client, remote_path, recursive=False):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
         listfile = []
 
         def getfiles_rec(path):
             for f in client.listdir_attr(path=path):
                 fullpath = os.path.join(path, f.filename)
-                if self._basedir:
-                    rel_fullpath = os.path.relpath(fullpath, self._basedir)
-                else:
-                    rel_fullpath = fullpath
                 if S_ISDIR(f.st_mode):
                     if recursive:
                         getfiles_rec(fullpath)
                     else:
-                        listfile.append(rel_fullpath+'/')
+                        listfile.append(self.external_path(fullpath)+'/')
                 else:
-                    listfile.append(rel_fullpath)
+                    listfile.append(self.external_path(fullpath))
 
         getfiles_rec(remote_path)
         return listfile
 
     def listdir(self, remote_path, recursive=False):
+        remote_path = self.build_path(remote_path)
         client = self._connectSFTPClient()
         listfile = self._ls(client, remote_path, recursive)
         return listfile
 
     def delete(self, remote_path, recursive=False):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
+        remote_path = self.build_path(remote_path)
         client = self._connectSFTPClient()
         if _isdir(client, remote_path):
             def rm_rec(path):
@@ -229,3 +227,16 @@ class RemoteStorage(Storage):
         except IOError:
             return False
         return True
+
+    def build_path(self, path):
+        if path.startswith('/'):
+            path = path[1:]
+        if self._basedir:
+            path = os.path.join(self._basedir, path)
+        return path
+
+    def external_path(self, path):
+        if self._basedir:
+            return os.path.relpath(path, self._basedir)
+        else:
+            return path

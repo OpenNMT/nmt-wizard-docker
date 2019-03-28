@@ -61,3 +61,10 @@ class Storage(object):
         """Check if path is existing
         """
         raise NotImplementedError()
+
+    def isdir(self, remote_path):
+        """Check if path is a directory
+        """
+        if not remote_path.endswith('/'):
+            return self.exists(remote_path+'/')
+        return self.exists(remote_path)
