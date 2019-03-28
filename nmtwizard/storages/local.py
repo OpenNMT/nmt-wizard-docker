@@ -106,5 +106,4 @@ class LocalStorage(Storage):
     def external_path(self, path):
         if self._basedir:
             return os.path.relpath(path, self._basedir)
-        else:
-            return path
+        return path
