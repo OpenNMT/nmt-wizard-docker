@@ -102,7 +102,9 @@ class RemoteStorage(Storage):
                     if int(local_stat.st_mtime) == remote_stat.st_mtime and \
                             local_stat.st_size == remote_stat.st_size:
                         return
-                client.get(full_remote_path, local_path, recursive=directory)
+                with tempfile.NamedTemporaryFile() as tmpfile:
+                    client.get(full_remote_path, mpfile.name)
+                    os.rename(tmpfile.name, local_path)
             except Exception as err:
                 self._closeSCPClient()
                 raise

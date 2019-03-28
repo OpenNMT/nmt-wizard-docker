@@ -42,7 +42,7 @@ class S3Storage(Storage):
                 obj = self._bucket.Object(remote_path)
                 if obj.e_tag == md5:
                     return
-            with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+            with tempfile.NamedTemporaryFile() as tmpfile:
                 self._bucket.download_file(remote_path, tmpfile.name)
                 os.rename(tmpfile.name, local_path)
                 obj = self._bucket.Object(remote_path)
