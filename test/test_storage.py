@@ -196,6 +196,21 @@ def test_storages(tmpdir, storages, storage_id):
                        os.path.join(stor_tmp_dir),
                        storage_id=storage_id)
     assert os.path.exists(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+
+    # getting it back again, should use cache so not modify the file
+    # to check cache modify, first byte of the file keeping it mtime
+    stat = os.stat(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+    fh = open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "r+b")
+    fh.write('Z')
+    fh.close()
+    os.utime(os.path.join(stor_tmp_dir, "en-vocab.txt"), (stat.st_atime, stat.st_mtime))
+    storage_client.get(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
+                       os.path.join(stor_tmp_dir),
+                       storage_id=storage_id)
+    fh = open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "r+b")
+    assert fh.read(1) == 'Z'
+    fh.close()
+
     os.remove(os.path.join(stor_tmp_dir, "en-vocab.txt"))
     # renaming a directory
     storage_client.rename(os.path.join("myremotedirectory", "vocab"),

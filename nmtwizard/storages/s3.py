@@ -39,7 +39,7 @@ class S3Storage(Storage):
             if os.path.exists(local_path) and os.path.exists(md5_path):
                 with open(md5_path) as f:
                     md5 = f.read()
-                obj = _bucket.Object(remote_path)
+                obj = self._bucket.Object(remote_path)
                 if obj.e_tag == md5:
                     return
             with tempfile.NamedTemporaryFile(delete=False) as tmpfile:

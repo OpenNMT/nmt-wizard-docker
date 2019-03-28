@@ -79,20 +79,33 @@ class RemoteStorage(Storage):
             self._sftp_client = ssh_client.open_sftp()
         return self._sftp_client
 
-    def get(self, remote_path, local_path, directory=False):
-        remote_path = self.build_path(remote_path)
+    def get(self, remote_path, local_path, directory=False, clientftp=None):
+        full_remote_path = self.build_path(remote_path)
 
         client = self._connectSCPClient()
+        clientftp = None or self._connectSFTPClient()
 
         if directory is None:
-            clientftp = self._connectSFTPClient()
-            directory = _isdir(clientftp, remote_path)
+            directory = _isdir(clientftp, full_remote_path)
 
-        try:
-            client.get(remote_path, local_path, recursive=directory)
-        except Exception as err:
-            self._closeSCPClient()
-            raise
+        if directory:
+            for f in self.listdir(remote_path, recursive=True):
+                self.get(f, os.path.join(local_path, f), clientftp=clientftp)
+        else:
+            try:
+                dirname = os.path.dirname(local_path)
+                if not os.path.exists(dirname):
+                    os.makedirs(dirname)
+                elif os.path.exists(local_path):
+                    local_stat = os.stat(local_path)
+                    remote_stat = clientftp.stat(full_remote_path)
+                    if int(local_stat.st_mtime) == remote_stat.st_mtime and \
+                            local_stat.st_size == remote_stat.st_size:
+                        return
+                client.get(full_remote_path, local_path, recursive=directory)
+            except Exception as err:
+                self._closeSCPClient()
+                raise
 
     def stream(self, remote_path, buffer_size=1024):
         remote_path = self.build_path(remote_path)
