@@ -88,7 +88,7 @@ class StorageClient(object):
         else:
             client = LocalStorage()
 
-        return client, path
+        return client, client._internal_path(path)
 
     def join(self, path, *paths):
         """Joins the paths according to the storage implementation."""
