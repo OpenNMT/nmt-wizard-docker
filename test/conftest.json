@@ -7,7 +7,7 @@
       "type": "local",
       "basedir": "/tmp"
     },
-    "s3_test": {
+    "_s3_test": {
       "description": "test repository on s3",
       "type": "s3",
       "bucket": "auto-test-bucket-systran",
@@ -16,7 +16,7 @@
           "secret_access_key": "[[SECRETACCESSKEY]]"
       }
     },
-    "local_ssh_wbasedir": {
+    "_local_ssh_wbasedir": {
       "description": "localhost server",
       "type": "ssh",
       "server": "localhost",
@@ -24,7 +24,7 @@
       "password": "[[PASSWORD]]",
       "basedir": "/Users/test/sshtest"
     },
-    "local_ssh_wobasedir": {
+    "_remote_ssh_wobasedir": {
       "description": "localhost server",
       "type": "ssh",
       "server": "[[SERVER]]",
