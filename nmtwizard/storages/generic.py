@@ -2,6 +2,7 @@ import os
 import abc
 import six
 
+
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
     """Abstract class for storage implementations."""
@@ -61,14 +62,22 @@ class Storage(object):
 
             for f in self.listdir(remote_path, recursive=True):
                 internal_path = self._internal_path(f)
-                path = os.path.join(local_path, f)
-                self.get(internal_path, path)
-                if path in allfiles:
-                    del allfiles[path]
-                    checksum_file = self._get_checksum_file(path)
-                    if checksum_file is not None:
-                        del allfiles[checksum_file]
-
+                assert internal_path.startswith(remote_path)
+                subpath = internal_path[len(remote_path)+1:]
+                path = os.path.join(local_path, subpath)
+                if remote_path.endswith('/'):
+                    if not os.path.isdir(path):
+                        os.makedirs(path)
+                else:
+                    dir_path = os.path.dirname(path)
+                    if not os.path.isdir(dir_path):
+                        os.makedirs(dir_path)
+                    if path in allfiles:
+                        del allfiles[path]
+                        checksum_file = self._get_checksum_file(path)
+                        if checksum_file is not None:
+                            del allfiles[checksum_file]
+                    self._get_file_safe(internal_path, path)
             for f in allfiles:
                 os.remove(f)
 

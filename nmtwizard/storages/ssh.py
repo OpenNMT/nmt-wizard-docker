@@ -86,10 +86,7 @@ class RemoteStorage(Storage):
             os.rename(tmpfile.name, local_path)
 
     def _check_existing_file(self, remote_path, local_path):
-        dirname = os.path.dirname(local_path)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        elif os.path.exists(local_path):
+        if os.path.exists(local_path):
             local_stat = os.stat(local_path)
             remote_stat = self._connectSFTPClient().stat(remote_path)
             if int(local_stat.st_mtime) == remote_stat.st_mtime and \
