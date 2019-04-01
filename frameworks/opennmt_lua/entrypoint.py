@@ -110,7 +110,7 @@ class OpenNMTLuaFramework(Framework):
             outputs = []
             for hyp in hypotheses:
                 tokens = hyp['tgt'].split()
-                score = hyp['pred_score'] / len(tokens)
+                score = hyp['pred_score']
                 outputs.append(TranslationOutput(tokens, score=score, attention=hyp['attn']))
             batch_outputs.append(outputs)
         return batch_outputs

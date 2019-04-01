@@ -142,7 +142,7 @@ class OpenNMTTFFramework(Framework):
                 prediction_length = length[i] - 1  # Ignore </s>.
                 prediction = prediction[0:prediction_length].tolist()
                 prediction = [tf.compat.as_text(pred) for pred in prediction]
-                score = float(log_prob[i]) / prediction_length
+                score = float(log_prob[i])
                 outputs.append(serving.TranslationOutput(prediction, score=score))
             batch_outputs.append(outputs)
         return batch_outputs
