@@ -479,20 +479,6 @@ class Framework(Utility):
             else:
                 return self.trans(*args, **kwargs)
 
-        def gzip_unzip_file(path_input, flag):
-            path_input_new = path_input
-            if flag == "unzip" and path_input.endswith(".gz"):
-                logger.info('Starting unzip %s', path_input)
-                path_input_new = path_input[:-3]
-                with gzip.open(path_input, 'rb') as f_in, open(path_input_new, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            if flag == "zip" and not path_input.endswith(".gz"):
-                logger.info('Starting gzip %s', path_input)
-                path_input_new += ".gz"
-                with open(path_input, 'rb') as f_in, gzip.open(path_input_new, 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            return path_input_new
-
         local_config = self._finalize_config(config, download_files=True, training=False)
         failed_translation = 0
         translated_lines = 0
@@ -504,7 +490,7 @@ class Framework(Utility):
                 path_output = os.path.join(self._output_dir, storage.split(output)[-1])
                 storage.get_file(input, path_input)
 
-                path_input = gzip_unzip_file(path_input, "unzip")
+                path_input = decompress_file(path_input)
                 path_output_is_zipped = False
                 if path_output.endswith(".gz"):
                     path_output_is_zipped = True
@@ -529,7 +515,7 @@ class Framework(Utility):
                 path_output = self._postprocess_file(local_config, path_input, path_output)
 
                 if path_output_is_zipped:
-                    path_output = gzip_unzip_file(path_output, "zip")
+                    path_output = compress_file(path_output)
 
                 storage.push(path_output, output)
                 end_time = time.time()
@@ -861,3 +847,21 @@ def file_stats(path):
             num_lines += 1
             num_tokens += len(line.strip().split())
     return num_lines, num_tokens
+
+def compress_file(path_input):
+    path_input_new = path_input
+    if not path_input.endswith(".gz"):
+        logger.info('Starting gzip %s', path_input)
+        path_input_new += ".gz"
+        with open(path_input, 'rb') as f_in, gzip.open(path_input_new, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    return path_input_new
+
+def decompress_file(path_input):
+    path_input_new = path_input
+    if path_input.endswith(".gz"):
+        logger.info('Starting unzip %s', path_input)
+        path_input_new = path_input[:-3]
+        with gzip.open(path_input, 'rb') as f_in, open(path_input_new, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    return path_input_new
