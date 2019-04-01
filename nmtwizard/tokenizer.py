@@ -3,7 +3,6 @@
 import os
 import six
 import shutil
-import gzip
 
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
@@ -25,10 +24,7 @@ def tokenize_file(tokenizer, input, output):
     if not tokenizer:
         shutil.copy(input, output)
     else:
-        open_func = open
-        if input.endswith(".gz"):
-            open_func = gzip.open
-        with open_func(input, 'rb') as input_file, open(output, 'w') as output_file:
+        with open(input, 'rb') as input_file, open(output, 'w') as output_file:
             for line in input_file:
                 line = line.strip().decode('utf-8', 'ignore').encode('utf-8')
                 tokens, _ = tokenizer.tokenize(line)
@@ -37,10 +33,7 @@ def tokenize_file(tokenizer, input, output):
 
 def detokenize_file(tokenizer, input, output):
     """Detokenizes an input file."""
-    open_func = open
-    if output.endswith(".gz"):
-        open_func = gzip.open
-    with open(input, 'r') as input_file, open_func(output, 'w') as output_file:
+    with open(input, 'r') as input_file, open(output, 'w') as output_file:
         for line in input_file:
             if tokenizer:
                 text = tokenizer.detokenize(line.strip().split())

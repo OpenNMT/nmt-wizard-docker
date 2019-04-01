@@ -9,6 +9,8 @@ import time
 import filecmp
 import re
 import six
+import gzip
+import shutil
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample
@@ -477,6 +479,20 @@ class Framework(Utility):
             else:
                 return self.trans(*args, **kwargs)
 
+        def gzip_unzip_file(path_input, flag):
+            path_input_new = path_input
+            if flag == "unzip" and path_input.endswith(".gz"):
+                logger.info('Starting unzip %s', path_input)
+                path_input_new = path_input[:-3]
+                with gzip.open(path_input, 'rb') as f_in, open(path_input_new, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            if flag == "zip" and not path_input.endswith(".gz"):
+                logger.info('Starting gzip %s', path_input)
+                path_input_new += ".gz"
+                with open(path_input, 'rb') as f_in, gzip.open(path_input_new, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            return path_input_new
+
         local_config = self._finalize_config(config, download_files=True, training=False)
         failed_translation = 0
         translated_lines = 0
@@ -487,6 +503,13 @@ class Framework(Utility):
                 path_input = os.path.join(self._data_dir, storage.split(input)[-1])
                 path_output = os.path.join(self._output_dir, storage.split(output)[-1])
                 storage.get_file(input, path_input)
+
+                path_input = gzip_unzip_file(path_input, "unzip")
+                path_output_is_zipped = False
+                if path_output.endswith(".gz"):
+                    path_output_is_zipped = True
+                    path_output = path_output[:-3]
+
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
                 path_input = self._preprocess_file(local_config, path_input)
@@ -504,6 +527,10 @@ class Framework(Utility):
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 path_output = self._postprocess_file(local_config, path_input, path_output)
+
+                if path_output_is_zipped:
+                    path_output = gzip_unzip_file(path_output, "zip")
+
                 storage.push(path_output, output)
                 end_time = time.time()
                 logger.info('Finished translation in %s seconds', str(end_time-start_time))
@@ -691,8 +718,6 @@ class Framework(Utility):
             tok_config = config['tokenization']
             src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
             output = "%s.tok" % input
-            if input.endswith(".gz"):
-                output = "%s.tok" % input[:-3]
             tokenizer.tokenize_file(src_tokenizer, input, output)
             return output
         return input
@@ -702,8 +727,6 @@ class Framework(Utility):
             tok_config = config['tokenization']
             tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
             output = "%s.detok" % target
-            if target.endswith(".gz"):
-                output = "%s.detok.gz" % target[:-3]
             tokenizer.detokenize_file(tgt_tokenizer, target, output)
             return output
         return target
