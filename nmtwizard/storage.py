@@ -63,7 +63,8 @@ class StorageClient(object):
                                        config['bucket'],
                                        access_key_id=credentials.get('access_key_id'),
                                        secret_access_key=credentials.get('secret_access_key'),
-                                       region_name=credentials.get('region_name'))
+                                       region_name=credentials.get('region_name'),
+                                       assume_role=credentials.get('assume_role'))
                 elif config['type'] == 'ssh':
                     client = RemoteStorage(storage_id,
                                            config['server'],

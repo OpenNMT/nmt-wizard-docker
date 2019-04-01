@@ -6,18 +6,27 @@ import tempfile
 
 from nmtwizard.storages.generic import Storage
 
+
 class S3Storage(Storage):
     """Storage on Amazon S3."""
 
-    def __init__(self, storage_id, bucket_name, access_key_id=None, secret_access_key=None, region_name=None):
+    def __init__(self, storage_id, bucket_name, access_key_id=None, secret_access_key=None,
+                 region_name=None, assume_role=None):
         super(S3Storage, self).__init__(storage_id)
-        if access_key_id is None and secret_access_key is None and region_name is None:
-            session = boto3
-        else:
-            session = boto3.Session(
+        if assume_role is not None:
+            session_main = boto3.Session(
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_access_key,
                 region_name=region_name)
+            client_sts = boto3.client('sts')
+            response_assumeRole = client.assume_role(RoleArn=assume_role)
+            session = Session(aws_access_key_id=response['Credentials']['AccessKeyId'],
+                              aws_secret_access_key=response['Credentials']['SecretAccessKey'],
+                              aws_session_token=response['Credentials']['SessionToken'])
+        else:
+            session = boto3.Session(
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key)
         self._s3 = session.resource('s3')
         self._bucket_name = bucket_name
         self._bucket = self._s3.Bucket(bucket_name)
