@@ -9,6 +9,8 @@ import time
 import filecmp
 import re
 import six
+import gzip
+import shutil
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample
@@ -487,6 +489,13 @@ class Framework(Utility):
                 path_input = os.path.join(self._data_dir, storage.split(input)[-1])
                 path_output = os.path.join(self._output_dir, storage.split(output)[-1])
                 storage.get_file(input, path_input)
+
+                path_input = decompress_file(path_input)
+                path_output_is_zipped = False
+                if path_output.endswith(".gz"):
+                    path_output_is_zipped = True
+                    path_output = path_output[:-3]
+
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
                 path_input = self._preprocess_file(local_config, path_input)
@@ -504,6 +513,10 @@ class Framework(Utility):
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 path_output = self._postprocess_file(local_config, path_input, path_output)
+
+                if path_output_is_zipped:
+                    path_output = compress_file(path_output)
+
                 storage.push(path_output, output)
                 end_time = time.time()
                 logger.info('Finished translation in %s seconds', str(end_time-start_time))
@@ -834,3 +847,21 @@ def file_stats(path):
             num_lines += 1
             num_tokens += len(line.strip().split())
     return num_lines, num_tokens
+
+def compress_file(path_input):
+    path_input_new = path_input
+    if not path_input.endswith(".gz"):
+        logger.info('Starting gzip %s', path_input)
+        path_input_new += ".gz"
+        with open(path_input, 'rb') as f_in, gzip.open(path_input_new, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    return path_input_new
+
+def decompress_file(path_input):
+    path_input_new = path_input
+    if path_input.endswith(".gz"):
+        logger.info('Starting unzip %s', path_input)
+        path_input_new = path_input[:-3]
+        with gzip.open(path_input, 'rb') as f_in, open(path_input_new, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    return path_input_new
