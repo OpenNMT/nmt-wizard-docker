@@ -9,6 +9,7 @@ import time
 import filecmp
 import re
 import six
+import subprocess
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample
@@ -477,6 +478,17 @@ class Framework(Utility):
             else:
                 return self.trans(*args, **kwargs)
 
+        def gzip_unzip_file(path_input, flag):
+            if flag == "unzip" and path_input.endswith(".gz"):
+                logger.info('Starting unzip %s', path_input)
+                subprocess.call(['gunzip', path_input])
+                path_input = path_input[:-3]
+            if flag == "zip" and not path_input.endswith(".gz"):
+                logger.info('Starting gzip %s', path_input)
+                subprocess.call(['gzip', path_input])
+                path_input += ".gz"
+            return path_input
+
         local_config = self._finalize_config(config, download_files=True, training=False)
         failed_translation = 0
         translated_lines = 0
@@ -487,6 +499,13 @@ class Framework(Utility):
                 path_input = os.path.join(self._data_dir, storage.split(input)[-1])
                 path_output = os.path.join(self._output_dir, storage.split(output)[-1])
                 storage.get_file(input, path_input)
+
+                path_input = gzip_unzip_file(path_input, "unzip")
+                path_output_is_zipped = False
+                if path_output.endswith(".gz"):
+                    path_output_is_zipped = True
+                    path_output = path_output[:-3]
+
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
                 path_input = self._preprocess_file(local_config, path_input)
@@ -504,6 +523,10 @@ class Framework(Utility):
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 path_output = self._postprocess_file(local_config, path_input, path_output)
+
+                if path_output_is_zipped == True:
+                    path_output = gzip_unzip_file(path_output, "zip")
+
                 storage.push(path_output, output)
                 end_time = time.time()
                 logger.info('Finished translation in %s seconds', str(end_time-start_time))
