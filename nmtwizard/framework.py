@@ -481,11 +481,11 @@ class Framework(Utility):
         def gzip_unzip_file(path_input, flag):
             if flag == "unzip" and path_input.endswith(".gz"):
                 logger.info('Starting unzip %s', path_input)
-                subprocess.call(['gunzip', path_input])
+                subprocess.call(['/bin/gunzip', path_input])
                 path_input = path_input[:-3]
             if flag == "zip" and not path_input.endswith(".gz"):
                 logger.info('Starting gzip %s', path_input)
-                subprocess.call(['gzip', path_input])
+                subprocess.call(['/bin/gzip', path_input])
                 path_input += ".gz"
             return path_input
 
@@ -524,7 +524,7 @@ class Framework(Utility):
                 generated_tokens += num_tokens
                 path_output = self._postprocess_file(local_config, path_input, path_output)
 
-                if path_output_is_zipped == True:
+                if path_output_is_zipped:
                     path_output = gzip_unzip_file(path_output, "zip")
 
                 storage.push(path_output, output)
