@@ -523,7 +523,8 @@ class Framework(Utility):
             except Exception as e:
                 # Catch any exception to not impact other translations.
                 filename = path_input if not isinstance(path_input, tuple) else path_input[0]
-                logger.error("Translation of %s failed with error %s" % (filename, str(e)))
+                logger.error("Translation of %s failed with error \"%s: %s\"" % (
+                    filename, e.__class__.__name__, str(e)))
                 logger.warning("Skipping translation of %s" % filename)
                 failed_translation += 1
 
