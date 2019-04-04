@@ -70,7 +70,7 @@ class HTTPStorage(Storage):
         raise NotImplementedError()
 
     def mkdir(self, remote_path):
-        raise NotImplementedError()
+        return
 
     def isdir(self, remote_path):
         if remote_path.endswith('/'):
