@@ -128,19 +128,25 @@ def _read_config(model_dir):
 def _test_dir():
     return str(pytest.config.rootdir)
 
-def _setup_env(tmpdir, corpus_env=True):
-    tmpdir = str(tmpdir)
-    testdir = _test_dir()
+def _run_framework(tmpdir,
+                   task_id,
+                   args,
+                   config=None,
+                   parent=None,
+                   auto_ms=True,
+                   corpus_env=True,
+                   env=None,
+                   storage_config=None):
+    base_environ = os.environ.copy()
+    os.environ["MODELS_DIR"] = str(tmpdir.join("models"))
+    os.environ["WORKSPACE_DIR"] = str(tmpdir.join("workspace"))
     if corpus_env:
-        os.environ["CORPUS_DIR"] = os.path.join(testdir, "corpus")
-    else:
-        os.environ.pop("CORPUS_DIR", None)
-    os.environ["MODELS_DIR"] = os.path.join(tmpdir, "models")
-    os.environ["WORKSPACE_DIR"] = os.path.join(tmpdir, "workspace")
-
-def _run_framework(tmpdir, task_id, args, config=None, parent=None, auto_ms=True, corpus_env=True):
-    _setup_env(tmpdir, corpus_env=corpus_env)
+        os.environ["CORPUS_DIR"] = os.path.join(_test_dir(), "corpus")
+    if env is not None:
+        os.environ.update(env)
     full_args = ["-t", str(task_id)]
+    if storage_config is not None:
+        full_args += ["-s", json.dumps(storage_config)]
     if auto_ms:
         full_args += ["-ms", os.environ["MODELS_DIR"]]
     if config is not None:
@@ -153,6 +159,8 @@ def _run_framework(tmpdir, task_id, args, config=None, parent=None, auto_ms=True
     DummyFramework().run(args=full_args)
     _clear_workspace(tmpdir)
     model_dir = os.path.join(os.environ["MODELS_DIR"], task_id)
+    os.environ.clear()
+    os.environ.update(base_environ)
     return model_dir
 
 
@@ -166,6 +174,41 @@ def test_train(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["tokenization"]["target"]["vocabulary"])))
     assert DummyCheckpoint(model_dir).index() == 0
+
+def test_train_with_storage_in_config(tmpdir):
+    storage_config = {
+        "corpus": {
+            "type": "local",
+            "basedir": os.path.join(_test_dir(), "corpus")
+        }
+    }
+    config = {
+        "source": "en",
+        "target": "de",
+        "tokenization": {
+            "source": {
+                "vocabulary": "${LOCAL_DIR}/vocab/en-vocab.txt",
+                "mode": "aggressive",
+                "joiner_annotate": True
+            },
+            "target": {
+                "vocabulary": "${LOCAL_DIR}/vocab/de-vocab.txt",
+                "mode": "aggressive",
+                "joiner_annotate": True
+            }
+        },
+        "options": {}
+    }
+    model_dir = _run_framework(
+        tmpdir, "model0", "train",
+        config=config,
+        env={"LOCAL_DIR": "corpus:"},
+        storage_config=storage_config)
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/en-vocab.txt"
+    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/de-vocab.txt"
+    assert os.path.isfile(os.path.join(model_dir, "de-vocab.txt"))
+    assert os.path.isfile(os.path.join(model_dir, "en-vocab.txt"))
 
 def test_train_with_sampling(tmpdir):
     def _make_sampling_config(n):
@@ -254,7 +297,7 @@ def test_release(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base)
     _run_framework(tmpdir, "model1", "train", parent="model0")
     _run_framework(tmpdir, "release0", "release", parent="model1")
-    model_dir = os.path.join(os.environ["MODELS_DIR"], "model1_release")
+    model_dir = str(tmpdir.join("models").join("model1_release"))
     config = _read_config(model_dir)
     assert "parent_model" not in config
     assert "build" not in config
