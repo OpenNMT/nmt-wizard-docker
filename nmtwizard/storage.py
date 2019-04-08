@@ -142,6 +142,9 @@ class StorageClient(object):
                 LOGGER.warning('File/Directory created while copying - taking copy')
             else:
                 check_integrity_fn = None  # No need to check again.
+                directory = os.path.dirname(local_path)
+                if not os.path.exists(directory):
+                    os.makedirs(directory)
                 shutil.move(tmp_path, local_path)
         if check_integrity_fn is not None and not check_integrity_fn(local_path):
             raise RuntimeError('integrity check failed on %s' % local_path)
