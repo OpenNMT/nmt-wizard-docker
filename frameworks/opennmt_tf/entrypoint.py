@@ -120,9 +120,9 @@ class OpenNMTTFFramework(Framework):
         predict_request = predict_pb2.PredictRequest()
         predict_request.model_spec.name = info['model_name']
         predict_request.inputs['tokens'].CopyFrom(
-            tf.make_tensor_proto(tokens, shape=(batch_size, max_length)))
+            tf.make_tensor_proto(tokens, dtype=tf.string, shape=(batch_size, max_length)))
         predict_request.inputs['length'].CopyFrom(
-            tf.make_tensor_proto(lengths, shape=(batch_size,)))
+            tf.make_tensor_proto(lengths, dtype=tf.int32, shape=(batch_size,)))
 
         try:
             future = stub.Predict.future(predict_request, timeout)
