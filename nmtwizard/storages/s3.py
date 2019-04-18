@@ -83,8 +83,6 @@ class S3Storage(Storage):
                     lsdir[path] = 1
                 else:
                     lsdir[path] = 0
-            else:
-                print("skipping %s (in %s)" % (path, remote_path))
         return lsdir.keys()
 
     def mkdir(self, remote_path):
