@@ -3,6 +3,8 @@
 import os
 import shutil
 import tempfile
+import fcntl
+import contextlib
 
 from nmtwizard.logger import get_logger
 
@@ -13,6 +15,12 @@ from nmtwizard.storages.http import HTTPStorage
 
 LOGGER = get_logger(__name__)
 
+@contextlib.contextmanager
+def lock(fname):
+    with open(fname, "w") as f:
+        fcntl.lockf(f, fcntl.LOCK_EX)
+        yield
+        fcntl.lockf(f, fcntl.LOCK_UN)
 
 class StorageClient(object):
     """Client to get and push files to a storage."""
@@ -122,32 +130,24 @@ class StorageClient(object):
             storage_id=None,
             check_integrity_fn=None):
         """Retrieves file or directory from remote_path to local_path."""
-        if directory and os.path.isdir(local_path):
-            LOGGER.warning('Directory %s already exists', local_path)
-        elif not directory and os.path.isfile(local_path):
-            LOGGER.warning('File %s already exists', local_path)
-        else:
-            if not directory and os.path.isdir(local_path):
-                local_path = os.path.join(local_path, os.path.basename(remote_path))
-            tmp_path = os.path.join(self._tmp_dir, os.path.basename(local_path))
-            LOGGER.info('Downloading %s to %s through tmp %s', remote_path, local_path, tmp_path)
+        lock_file = '%s.lock' % (local_path if not local_path.endswith('/') else local_path[:-1])
+        lock_dirname = os.path.dirname(lock_file)
+        try:
+            os.makedirs(lock_dirname)
+        except OSError:
+            pass
+        LOGGER.info('Synchronizing %s to %s', remote_path, local_path)
+        with lock(lock_file):
             client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-            client.get(remote_path, tmp_path, directory=directory)
-            if not os.path.exists(tmp_path):
-                raise RuntimeError('download failed: %s not found' % tmp_path)
-            if check_integrity_fn is not None and not check_integrity_fn(tmp_path):
-                raise RuntimeError('integrity check failed on %s' % tmp_path)
-            # in meantime, the file might have been copied
-            if os.path.exists(local_path):
-                LOGGER.warning('File/Directory created while copying - taking copy')
-            else:
-                check_integrity_fn = None  # No need to check again.
-                directory = os.path.dirname(local_path)
-                if not os.path.exists(directory):
-                    os.makedirs(directory)
-                shutil.move(tmp_path, local_path)
-        if check_integrity_fn is not None and not check_integrity_fn(local_path):
-            raise RuntimeError('integrity check failed on %s' % local_path)
+            client.get(remote_path, local_path, directory=directory)
+            if not os.path.exists(local_path):
+                raise RuntimeError('Failed to download %s' % local_path)
+            if check_integrity_fn is not None and not check_integrity_fn(local_path):
+                if os.path.isdir(local_path):
+                    shutil.rmtree(local_path)
+                else:
+                    os.remove(local_path)
+                raise RuntimeError('integrity check failed on %s' % local_path)
 
     def stream(self, remote_path, buffer_size=1024, storage_id=None):
         """Returns a generator to stream a remote_path file.
