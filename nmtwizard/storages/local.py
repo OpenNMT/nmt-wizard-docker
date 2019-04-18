@@ -3,6 +3,7 @@
 import shutil
 import os
 import tempfile
+import filecmp
 
 from nmtwizard.storages.generic import Storage
 
@@ -19,7 +20,7 @@ class LocalStorage(Storage):
             os.rename(tmpfile.name, local_path)
 
     def _check_existing_file(self, remote_path, local_path):
-        return False
+        return filecmp.cmp(remote_path, local_path)
 
     def stream(self, remote_path, buffer_size=1024):
         def generate():
