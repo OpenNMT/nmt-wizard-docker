@@ -8,16 +8,20 @@ from nmtwizard.logger import get_logger
 
 LOGGER = get_logger(__name__)
 
+_META_SUBDIR = '.snw'
+
 @contextlib.contextmanager
 def lock(fname):
     if fname.endswith('/'):
         fname = fname[:-1]
-    dname = os.path.dirname(fname)
+    dname, basename = os.path.split(fname)
+    dname = os.path.join(dname, _META_SUBDIR)
     try:
         os.makedirs(dname)
     except OSError:
         pass
-    with open('%s.lock' % fname, 'w') as f:
+    lock_file = os.path.join(dname, '%s.lock' % basename)
+    with open(lock_file, 'w') as f:
         fcntl.lockf(f, fcntl.LOCK_EX)
         yield
         fcntl.lockf(f, fcntl.LOCK_UN)
@@ -79,6 +83,8 @@ class Storage(object):
             with lock(local_path):
                 allfiles = {}
                 for root, dirs, files in os.walk(local_path):
+                    if os.path.basename(root) == _META_SUBDIR:
+                        continue
                     for f in files:
                         allfiles[os.path.join(root, f)] = 1
 
