@@ -73,7 +73,7 @@ class Storage(object):
         with lock(local_path):
             self._get_file_safe(remote_path, local_path)
 
-    def get(self, remote_path, local_path, directory=False):
+    def get(self, remote_path, local_path, directory=False, check_integrity_fn=None):
         """Get a file or a directory from a storage to a local file
         """
         if directory is None:
@@ -109,6 +109,9 @@ class Storage(object):
                         self._sync_file(f, path)
                 for f in allfiles:
                     os.remove(f)
+                if check_integrity_fn is not None and not check_integrity_fn(local_path):
+                    shutil.rmtree(local_path)
+                    raise RuntimeError('integrity check failed on %s' % local_path)
         else:
             self._sync_file(remote_path, local_path)
 

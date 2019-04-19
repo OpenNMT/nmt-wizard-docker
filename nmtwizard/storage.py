@@ -123,15 +123,13 @@ class StorageClient(object):
         """Retrieves file or directory from remote_path to local_path."""
         LOGGER.info('Synchronizing %s to %s', remote_path, local_path)
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-        client.get(remote_path, local_path, directory=directory)
+        client.get(
+            remote_path,
+            local_path,
+            directory=directory,
+            check_integrity_fn=check_integrity_fn)
         if not os.path.exists(local_path):
             raise RuntimeError('Failed to download %s' % local_path)
-        if check_integrity_fn is not None and not check_integrity_fn(local_path):
-            if os.path.isdir(local_path):
-                shutil.rmtree(local_path)
-            else:
-                os.remove(local_path)
-            raise RuntimeError('integrity check failed on %s' % local_path)
 
     def stream(self, remote_path, buffer_size=1024, storage_id=None):
         """Returns a generator to stream a remote_path file.
