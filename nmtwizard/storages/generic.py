@@ -10,7 +10,14 @@ LOGGER = get_logger(__name__)
 
 @contextlib.contextmanager
 def lock(fname):
-    with open(fname, "w") as f:
+    if fname.endswith('/'):
+        fname = fname[:-1]
+    dname = os.path.dirname(fname)
+    try:
+        os.makedirs(dname)
+    except OSError:
+        pass
+    with open('%s.lock' % fname, 'w') as f:
         fcntl.lockf(f, fcntl.LOCK_EX)
         yield
         fcntl.lockf(f, fcntl.LOCK_UN)
@@ -59,13 +66,7 @@ class Storage(object):
         if self._check_existing_file(remote_path, local_path):
             return
         LOGGER.info('Synchronizing file %s to %s', remote_path, local_path)
-        lock_file = '%s.lock' % (local_path if not local_path.endswith('/') else local_path[:-1])
-        lock_dirname = os.path.dirname(lock_file)
-        try:
-            os.makedirs(lock_dirname)
-        except OSError:
-            pass
-        with lock(lock_file):
+        with lock(local_path):
             self._get_file_safe(remote_path, local_path)
 
     def get(self, remote_path, local_path, directory=False):
@@ -75,13 +76,7 @@ class Storage(object):
             directory = self.isdir(remote_path)
 
         if directory:
-            lock_file = '%s.lock' % (local_path if not local_path.endswith('/') else local_path[:-1])
-            lock_dirname = os.path.dirname(lock_file)
-            try:
-                os.makedirs(lock_dirname)
-            except OSError:
-                pass
-            with lock(lock_file):
+            with lock(local_path):
                 allfiles = {}
                 for root, dirs, files in os.walk(local_path):
                     for f in files:
