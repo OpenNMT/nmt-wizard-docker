@@ -3,6 +3,7 @@
 import os
 import requests
 import tempfile
+import shutil
 
 from nmtwizard.storages.generic import Storage
 
@@ -21,7 +22,7 @@ class HTTPStorage(Storage):
             if res.status_code != 200:
                 raise RuntimeError('cannot not get %s (response code %d)' % (remote_path, res.status_code))
             tmpfile.write(res.content)
-            os.rename(tmpfile.name, local_path)
+            shutil.move(tmpfile.name, local_path)
 
     def _check_existing_file(self, remote_path, local_path):
         # not optimized for http download yet

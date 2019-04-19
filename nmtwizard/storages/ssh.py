@@ -7,6 +7,7 @@ from socket import timeout as SocketTimeout
 import paramiko
 import scp
 import tempfile
+import shutil
 
 from nmtwizard.storages.generic import Storage
 
@@ -83,7 +84,7 @@ class RemoteStorage(Storage):
             except Exception as err:
                 self._closeSCPClient()
                 raise
-            os.rename(tmpfile.name, local_path)
+            shutil.move(tmpfile.name, local_path)
 
     def _check_existing_file(self, remote_path, local_path):
         if os.path.exists(local_path):

@@ -3,6 +3,7 @@
 import os
 import boto3
 import tempfile
+import shutil
 
 from nmtwizard.storages.generic import Storage
 
@@ -36,7 +37,7 @@ class S3Storage(Storage):
         md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
         with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
             self._bucket.download_file(remote_path, tmpfile.name)
-            os.rename(tmpfile.name, local_path)
+            shutil.move(tmpfile.name, local_path)
             obj = self._bucket.Object(remote_path)
             with open(md5_path, "w") as fw:
                 fw.write(obj.e_tag)

@@ -17,7 +17,7 @@ class LocalStorage(Storage):
     def _get_file_safe(self, remote_path, local_path):
         with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
             shutil.copy(remote_path, tmpfile.name)
-            os.rename(tmpfile.name, local_path)
+            shutil.move(tmpfile.name, local_path)
 
     def _check_existing_file(self, remote_path, local_path):
         return filecmp.cmp(remote_path, local_path)
