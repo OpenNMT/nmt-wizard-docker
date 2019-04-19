@@ -77,10 +77,6 @@ class Storage(object):
     def get(self, remote_path, local_path, directory=False, check_integrity_fn=None):
         """Get a file or a directory from a storage to a local file
         """
-        # TODO: try to avoid this check which is to handle resource stored in
-        # the storage cache but not pushed (e.g. preprocess models)
-        if not self.exists(remote_path) and os.path.exists(local_path):
-            LOGGER.warning('%s does not exist on the remote but %s exists locally, continuing')
         if directory is None:
             directory = self.isdir(remote_path)
 
