@@ -87,7 +87,8 @@ class Storage(object):
                     for f in files:
                         allfiles[os.path.join(root, f)] = 1
 
-                for f in self.listdir(remote_path, recursive=True):
+                list_remote_files = self.listdir(remote_path, recursive=True)
+                for f in list_remote_files:
                     internal_path = self._internal_path(f)
                     assert internal_path.startswith(remote_path)
                     subpath = internal_path[len(remote_path)+1:]
