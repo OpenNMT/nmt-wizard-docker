@@ -1,7 +1,6 @@
 """Client to abstract storage location: local, S3, SSH, etc."""
 
 import os
-import shutil
 import tempfile
 
 from nmtwizard.logger import get_logger

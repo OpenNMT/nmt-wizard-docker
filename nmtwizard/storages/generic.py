@@ -3,6 +3,7 @@ import abc
 import six
 import fcntl
 import contextlib
+import shutil
 
 from nmtwizard.logger import get_logger
 
