@@ -1,7 +1,19 @@
 import os
 import abc
 import six
+import fcntl
+import contextlib
 
+from nmtwizard.logger import get_logger
+
+LOGGER = get_logger(__name__)
+
+@contextlib.contextmanager
+def lock(fname):
+    with open(fname, "w") as f:
+        fcntl.lockf(f, fcntl.LOCK_EX)
+        yield
+        fcntl.lockf(f, fcntl.LOCK_UN)
 
 @six.add_metaclass(abc.ABCMeta)
 class Storage(object):
@@ -46,7 +58,15 @@ class Storage(object):
             os.makedirs(local_dir)
         if self._check_existing_file(remote_path, local_path):
             return
-        self._get_file_safe(remote_path, local_path)
+        LOGGER.info('Synchronizing file %s to %s', remote_path, local_path)
+        lock_file = '%s.lock' % (local_path if not local_path.endswith('/') else local_path[:-1])
+        lock_dirname = os.path.dirname(lock_file)
+        try:
+            os.makedirs(lock_dirname)
+        except OSError:
+            pass
+        with lock(lock_file):
+            self._get_file_safe(remote_path, local_path)
 
     def get(self, remote_path, local_path, directory=False):
         """Get a file or a directory from a storage to a local file
@@ -55,32 +75,38 @@ class Storage(object):
             directory = self.isdir(remote_path)
 
         if directory:
-            allfiles = {}
-            for root, dirs, files in os.walk(local_path):
-                for f in files:
-                    allfiles[os.path.join(root, f)] = 1
+            lock_file = '%s.lock' % (local_path if not local_path.endswith('/') else local_path[:-1])
+            lock_dirname = os.path.dirname(lock_file)
+            try:
+                os.makedirs(lock_dirname)
+            except OSError:
+                pass
+            with lock(lock_file):
+                allfiles = {}
+                for root, dirs, files in os.walk(local_path):
+                    for f in files:
+                        allfiles[os.path.join(root, f)] = 1
 
-            for f in self.listdir(remote_path, recursive=True):
-                internal_path = self._internal_path(f)
-                assert internal_path.startswith(remote_path)
-                subpath = internal_path[len(remote_path)+1:]
-                path = os.path.join(local_path, subpath)
-                if f.endswith('/'):
-                    if not os.path.isdir(path):
-                        os.makedirs(path)
-                else:
-                    dir_path = os.path.dirname(path)
-                    if not os.path.isdir(dir_path):
-                        os.makedirs(dir_path)
-                    if path in allfiles:
-                        del allfiles[path]
-                        checksum_file = self._get_checksum_file(path)
-                        if checksum_file is not None:
-                            del allfiles[checksum_file]
-                    self._sync_file(f, path)
-            for f in allfiles:
-                os.remove(f)
-
+                for f in self.listdir(remote_path, recursive=True):
+                    internal_path = self._internal_path(f)
+                    assert internal_path.startswith(remote_path)
+                    subpath = internal_path[len(remote_path)+1:]
+                    path = os.path.join(local_path, subpath)
+                    if f.endswith('/'):
+                        if not os.path.isdir(path):
+                            os.makedirs(path)
+                    else:
+                        dir_path = os.path.dirname(path)
+                        if not os.path.isdir(dir_path):
+                            os.makedirs(dir_path)
+                        if path in allfiles:
+                            del allfiles[path]
+                            checksum_file = self._get_checksum_file(path)
+                            if checksum_file is not None:
+                                del allfiles[checksum_file]
+                        self._sync_file(f, path)
+                for f in allfiles:
+                    os.remove(f)
         else:
             self._sync_file(remote_path, local_path)
 

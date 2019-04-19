@@ -3,8 +3,6 @@
 import os
 import shutil
 import tempfile
-import fcntl
-import contextlib
 
 from nmtwizard.logger import get_logger
 
@@ -14,13 +12,6 @@ from nmtwizard.storages.s3 import S3Storage
 from nmtwizard.storages.http import HTTPStorage
 
 LOGGER = get_logger(__name__)
-
-@contextlib.contextmanager
-def lock(fname):
-    with open(fname, "w") as f:
-        fcntl.lockf(f, fcntl.LOCK_EX)
-        yield
-        fcntl.lockf(f, fcntl.LOCK_UN)
 
 class StorageClient(object):
     """Client to get and push files to a storage."""
@@ -130,24 +121,17 @@ class StorageClient(object):
             storage_id=None,
             check_integrity_fn=None):
         """Retrieves file or directory from remote_path to local_path."""
-        lock_file = '%s.lock' % (local_path if not local_path.endswith('/') else local_path[:-1])
-        lock_dirname = os.path.dirname(lock_file)
-        try:
-            os.makedirs(lock_dirname)
-        except OSError:
-            pass
         LOGGER.info('Synchronizing %s to %s', remote_path, local_path)
-        with lock(lock_file):
-            client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-            client.get(remote_path, local_path, directory=directory)
-            if not os.path.exists(local_path):
-                raise RuntimeError('Failed to download %s' % local_path)
-            if check_integrity_fn is not None and not check_integrity_fn(local_path):
-                if os.path.isdir(local_path):
-                    shutil.rmtree(local_path)
-                else:
-                    os.remove(local_path)
-                raise RuntimeError('integrity check failed on %s' % local_path)
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        client.get(remote_path, local_path, directory=directory)
+        if not os.path.exists(local_path):
+            raise RuntimeError('Failed to download %s' % local_path)
+        if check_integrity_fn is not None and not check_integrity_fn(local_path):
+            if os.path.isdir(local_path):
+                shutil.rmtree(local_path)
+            else:
+                os.remove(local_path)
+            raise RuntimeError('integrity check failed on %s' % local_path)
 
     def stream(self, remote_path, buffer_size=1024, storage_id=None):
         """Returns a generator to stream a remote_path file.
