@@ -4,5 +4,4 @@ paramiko
 pyonmttok==1.*
 requests
 scp
-tensorflow-gpu==1.13.1
-tensorflow-serving-api-gpu==1.13.0
+tensorflow-gpu==1.12.0
