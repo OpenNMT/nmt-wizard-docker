@@ -842,7 +842,7 @@ def extract_model_resources(objects, config):
 
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
-    return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data')
+    return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data') and not f.startswith('.')
 
 def file_stats(path):
     num_lines = 0
