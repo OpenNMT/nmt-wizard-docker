@@ -12,7 +12,7 @@ class S3Storage(Storage):
     """Storage on Amazon S3."""
 
     def __init__(self, storage_id, bucket_name, access_key_id=None, secret_access_key=None,
-                 region_name=None, assume_role=None):
+                 region_name=None, assume_role=None, transfer_config=None):
         super(S3Storage, self).__init__(storage_id)
         if assume_role is not None:
             session_main = boto3.Session(
@@ -31,12 +31,16 @@ class S3Storage(Storage):
         self._s3 = session.resource('s3')
         self._bucket_name = bucket_name
         self._bucket = self._s3.Bucket(bucket_name)
+        if transfer_config is not None:
+            self._transfer_config = boto3.s3.transfer.TransferConfig(**transfer_config)
+        else:
+            self._transfer_config = None
 
     def _get_file_safe(self, remote_path, local_path):
         (local_dir, basename) = os.path.split(local_path)
         md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
         with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-            self._bucket.download_file(remote_path, tmpfile.name)
+            self._bucket.download_file(remote_path, tmpfile.name, Config=self._transfer_config)
             shutil.move(tmpfile.name, local_path)
             obj = self._bucket.Object(remote_path)
             with open(md5_path, "w") as fw:
@@ -62,7 +66,7 @@ class S3Storage(Storage):
     def push_file(self, local_path, remote_path):
         (local_dir, basename) = os.path.split(local_path)
         md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
-        self._bucket.upload_file(local_path, remote_path)
+        self._bucket.upload_file(local_path, remote_path, Config=self._transfer_config)
         obj = self._bucket.Object(remote_path)
         with open(md5_path, "w") as fw:
             fw.write(obj.e_tag)
