@@ -113,7 +113,7 @@ class Storage(object):
                         if path in allfiles:
                             del allfiles[path]
                             checksum_file = self._get_checksum_file(path)
-                            if checksum_file is not None:
+                            if checksum_file is not None and checksum_file in allfiles:
                                 del allfiles[checksum_file]
                         self._sync_file(f, path)
                 for f in allfiles:
