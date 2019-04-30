@@ -149,6 +149,8 @@ class Storage(object):
             def push_rec(local_path, remote_path):
                 files = os.listdir(local_path)
                 for f in files:
+                    if f.startswith("."):
+                        continue
                     local_filepath = os.path.join(local_path, f)
                     remote_filepath = os.path.join(remote_path, f)
                     if os.path.isdir(local_filepath):

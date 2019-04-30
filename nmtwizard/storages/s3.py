@@ -60,7 +60,12 @@ class S3Storage(Storage):
         return os.path.join(local_dir, ".5dm#"+basename+"#md5")
 
     def push_file(self, local_path, remote_path):
+        (local_dir, basename) = os.path.split(local_path)
+        md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
         self._bucket.upload_file(local_path, remote_path)
+        obj = self._bucket.Object(remote_path)
+        with open(md5_path, "w") as fw:
+            fw.write(obj.e_tag)
 
     def stream(self, remote_path, buffer_size=1024):
         body = self._s3.Object(self._bucket_name, remote_path).get()['Body']
