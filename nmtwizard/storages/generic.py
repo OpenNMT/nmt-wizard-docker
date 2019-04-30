@@ -115,7 +115,7 @@ class Storage(object):
                             checksum_file = self._get_checksum_file(path)
                             if checksum_file is not None and checksum_file in allfiles:
                                 del allfiles[checksum_file]
-                        self._sync_file(f, path)
+                        self._sync_file(internal_path, path)
                 for f in allfiles:
                     os.remove(f)
                 if check_integrity_fn is not None and not check_integrity_fn(local_path):
