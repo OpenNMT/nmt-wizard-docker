@@ -80,7 +80,7 @@ class Storage(object):
 
         # TODO: try to avoid this check which is to handle resource stored in
         # the storage cache but not pushed (e.g. preprocess models)
-        if not self.exists(remote_path) and os.path.exists(local_path):
+        if os.path.exists(local_path) and not self.exists(remote_path):
             LOGGER.warning('%s does not exist on the remote but %s exists locally, continuing',
                            remote_path, local_path)
             return
