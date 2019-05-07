@@ -7,6 +7,9 @@ import shutil
 
 from nmtwizard.storages.generic import Storage
 
+from nmtwizard.logger import get_logger
+
+LOGGER = get_logger(__name__)
 
 class S3Storage(Storage):
     """Storage on Amazon S3."""
@@ -55,6 +58,9 @@ class S3Storage(Storage):
             obj = self._bucket.Object(remote_path)
             if obj.e_tag == md5:
                 return True
+            LOGGER.debug('checksum has changed for file %s (%s/%s)', local_path, md5, obj.e_tag)
+        else:
+            LOGGER.debug('Cannot find %s or %s', local_path, md5_path)
         return False
 
     def _get_checksum_file(self, local_path):
