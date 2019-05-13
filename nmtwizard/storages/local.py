@@ -3,7 +3,6 @@
 import shutil
 import os
 import tempfile
-import filecmp
 
 from nmtwizard.storages.generic import Storage
 
@@ -20,12 +19,18 @@ class LocalStorage(Storage):
 
     def _get_file_safe(self, remote_path, local_path):
         with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-            LOGGER.info('Copy remote_path %s to local_path %s via %s', remote_path, local_path, tmpfile.name)
-            shutil.copy(remote_path, tmpfile.name)
+            LOGGER.debug('Copy remote_path %s to local_path %s via %s', remote_path, local_path, tmpfile.name)
+            tmpfile.close()
+            shutil.copy2(remote_path, tmpfile.name)
             shutil.move(tmpfile.name, local_path)
 
     def _check_existing_file(self, remote_path, local_path):
-        return os.path.exists(local_path) and filecmp.cmp(remote_path, local_path)
+        if not os.path.exists(local_path):
+            return False
+        stat_remote = os.stat(remote_path)
+        stat_local = os.stat(local_path)
+        return stat_remote.st_mtime == stat_local.st_mtime\
+            and stat_remote.st_size == stat_local.st_size
 
     def stream(self, remote_path, buffer_size=1024):
         def generate():
@@ -36,7 +41,7 @@ class LocalStorage(Storage):
         return generate()
 
     def push_file(self, local_path, remote_path):
-        shutil.copy(local_path, remote_path)
+        shutil.copy2(local_path, remote_path)
 
     def mkdir(self, remote_path):
         if not os.path.exists(remote_path):

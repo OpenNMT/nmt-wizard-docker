@@ -208,10 +208,7 @@ def test_storages(tmpdir, storages, storage_id):
                        storage_id=storage_id)
     fh = open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "r+b")
     storages, path = storage_client._get_storage("test", storage_id=storage_id)
-    if isinstance(storages, storage.LocalStorage):
-        assert fh.read(1) == b't'
-    else:
-        assert fh.read(1) == b'Z'
+    assert fh.read(1) == b'Z'
     fh.close()
 
     os.remove(os.path.join(stor_tmp_dir, "en-vocab.txt"))
