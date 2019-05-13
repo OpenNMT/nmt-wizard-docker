@@ -58,9 +58,9 @@ class S3Storage(Storage):
             obj = self._bucket.Object(remote_path)
             if obj.e_tag == md5:
                 return True
-            LOGGER.info('checksum has changed for file %s (%s/%s)', local_path, md5, obj.e_tag)
+            LOGGER.debug('checksum has changed for file %s (%s/%s)', local_path, md5, obj.e_tag)
         else:
-            LOGGER.info('Cannot find %s or %s', local_path, md5_path)
+            LOGGER.debug('Cannot find %s or %s', local_path, md5_path)
         return False
 
     def _get_checksum_file(self, local_path):

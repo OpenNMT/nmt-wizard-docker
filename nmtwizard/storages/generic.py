@@ -70,7 +70,7 @@ class Storage(object):
                 local_path = os.path.join(local_dir, os.path.basename(remote_path))
         if self._check_existing_file(remote_path, local_path):
             return
-        LOGGER.info('Synchronizing file %s to %s', remote_path, local_path)
+        LOGGER.info('Downloading %s to %s', remote_path, local_path)
         with lock(local_path):
             self._get_file_safe(remote_path, local_path)
 

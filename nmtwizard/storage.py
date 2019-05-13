@@ -129,7 +129,7 @@ class StorageClient(object):
             directory=directory,
             check_integrity_fn=check_integrity_fn)
         if not os.path.exists(local_path):
-            raise RuntimeError('Failed to download %s' % local_path)
+            raise RuntimeError('Failed to synchronize %s' % local_path)
 
     def stream(self, remote_path, buffer_size=1024, storage_id=None):
         """Returns a generator to stream a remote_path file.
