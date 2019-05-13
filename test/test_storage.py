@@ -6,7 +6,6 @@ import json
 
 from nmtwizard import storage
 
-
 def test_http_storage_get_dir(tmpdir):
     with requests_mock.Mocker() as m:
         m.register_uri(
@@ -208,7 +207,11 @@ def test_storages(tmpdir, storages, storage_id):
                        os.path.join(stor_tmp_dir),
                        storage_id=storage_id)
     fh = open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "r+b")
-    assert fh.read(1) == b'Z'
+    storages, path = storage_client._get_storage("test", storage_id=storage_id)
+    if isinstance(storages, storage.LocalStorage):
+        assert fh.read(1) == b't'
+    else:
+        assert fh.read(1) == b'Z'
     fh.close()
 
     os.remove(os.path.join(stor_tmp_dir, "en-vocab.txt"))
@@ -226,8 +229,8 @@ def test_storages(tmpdir, storages, storage_id):
     assert back_en_vocab == en_vocab
     # getting an inexisting file
     with pytest.raises(Exception):
-        storage_client.get(os.path.join("myremotedirectory", "vocab-2", "truc"),
-                           os.path.join(stor_tmp_dir),
+        storage_client.get(os.path.join("myremotedirectory", "vocab-2", "troc"),
+                           os.path.join(stor_tmp_dir, "troc"),
                            storage_id=storage_id)
     # streaming a file back
     size = 0
