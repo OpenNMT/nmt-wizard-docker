@@ -211,9 +211,11 @@ class Framework(Utility):
 
         parser_trans = subparsers.add_parser('trans', help='Run a translation.')
         parser_trans.add_argument('-i', '--input', required=True, nargs='+',
-                                  help='Input file.')
+                                  help='Input files')
         parser_trans.add_argument('-o', '--output', required=True, nargs='+',
-                                  help='Output file.')
+                                  help='Output files')
+        parser_trans.add_argument('--copy_source', default=False, action='store_true',
+                                  help='Copy source files on same storage and same name than outputs')
         parser_trans.add_argument('--as_release', default=False, action='store_true',
                                   help='Translate from a released model.')
         parser_trans.add_argument('--release_optimization_level', type=int, default=1,
@@ -305,7 +307,8 @@ class Framework(Utility):
                 args.output,
                 as_release=args.as_release,
                 release_optimization_level=args.release_optimization_level,
-                gpuid=self._gpuid)
+                gpuid=self._gpuid,
+                copy_source=args.copy_source)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('releasing requires a training checkpoint')
@@ -467,7 +470,8 @@ class Framework(Utility):
                       outputs,
                       as_release=False,
                       release_optimization_level=None,
-                      gpuid=0):
+                      gpuid=0,
+                      copy_source=False):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
@@ -490,34 +494,54 @@ class Framework(Utility):
                 path_output = os.path.join(self._output_dir, storage.split(output)[-1])
                 storage.get_file(input, path_input)
 
-                path_input = decompress_file(path_input)
+                path_input_unzipped = decompress_file(path_input)
+                path_input_unzipped_parts = path_input_unzipped.split('.')
+                if copy_source and len(path_input_unzipped_parts) < 2:
+                    raise ValueError("In copy_source mode, input files should have language suffix")
                 path_output_is_zipped = False
                 if path_output.endswith(".gz"):
                     path_output_is_zipped = True
                     path_output = path_output[:-3]
+                path_output_parts = path_output.split('.')
+                if copy_source and len(path_output_parts) < 2:
+                    raise ValueError("In copy_source mode, output files should have language suffix")
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input = self._preprocess_file(local_config, path_input)
+                path_input_preprocessed = self._preprocess_file(local_config, path_input_unzipped)
                 metadata = None
-                if isinstance(path_input, tuple):
-                    path_input, metadata = path_input
+                if isinstance(path_input_preprocessed, tuple):
+                    path_input_preprocessed, metadata = path_input_preprocessed
                 translate_fn(local_config,
                              model_path,
-                             path_input,
+                             path_input_preprocessed,
                              path_output,
                              gpuid=gpuid)
                 if metadata is not None:
-                    path_input = (path_input, metadata)
+                    path_input_preprocessed = (path_input_preprocessed, metadata)
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
-                path_output = self._postprocess_file(local_config, path_input, path_output)
+                path_output = self._postprocess_file(local_config, path_input_preprocessed, path_output)
+
+                if copy_source:
+                    copied_input = output
+                    copied_input_parts = copied_input.split('.')
+                    if path_output_is_zipped:
+                        copied_input_parts[-2] = path_input_unzipped_parts[-1]
+                        if path_input_unzipped == path_input:
+                            path_input = compress_file(path_input_unzipped)
+                    else:
+                        copied_input_parts[-1] = path_input_unzipped_parts[-1]
+                        path_input = path_input_unzipped
+
+                    storage.push(path_input, ".".join(copied_input_parts))
 
                 if path_output_is_zipped:
                     path_output = compress_file(path_output)
 
                 storage.push(path_output, output)
+
                 end_time = time.time()
                 logger.info('Finished translation in %s seconds', str(end_time-start_time))
             except Exception as e:
