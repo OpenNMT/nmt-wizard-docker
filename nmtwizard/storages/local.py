@@ -7,6 +7,10 @@ import filecmp
 
 from nmtwizard.storages.generic import Storage
 
+from nmtwizard.logger import get_logger
+
+LOGGER = get_logger(__name__)
+
 class LocalStorage(Storage):
     """Storage using the local filesystem."""
 
@@ -16,6 +20,7 @@ class LocalStorage(Storage):
 
     def _get_file_safe(self, remote_path, local_path):
         with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+            LOGGER.info('Copy remote_path %s to local_path %s via %s', remote_path, local_path, tmpfile.name)
             shutil.copy(remote_path, tmpfile.name)
             shutil.move(tmpfile.name, local_path)
 
