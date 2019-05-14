@@ -3,6 +3,7 @@ import requests_mock
 import pytest
 import math
 import json
+import time
 
 from nmtwizard import storage
 
@@ -199,17 +200,12 @@ def test_storages(tmpdir, storages, storage_id):
     # getting it back again, should use cache so not modify the file
     # to check cache modify, first byte of the file keeping it mtime
     stat = os.stat(os.path.join(stor_tmp_dir, "en-vocab.txt"))
-    fh = open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "r+b")
-    fh.write(b'Z')
-    fh.close()
-    os.utime(os.path.join(stor_tmp_dir, "en-vocab.txt"), (stat.st_atime, stat.st_mtime))
+    time.sleep(1)
     storage_client.get(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
                        os.path.join(stor_tmp_dir),
                        storage_id=storage_id)
-    fh = open(os.path.join(stor_tmp_dir, "en-vocab.txt"), "r+b")
-    storages, path = storage_client._get_storage("test", storage_id=storage_id)
-    assert fh.read(1) == b'Z'
-    fh.close()
+    new_stat = os.stat(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+    assert stat.st_mtime == new_stat.st_mtime, "file should not have changed"
 
     os.remove(os.path.join(stor_tmp_dir, "en-vocab.txt"))
     # renaming a directory
