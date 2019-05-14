@@ -2,8 +2,13 @@
 
 import shutil
 import os
+import tempfile
 
 from nmtwizard.storages.generic import Storage
+
+from nmtwizard.logger import get_logger
+
+LOGGER = get_logger(__name__)
 
 class LocalStorage(Storage):
     """Storage using the local filesystem."""
@@ -12,18 +17,22 @@ class LocalStorage(Storage):
         super(LocalStorage, self).__init__(storage_id or "local")
         self._basedir = basedir
 
-    def get(self, remote_path, local_path, directory=False):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
-        if directory:
-            shutil.copytree(remote_path, local_path)
-        else:
-            shutil.copy(remote_path, local_path)
+    def _get_file_safe(self, remote_path, local_path):
+        with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
+            LOGGER.debug('Copy remote_path %s to local_path %s via %s', remote_path, local_path, tmpfile.name)
+            tmpfile.close()
+            shutil.copy2(remote_path, tmpfile.name)
+            shutil.move(tmpfile.name, local_path)
+
+    def _check_existing_file(self, remote_path, local_path):
+        if not os.path.exists(local_path):
+            return False
+        stat_remote = os.stat(remote_path)
+        stat_local = os.stat(local_path)
+        return stat_remote.st_mtime == stat_local.st_mtime\
+            and stat_remote.st_size == stat_local.st_size
 
     def stream(self, remote_path, buffer_size=1024):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
-
         def generate():
             """generator function to stream local file"""
             with open(remote_path, "rb") as f:
@@ -31,41 +40,20 @@ class LocalStorage(Storage):
                     yield chunk
         return generate()
 
-    def push(self, local_path, remote_path):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
-        if os.path.isdir(local_path):
-            shutil.copytree(local_path, remote_path)
-        else:
-            if remote_path.endswith('/') or os.path.isdir(remote_path):
-                remote_path = os.path.join(remote_path, os.path.basename(local_path))
-            dirname = os.path.dirname(remote_path)
-            # for local file, there is no path
-            if dirname == '':
-                dirname = '.'
-            if os.path.exists(dirname):
-                if not os.path.isdir(dirname):
-                    raise ValueError("%s is not a directory" % dirname)
-            else:
-                os.makedirs(dirname)
-            shutil.copy(local_path, remote_path)
+    def push_file(self, local_path, remote_path):
+        shutil.copy2(local_path, remote_path)
 
-    def delete(self, remote_path, recursive=False):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
-        if recursive:
-            if not os.path.isdir(remote_path):
-                os.remove(remote_path)
-            else:
-                shutil.rmtree(remote_path, ignore_errors=True)
-        else:
-            if not os.path.isfile(remote_path):
-                raise ValueError("%s is not a file" % remote_path)
+    def mkdir(self, remote_path):
+        if not os.path.exists(remote_path):
+            os.makedirs(remote_path)
+
+    def _delete_single(self, remote_path, isdir):
+        if not os.path.isdir(remote_path):
             os.remove(remote_path)
+        else:
+            shutil.rmtree(remote_path, ignore_errors=True)
 
     def listdir(self, remote_path, recursive=False):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
         listfile = []
         if not os.path.isdir(remote_path):
             raise ValueError("%s is not a directory" % remote_path)
@@ -75,7 +63,7 @@ class LocalStorage(Storage):
             for f in os.listdir(path):
                 fullpath = os.path.join(path, f)
                 if self._basedir:
-                    rel_fullpath = os.path.relpath(fullpath, self._basedir)
+                    rel_fullpath = self._external_path(fullpath)
                 else:
                     rel_fullpath = fullpath
                 if os.path.isdir(fullpath):
@@ -91,13 +79,22 @@ class LocalStorage(Storage):
         return listfile
 
     def rename(self, old_remote_path, new_remote_path):
-        if self._basedir:
-            old_remote_path = os.path.join(self._basedir, old_remote_path)
-        if self._basedir:
-            new_remote_path = os.path.join(self._basedir, new_remote_path)
         os.rename(old_remote_path, new_remote_path)
 
     def exists(self, remote_path):
-        if self._basedir:
-            remote_path = os.path.join(self._basedir, remote_path)
         return os.path.exists(remote_path)
+
+    def isdir(self, remote_path):
+        return os.path.isdir(remote_path)
+
+    def _internal_path(self, path):
+        if self._basedir:
+            if path.startswith('/'):
+                path = path[1:]
+            path = os.path.join(self._basedir, path)
+        return path
+
+    def _external_path(self, path):
+        if self._basedir:
+            return os.path.relpath(path, self._basedir)
+        return path

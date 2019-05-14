@@ -3,9 +3,9 @@ import requests_mock
 import pytest
 import math
 import json
+import time
 
 from nmtwizard import storage
-
 
 def test_http_storage_get_dir(tmpdir):
     with requests_mock.Mocker() as m:
@@ -116,18 +116,20 @@ def test_local_storage(tmpdir):
 
 
 def test_local_ls(tmpdir):
-    s3 = storage.LocalStorage()
+    localstorage = storage.LocalStorage()
     with pytest.raises(Exception):
-        lsdir = s3.listdir(str(pytest.config.rootdir / "nothinghere"))
-    lsdir = s3.listdir(str(pytest.config.rootdir / "corpus"))
+        lsdir = localstorage.listdir(str(pytest.config.rootdir / "nothinghere"))
+    lsdir = localstorage.listdir(str(pytest.config.rootdir / "corpus"))
     assert len(lsdir) == 3
     assert str(pytest.config.rootdir / "corpus" / "train")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "eval")+"/" in lsdir
-    lsdirrec = s3.listdir(str(pytest.config.rootdir / "corpus"), True)
+    lsdirrec = localstorage.listdir(str(pytest.config.rootdir / "corpus"), True)
     assert len(lsdirrec) > len(lsdir)
 
 def test_storages(tmpdir, storages, storage_id):
+    if storage_id.startswith('_'):
+        return
     corpus_dir = str(pytest.config.rootdir / "corpus")
 
     storage_client = storage.StorageClient(tmp_dir=str(tmpdir), config=storages)
@@ -164,13 +166,23 @@ def test_storages(tmpdir, storages, storage_id):
                         os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
                         storage_id=storage_id)
     # pushing a file to a new file on a completely new directory
-    if storage_client.exists(storage_id+":"+os.path.join("myremotedirectory-new")):
+    if storage_client.exists(storage_id+":"+os.path.join("myremotedirectory-new/")):
         storage_client.delete(os.path.join("myremotedirectory-new"),
                               recursive=True,
                               storage_id=storage_id)
-    storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
-                        os.path.join("myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
-                        storage_id=storage_id)
+    if storages[storage_id]["type"] == "local" and "basedir" not in storages[storage_id]:
+        # access to absolute path for local storage without basedir means absolute path... this won't work
+        with pytest.raises(Exception):
+            storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                                os.path.join("/myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                                storage_id=storage_id)
+        storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                            os.path.join("myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                            storage_id=storage_id)
+    else:
+        storage_client.push(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"),
+                            os.path.join("/myremotedirectory-new", "test-new", "copy-europarl-v7.de-en.10K.tok.de"),
+                            storage_id=storage_id)
     # renaming a file
     storage_client.rename(os.path.join("myremotedirectory", "test", "copy-europarl-v7.de-en.10K.tok.de"),
                           os.path.join("myremotedirectory", "test", "copy2-europarl-v7.de-en.10K.tok.de"),
@@ -184,6 +196,17 @@ def test_storages(tmpdir, storages, storage_id):
                        os.path.join(stor_tmp_dir),
                        storage_id=storage_id)
     assert os.path.exists(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+
+    # getting it back again, should use cache so not modify the file
+    # to check cache modify, first byte of the file keeping it mtime
+    stat = os.stat(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+    time.sleep(1)
+    storage_client.get(os.path.join("myremotedirectory", "vocab", "en-vocab.txt"),
+                       os.path.join(stor_tmp_dir),
+                       storage_id=storage_id)
+    new_stat = os.stat(os.path.join(stor_tmp_dir, "en-vocab.txt"))
+    assert stat.st_mtime == new_stat.st_mtime, "file should not have changed"
+
     os.remove(os.path.join(stor_tmp_dir, "en-vocab.txt"))
     # renaming a directory
     storage_client.rename(os.path.join("myremotedirectory", "vocab"),
@@ -199,8 +222,8 @@ def test_storages(tmpdir, storages, storage_id):
     assert back_en_vocab == en_vocab
     # getting an inexisting file
     with pytest.raises(Exception):
-        storage_client.get(os.path.join("myremotedirectory", "vocab-2", "truc"),
-                           os.path.join(stor_tmp_dir),
+        storage_client.get(os.path.join("myremotedirectory", "vocab-2", "troc"),
+                           os.path.join(stor_tmp_dir, "troc"),
                            storage_id=storage_id)
     # streaming a file back
     size = 0
@@ -240,7 +263,12 @@ def test_storages(tmpdir, storages, storage_id):
                        os.path.join(stor_tmp_dir, "myremotedirectory"),
                        directory=True,
                        storage_id=storage_id)
-    local_listdir = sorted(os.listdir(os.path.join(stor_tmp_dir, "myremotedirectory")))
+    storage_client.get(os.path.join("myremotedirectory"),
+                       os.path.join(stor_tmp_dir, "myremotedirectory"),
+                       directory=None,
+                       storage_id=storage_id)
+    local_listdir = sorted([f for f in os.listdir(os.path.join(stor_tmp_dir, "myremotedirectory"))
+                            if not f.endswith('#md5')])
     # deleting full directory
     storage_client.delete(os.path.join("myremotedirectory"),
                           recursive=True,

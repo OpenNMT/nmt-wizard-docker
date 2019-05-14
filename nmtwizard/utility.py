@@ -66,8 +66,11 @@ def resolve_remote_files(config, local_dir, storage_client):
         if not isinstance(value, six.string_types) or not storage_client.is_managed_path(value):
             return value
         storage_id, remote_path = storage_client.parse_managed_path(value)
-        local_path = os.path.join(local_dir, "%s_%s" % (storage_id, os.path.basename(remote_path)))
-        storage_client.get_file(remote_path, local_path, storage_id=storage_id)
+        if remote_path[0] == '/':
+            remote_path = remote_path[1:]
+        local_path = os.path.join(local_dir, storage_id, remote_path)
+        # can be a file or a directory
+        storage_client.get(remote_path, local_path, storage_id=storage_id, directory=None)
         return local_path
     return _map_config_fn(config, _map_fn)
 
@@ -94,11 +97,14 @@ class Utility(object):
         workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
         self._output_dir = os.path.join(workspace_dir, 'output')
         self._data_dir = os.path.join(workspace_dir, 'data')
+        self._shared_dir = os.path.join(workspace_dir, 'shared')
         self._tmp_dir = os.path.join(workspace_dir, 'tmp')
         if not os.path.exists(self._output_dir):
             os.makedirs(self._output_dir)
         if not os.path.exists(self._data_dir):
             os.makedirs(self._data_dir)
+        if not os.path.exists(self._shared_dir):
+            os.makedirs(self._shared_dir)
         if not os.path.exists(self._tmp_dir):
             os.makedirs(self._tmp_dir)
 

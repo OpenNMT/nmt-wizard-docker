@@ -361,8 +361,7 @@ class Framework(Utility):
 
         parent_model_type = config.get('modelType') if model_path is not None else None
 
-        local_config = self._finalize_config(
-            config, download_files=parent_model_type != 'preprocess')
+        local_config = self._finalize_config(config)
         local_model_config = (
             self._finalize_config(model_config)
             if model_config is not None else None)
@@ -425,7 +424,7 @@ class Framework(Utility):
             config['build'] = build_info
 
         # Build and push the model package.
-        bundle_dependencies(objects, config)
+        bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
@@ -442,7 +441,7 @@ class Framework(Utility):
                     image,
                     push_model=True):
         start_time = time.time()
-        local_config = self._finalize_config(config, download_files=True)
+        local_config = self._finalize_config(config)
         objects, tokenization_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
@@ -456,7 +455,7 @@ class Framework(Utility):
             'startDate': start_time
         }
 
-        bundle_dependencies(objects, config)
+        bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
@@ -483,7 +482,7 @@ class Framework(Utility):
             else:
                 return self.trans(*args, **kwargs)
 
-        local_config = self._finalize_config(config, download_files=True, training=False)
+        local_config = self._finalize_config(config, training=False)
         failed_translation = 0
         translated_lines = 0
         generated_tokens = 0
@@ -547,7 +546,8 @@ class Framework(Utility):
             except Exception as e:
                 # Catch any exception to not impact other translations.
                 filename = path_input if not isinstance(path_input, tuple) else path_input[0]
-                logger.error("Translation of %s failed with error %s" % (filename, str(e)))
+                logger.error("Translation of %s failed with error \"%s: %s\"" % (
+                    filename, e.__class__.__name__, str(e)))
                 logger.warning("Skipping translation of %s" % filename)
                 failed_translation += 1
 
@@ -567,7 +567,7 @@ class Framework(Utility):
                         optimization_level=None,
                         gpuid=0,
                         push_model=True):
-        local_config = self._finalize_config(config, download_files=True, training=False)
+        local_config = self._finalize_config(config, training=False)
         objects = self.release(
             local_config,
             model_path,
@@ -587,7 +587,7 @@ class Framework(Utility):
             storage.push(objects_dir, storage.join(destination, model_id))
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
-        local_config = self._finalize_config(config, download_files=True, training=False)
+        local_config = self._finalize_config(config, training=False)
         serving.start_server(
             host,
             port,
@@ -602,7 +602,7 @@ class Framework(Utility):
         logger.info('Starting preprocessing data ')
         start_time = time.time()
 
-        local_config = self._finalize_config(config, download_files=True)
+        local_config = self._finalize_config(config)
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
 
@@ -622,7 +622,7 @@ class Framework(Utility):
         logger.info('Starting preprocessing %s', model_id)
         start_time = time.time()
 
-        local_config = self._finalize_config(config, download_files=True)
+        local_config = self._finalize_config(config)
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
         if num_samples == 0:
@@ -656,7 +656,7 @@ class Framework(Utility):
 
         # Build and push the model package.
         objects = {'data': data_dir}
-        bundle_dependencies(objects, config)
+        bundle_dependencies(objects, config, local_config)
         # Forward other files from the parent model.
         if model_path is not None:
             for f in os.listdir(model_path):
@@ -816,10 +816,9 @@ class Framework(Utility):
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
 
-    def _finalize_config(self, config, download_files=False, training=True):
+    def _finalize_config(self, config, training=True):
         config = resolve_environment_variables(config, training=training)
-        if download_files:
-            config = resolve_remote_files(config, self._data_dir, self._storage)
+        config = resolve_remote_files(config, self._shared_dir, self._storage)
         return config
 
 
@@ -835,18 +834,24 @@ def map_config_fn(config, fn):
     else:
         return fn(config)
 
-def bundle_dependencies(objects, options):
+def bundle_dependencies(objects, config, local_config):
     """Bundles additional resources in the model package."""
-    def _map_fn(options):
-        if isinstance(options, six.string_types):
-            m = ENVVAR_ABS_RE.match(options)
+    if isinstance(config, list):
+        for i, _ in enumerate(config):
+            config[i] = bundle_dependencies(objects, config[i], local_config[i])
+        return config
+    elif isinstance(config, dict):
+        for k, v in six.iteritems(config):
+            local_v = local_config.get(k) if local_config is not None else None
+            config[k] = bundle_dependencies(objects, v, local_v)
+        return config
+    else:
+        if isinstance(config, six.string_types):
+            m = ENVVAR_ABS_RE.match(config)
             if m and "TRAIN" not in m.group(1):
-                path = ENVVAR_RE.sub(
-                    lambda m: os.getenv(m.group(1), ''), str(options))
-                objects[m.group(2)] = path
+                objects[m.group(2)] = local_config
                 return '${MODEL_DIR}/%s' % m.group(2)
-        return options
-    return map_config_fn(options, _map_fn)
+        return config
 
 def extract_model_resources(objects, config):
     """Returns resources included in the model directory."""
@@ -861,7 +866,7 @@ def extract_model_resources(objects, config):
 
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
-    return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data')
+    return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data') and not f.startswith('.')
 
 def file_stats(path):
     num_lines = 0

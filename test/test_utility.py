@@ -29,7 +29,7 @@ def test_resolve_env_no_training():
     assert config["b"] == "${A_TRAIN_DIR}/a"
 
 def test_resolve_remote_files(tmpdir):
-    tmpdir.join("remote").join("a.txt").write("toto", ensure=True)
+    tmpdir.join("remote").join("dir").join("a.txt").write("toto", ensure=True)
     tmpdir.join("local").ensure_dir()
     storage_config = {
         "tmp": {"type": "local", "basedir": str(tmpdir)},
@@ -39,13 +39,13 @@ def test_resolve_remote_files(tmpdir):
     config = {
         "a": "/home/ubuntu/a.txt",
         "b": "non_storage:b.txt",
-        "c": "tmp:remote/a.txt",
-        "d": "tmp2:a.txt",
+        "c": "tmp:remote/dir/a.txt",
+        "d": "tmp2:/dir/a.txt",
         "e": True
     }
     config = utility.resolve_remote_files(config, str(tmpdir.join("local")), client)
-    c_path = tmpdir.join("local").join("tmp_a.txt")
-    d_path = tmpdir.join("local").join("tmp2_a.txt")
+    c_path = tmpdir.join("local").join("tmp/remote/dir/a.txt")
+    d_path = tmpdir.join("local").join("tmp2/dir/a.txt")
     assert config["a"] == "/home/ubuntu/a.txt"
     assert config["b"] == "non_storage:b.txt"
     assert config["c"] == str(c_path)

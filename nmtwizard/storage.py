@@ -1,7 +1,6 @@
 """Client to abstract storage location: local, S3, SSH, etc."""
 
 import os
-import shutil
 import tempfile
 
 from nmtwizard.logger import get_logger
@@ -12,7 +11,6 @@ from nmtwizard.storages.s3 import S3Storage
 from nmtwizard.storages.http import HTTPStorage
 
 LOGGER = get_logger(__name__)
-
 
 class StorageClient(object):
     """Client to get and push files to a storage."""
@@ -63,7 +61,9 @@ class StorageClient(object):
                                        config['bucket'],
                                        access_key_id=credentials.get('access_key_id'),
                                        secret_access_key=credentials.get('secret_access_key'),
-                                       region_name=credentials.get('region_name'))
+                                       region_name=credentials.get('region_name'),
+                                       assume_role=credentials.get('assume_role'),
+                                       transfer_config=credentials.get('transfer_config'))
                 elif config['type'] == 'ssh':
                     client = RemoteStorage(storage_id,
                                            config['server'],
@@ -88,7 +88,7 @@ class StorageClient(object):
         else:
             client = LocalStorage()
 
-        return client, path
+        return client, client._internal_path(path)
 
     def join(self, path, *paths):
         """Joins the paths according to the storage implementation."""
@@ -121,29 +121,15 @@ class StorageClient(object):
             storage_id=None,
             check_integrity_fn=None):
         """Retrieves file or directory from remote_path to local_path."""
-        if directory and os.path.isdir(local_path):
-            LOGGER.warning('Directory %s already exists', local_path)
-        elif not directory and os.path.isfile(local_path):
-            LOGGER.warning('File %s already exists', local_path)
-        else:
-            if not directory and os.path.isdir(local_path):
-                local_path = os.path.join(local_path, os.path.basename(remote_path))
-            tmp_path = os.path.join(self._tmp_dir, os.path.basename(local_path))
-            LOGGER.info('Downloading %s to %s through tmp %s', remote_path, local_path, tmp_path)
-            client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
-            client.get(remote_path, tmp_path, directory=directory)
-            if not os.path.exists(tmp_path):
-                raise RuntimeError('download failed: %s not found' % tmp_path)
-            if check_integrity_fn is not None and not check_integrity_fn(tmp_path):
-                raise RuntimeError('integrity check failed on %s' % tmp_path)
-            # in meantime, the file might have been copied
-            if os.path.exists(local_path):
-                LOGGER.warning('File/Directory created while copying - taking copy')
-            else:
-                check_integrity_fn = None  # No need to check again.
-                shutil.move(tmp_path, local_path)
-        if check_integrity_fn is not None and not check_integrity_fn(local_path):
-            raise RuntimeError('integrity check failed on %s' % local_path)
+        LOGGER.info('Synchronizing %s to %s', remote_path, local_path)
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        client.get(
+            remote_path,
+            local_path,
+            directory=directory,
+            check_integrity_fn=check_integrity_fn)
+        if not os.path.exists(local_path):
+            raise RuntimeError('Failed to synchronize %s' % local_path)
 
     def stream(self, remote_path, buffer_size=1024, storage_id=None):
         """Returns a generator to stream a remote_path file.
