@@ -823,7 +823,7 @@ class Framework(Utility):
         return config
 
     def _upgrade_data_config(self, config):
-        if 'data' not in config:
+        if 'data' not in config or 'sample_dist' not in config['data']:
             return config
         data = config['data']
         if 'train_dir' in data:
