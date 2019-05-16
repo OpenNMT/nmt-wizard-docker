@@ -445,6 +445,7 @@ class Framework(Utility):
         objects, tokenization_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
+        local_config['tokenization'] = resolve_environment_variables(tokenization_config)
         config['tokenization'] = tokenization_config
         config['model'] = model_id
         config['modelType'] = 'base'
