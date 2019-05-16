@@ -818,7 +818,23 @@ class Framework(Utility):
 
     def _finalize_config(self, config, training=True):
         config = resolve_environment_variables(config, training=training)
+        config = self._upgrade_data_config(config)
         config = resolve_remote_files(config, self._shared_dir, self._storage)
+        return config
+
+    def _upgrade_data_config(self, config):
+        if 'data' not in config:
+            return config
+        data = config['data']
+        if 'train_dir' in data:
+            train_dir = data['train_dir']
+            del data['train_dir']
+        else:
+            train_dir = 'train'
+        basedir = os.path.join(self._corpus_dir, 'train')
+        for dist in data['sample_dist']:
+            if not self._storage.is_managed_path(dist['path']) and not os.path.isabs(dist['path']):
+                dist['path'] = os.path.join(basedir, dist['path'])
         return config
 
 
