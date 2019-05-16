@@ -819,12 +819,12 @@ class Framework(Utility):
 
     def _finalize_config(self, config, training=True):
         config = resolve_environment_variables(config, training=training)
-        config = self._upgrade_data_config(config)
+        config = self._upgrade_data_config(config, training=training)
         config = resolve_remote_files(config, self._shared_dir, self._storage)
         return config
 
-    def _upgrade_data_config(self, config):
-        if 'data' not in config or 'sample_dist' not in config['data']:
+    def _upgrade_data_config(self, config, training=True):
+        if not training or 'data' not in config or 'sample_dist' not in config['data']:
             return config
         data = config['data']
         if 'train_dir' in data:
