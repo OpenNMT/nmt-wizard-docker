@@ -832,7 +832,7 @@ class Framework(Utility):
             del data['train_dir']
         else:
             train_dir = 'train'
-        basedir = os.path.join(self._corpus_dir, 'train')
+        basedir = os.path.join(self._corpus_dir, train_dir)
         for dist in data['sample_dist']:
             if not self._storage.is_managed_path(dist['path']) and not os.path.isabs(dist['path']):
                 dist['path'] = os.path.join(basedir, dist['path'])
