@@ -70,17 +70,6 @@ def emb(encoder, inputF, outputF, verbose, buffer_size=10000):
                buffer_size=buffer_size)
 
 
-def TokBpeEmb(lang, inputF, tokF, bpeF, embF, bpeCodesF, encoder, verbose, gpuid):
-    tok(lang, inputF, tokF, verbose)
-    bpe(bpeCodesF, tokF, bpeF, verbose)
-    setCUDA_VISIBLE_DEVICES(gpuid)
-
-    if isinstance(encoder, str):
-        encoder = loadEncoder(encoder, gpuid == 0)
-
-    emb(encoder, bpeF, embF, verbose)
-
-
 def loadEncoder(encoderF, buffer_size=10000, max_tokens=12000, max_sentences=None, cpu=False, stable=False):
     buffer_size = max(buffer_size, 1)
     assert not max_sentences or max_sentences <= buffer_size, '--max-sentences/--batch-size ' \
@@ -92,6 +81,17 @@ def loadEncoder(encoderF, buffer_size=10000, max_tokens=12000, max_sentences=Non
                            max_tokens=max_tokens,
                            sort_kind='mergesort' if stable else 'quicksort',
                            cpu=cpu)
+
+
+def TokBpeEmb(lang, inputF, tokF, bpeF, embF, bpeCodesF, encoder, verbose, gpuid):
+    tok(lang, inputF, tokF, verbose)
+    bpe(bpeCodesF, tokF, bpeF, verbose)
+    setCUDA_VISIBLE_DEVICES(gpuid)
+
+    if isinstance(encoder, str):
+        encoder = loadEncoder(encoder, gpuid == 0)
+
+    emb(encoder, bpeF, embF, verbose)
 
 
 def unique_embeddings(emb, ind):
