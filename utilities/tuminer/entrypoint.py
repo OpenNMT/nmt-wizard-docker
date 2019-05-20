@@ -118,9 +118,9 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
 
     logger.info(' - writing alignments to {:s}'.format(outputF))
     if threshold > 0:
-        logger.info(' - with threshold of {:f}'.format(args.threshold))
+        logger.info(' - with threshold of {:f}'.format(threshold))
 
-    fout = open(outputF, mode='w', encoding=args.encoding, errors='surrogateescape')
+    fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
 
     if retrieval == 'fwd':
         for i, j in enumerate(fwd_best):
