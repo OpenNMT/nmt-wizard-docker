@@ -22,7 +22,7 @@ class DeepLTranslateFramework(CloudTranslationFramework):
         }
 
         url = 'https://api.deepl.com/v2/translate'
-        result = self.send_request(lambda: requests.get(url, params=params))
+        result = self.send_request(lambda: requests.post(url, data=params))
         for trans in result['translations']:
             yield trans['text']
 

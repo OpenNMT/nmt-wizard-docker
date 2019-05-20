@@ -69,7 +69,7 @@ class OpenNMTLuaFramework(Framework):
         options = _build_cmd_line_options(options)
         self._run_command(["th", "translate.lua"] + options)
 
-    def release(self, config, model_path, gpuid=0):
+    def release(self, config, model_path, optimization_level=None, gpuid=0):
         model_file = os.path.join(model_path, "model.t7")
         released_model_file = os.path.join(model_path, "model_released.t7")
         release_options = self._get_release_options(model_file, released_model_file, gpuid=gpuid)
@@ -110,7 +110,7 @@ class OpenNMTLuaFramework(Framework):
             outputs = []
             for hyp in hypotheses:
                 tokens = hyp['tgt'].split()
-                score = hyp['pred_score'] / len(tokens)
+                score = hyp['pred_score']
                 outputs.append(TranslationOutput(tokens, score=score, attention=hyp['attn']))
             batch_outputs.append(outputs)
         return batch_outputs

@@ -35,6 +35,7 @@ class OpenNMTTFFramework(Framework):
               tgt_file,
               src_vocab_info,
               tgt_vocab_info,
+              align_file=None,
               model_path=None,
               gpuid=0):
         if src_vocab_info['changed'] or tgt_vocab_info['changed']:
@@ -62,24 +63,34 @@ class OpenNMTTFFramework(Framework):
         run_config['data']['target_words_vocabulary'] = tgt_vocab_info['current']
         run_config['data']['train_features_file'] = src_file
         run_config['data']['train_labels_file'] = tgt_file
+        if align_file is not None and os.path.exists(align_file) :
+            run_config['data']['train_alignments'] = align_file
+            if "params" not in run_config:
+                  run_config["params"] = {}
+            if "guided_alignment_type" not in run_config["params"]:
+                  run_config["params"]["guided_alignment_type"] = "ce"
         if 'train_steps' not in run_config['train']:
             run_config['train']['single_pass'] = True
             run_config['train']['train_steps'] = None
         if 'sample_buffer_size' not in run_config['train']:
             run_config['train']['sample_buffer_size'] = -1
+        if 'average_last_checkpoints' not in run_config['train']:
+            run_config['train']['average_last_checkpoints'] = 0
         runner = onmt.Runner(
             model,
             run_config,
             num_devices=utils.count_devices(gpuid),
             auto_config=config['options'].get('auto_config', False))
-        runner.train()
-        return self._list_model_files(model_dir)
+        output_dir = runner.train()
+        if output_dir != model_dir:
+            shutil.copy(os.path.join(model_dir, "model_description.py"), output_dir)
+        return self._list_model_files(output_dir)
 
     def trans(self, config, model_path, input, output, gpuid=0):
         runner = self._make_predict_runner(config, model_path)
         runner.infer(input, predictions_file=output)
 
-    def release(self, config, model_path, gpuid=0):
+    def release(self, config, model_path, optimization_level=None, gpuid=0):
         export_dir = self._export_model(config, model_path)
         return {'1': export_dir}  # TensorFlow Serving expects a version number (here we use 1).
 
@@ -109,9 +120,9 @@ class OpenNMTTFFramework(Framework):
         predict_request = predict_pb2.PredictRequest()
         predict_request.model_spec.name = info['model_name']
         predict_request.inputs['tokens'].CopyFrom(
-            tf.make_tensor_proto(tokens, shape=(batch_size, max_length)))
+            tf.make_tensor_proto(tokens, dtype=tf.string, shape=(batch_size, max_length)))
         predict_request.inputs['length'].CopyFrom(
-            tf.make_tensor_proto(lengths, shape=(batch_size,)))
+            tf.make_tensor_proto(lengths, dtype=tf.int32, shape=(batch_size,)))
 
         try:
             future = stub.Predict.future(predict_request, timeout)
@@ -131,7 +142,7 @@ class OpenNMTTFFramework(Framework):
                 prediction_length = length[i] - 1  # Ignore </s>.
                 prediction = prediction[0:prediction_length].tolist()
                 prediction = [tf.compat.as_text(pred) for pred in prediction]
-                score = float(log_prob[i]) / prediction_length
+                score = float(log_prob[i])
                 outputs.append(serving.TranslationOutput(prediction, score=score))
             batch_outputs.append(outputs)
         return batch_outputs
@@ -167,12 +178,15 @@ class OpenNMTTFFramework(Framework):
             model_type=config['options'].get('model_type'),
             model_file=config['options'].get('model'),
             model_path=model_path)
-        run_config = copy.deepcopy(config['options']['config'])
+        run_config = copy.deepcopy(config['options'].get('config', {}))
         run_config['model_dir'] = model_dir
         if 'data' not in run_config:
             run_config['data'] = {}
         run_config['data'] = self._register_vocab(config, run_config['data'])
-        return onmt.Runner(model, run_config)
+        return onmt.Runner(
+            model,
+            run_config,
+            auto_config=config['options'].get('auto_config', False))
 
     def _export_model(self, config, model_path):
         # Hide GPU when exporting the model.

@@ -77,7 +77,10 @@ def start_server(host,
             if backend_process is not None and not _process_is_running(backend_process):
                 self.send_error(503, 'backend service is unavailable')
                 return
-            content_len = int(self.headers.getheader('content-length', 0))
+            header_fn = (
+                self.headers.getheader if hasattr(self.headers, "getheader")
+                else self.headers.get)
+            content_len = int(header_fn('content-length', 0))
             if content_len == 0:
                 self.send_error(400, 'missing request data')
                 return
@@ -112,7 +115,10 @@ def start_server(host,
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
-            self.wfile.write(json.dumps(result))
+            data = json.dumps(result)
+            if not isinstance(data, six.binary_type):
+                data = data.encode("utf-8")
+            self.wfile.write(data)
 
         def handle_request(self, request):
             if 'src' not in request:
