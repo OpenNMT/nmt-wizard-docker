@@ -23,7 +23,7 @@ class SimilarityUtility(Utility):
         return "similarity"
 
     def exec_function(self, args):
-        assert len(args) and (args[0] == "train" or args[0] == "apply"), "invalid parameters for similarity module"
+        assert args and (args[0] == "train" or args[0] == "apply"), "invalid parameters for similarity module"
         if args[0] == "train":
             assert "-trn" in args, "missing `-trn` parameters in training mode"
         else:
@@ -43,13 +43,13 @@ class SimilarityUtility(Utility):
                 nextval = args[idx+1]
                 inputs = nextval.split(',')
                 local_inputs = []
-                for input in inputs:
-                    local_input = os.path.join(self._data_dir, self._storage.split(input)[-1])
-                    print "--", input, local_input
+                for the_input in inputs:
+                    local_input = os.path.join(self._data_dir, self._storage.split(the_input)[-1])
+                    print "--", the_input, local_input
                     if val == '-mdir':
-                        self._storage.get_directory(input, local_input)
+                        self._storage.get_directory(the_input, local_input)
                     else:
-                        self._storage.get_file(input, local_input)
+                        self._storage.get_file(the_input, local_input)
                     local_inputs.append(local_input)
                 new_args.append(','.join(local_inputs))
                 idx += 1
