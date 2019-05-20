@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 
 def setCUDA_VISIBLE_DEVICES(gpuid):
-    if gpuid is 0:
+    if gpuid == 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = "-1"
     else:
         if isinstance(gpuid, list):
@@ -257,7 +257,7 @@ class TuminerUtility(Utility):
 
             # LASER options
             setCUDA_VISIBLE_DEVICES(args.gpuid)
-            unify, retrieval, margin, neighborhood, gpu = True, 'max', 'ratio', 5, (args.gpuid is not 0)
+            unify, retrieval, margin, neighborhood, gpu = True, 'max', 'ratio', 5, (args.gpuid != 0)
 
             args.unify = unify
 
