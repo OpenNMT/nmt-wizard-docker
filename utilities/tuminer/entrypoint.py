@@ -107,15 +107,17 @@ def scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF, encoding,
         print(score(x[i], y[j], x2y_mean[i], y2x_mean[j], margin), file=fout)
     fout.close()
 
-def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, outputF, margin, retrieval):
+
+def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, outputF, encoding, margin,
+               retrieval, threshold, verbose):
     logger.info(' - mining for parallel data')
-    fwd_scores = score_candidates(x, y, x2y_ind, x2y_mean, y2x_mean, margin, args.verbose)
-    bwd_scores = score_candidates(y, x, y2x_ind, y2x_mean, x2y_mean, margin, args.verbose)
+    fwd_scores = score_candidates(x, y, x2y_ind, x2y_mean, y2x_mean, margin, verbose)
+    bwd_scores = score_candidates(y, x, y2x_ind, y2x_mean, x2y_mean, margin, verbose)
     fwd_best = x2y_ind[np.arange(x.shape[0]), fwd_scores.argmax(axis=1)]
     bwd_best = y2x_ind[np.arange(y.shape[0]), bwd_scores.argmax(axis=1)]
 
     logger.info(' - writing alignments to {:s}'.format(outputF))
-    if args.threshold > 0:
+    if threshold > 0:
         logger.info(' - with threshold of {:f}'.format(args.threshold))
 
     fout = open(outputF, mode='w', encoding=args.encoding, errors='surrogateescape')
@@ -140,7 +142,7 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
             if src_ind not in seen_src and trg_ind not in seen_trg:
                 seen_src.add(src_ind)
                 seen_trg.add(trg_ind)
-                if scores[i] > args.threshold:
+                if scores[i] > threshold:
                     print(scores[i], src_sents[src_ind], trg_sents[trg_ind], sep='\t', file=fout)
     fout.close()
 
@@ -199,7 +201,7 @@ class TuminerUtility(Utility):
         self._storage.get_file(args.srcfile, srcF_local)
         self._storage.get_file(args.tgtfile, tgtF_local)
 
-        if args.output is not '-':
+        if args.output != '-':
             outputF_local = os.path.join(self._data_dir, self._storage.split(args.output)[-1])
 
         if args.bpecodes is not None:
@@ -274,12 +276,12 @@ class TuminerUtility(Utility):
             faiss.normalize_L2(y)
 
             # calculate knn in both directions
-            if retrieval is not 'bwd':
+            if retrieval != 'bwd':
                 logger.info(' - perform {:d}-nn source against target'.format(neighborhood))
                 x2y_sim, x2y_ind = knn(x, y, min(y.shape[0], neighborhood), gpu)
                 x2y_mean = x2y_sim.mean(axis=1)
 
-            if retrieval is not 'fwd':
+            if retrieval != 'fwd':
                 logger.info(' - perform {:d}-nn target against source'.format(neighborhood))
                 y2x_sim, y2x_ind = knn(y, x, min(x.shape[0], neighborhood), gpu)
                 y2x_mean = y2x_sim.mean(axis=1)
@@ -296,8 +298,8 @@ class TuminerUtility(Utility):
             if args.mode == 'score':
                 scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF_local, args.encoding, margin)
             elif args.mode == 'mine':
-                mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, outputF_local, margin,
-                           retrieval)
+                mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, outputF_local,
+                           args.encoding, margin, retrieval, args.threshold, args.verbose)
 
         #################
         # Save output

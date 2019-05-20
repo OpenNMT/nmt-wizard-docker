@@ -73,7 +73,7 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
 #####################################################################################################
 # Install LASER
 #####################################################################################################
-RUN apt-get install -y unzip \
+RUN apt-get install --no-install-recommends -y unzip \
     g++ wget cpio \
     libgtest-dev swig3.0 \
     libopenblas-dev
