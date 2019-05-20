@@ -61,7 +61,7 @@ def bpe(bpecodes, inputF, outputF, verbose):
                  over_write=False)
 
 
-def emb(encoder, inputF, outputF, verbose, buffer_size=10000):
+def emb(encoder, inputF, outputF, verbose, buffer_size=1000):
     EncodeFile(encoder,
                inputF,
                outputF,
@@ -70,7 +70,7 @@ def emb(encoder, inputF, outputF, verbose, buffer_size=10000):
                buffer_size=buffer_size)
 
 
-def loadEncoder(encoderF, buffer_size=10000, max_tokens=12000, max_sentences=None, cpu=False, stable=False):
+def loadEncoder(encoderF, buffer_size=1000, max_tokens=1200, max_sentences=None, cpu=False, stable=False):
     buffer_size = max(buffer_size, 1)
     assert not max_sentences or max_sentences <= buffer_size, '--max-sentences/--batch-size ' \
                                                               'cannot be larger than --buffer-size'
