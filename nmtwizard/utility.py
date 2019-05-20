@@ -9,6 +9,8 @@ import re
 import shutil
 import uuid
 import six
+import sys
+import requests
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
@@ -22,29 +24,55 @@ ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
 
 logger = get_logger(__name__)
 
-def getenv(m):
+def getenv(m, training=True):
     var = m.group(1)
-    if var == 'TRAIN_DIR':
-        var = 'CORPUS_DIR'
-    elif 'TRAIN_' in var:
-        var = var.replace('TRAIN_', '')
-    return os.getenv(var, '')
+    if 'TRAIN_' in var:
+        if not training:
+            return "${%s}" % var
+        if var == 'TRAIN_DIR':
+            var = 'CORPUS_DIR'
+        else:
+            var = var.replace('TRAIN_', '')
+    value = os.getenv(var)
+    if value is None:
+        raise ValueError('Environment variable %s is not defined' % var)
+    return value
 
-def resolve_environment_variables(config):
+def _map_config_fn(a, fn):
+    if isinstance(a, dict):
+        new_a = {}
+        for k, v in six.iteritems(a):
+            new_a[k] = _map_config_fn(v, fn)
+        return new_a
+    elif isinstance(a, list):
+        new_a = []
+        for v in a:
+            new_a.append(_map_config_fn(v, fn))
+        return new_a
+    else:
+        return fn(a)
+
+def resolve_environment_variables(config, training=True):
     """Returns a new configuration with all environment variables replaced."""
-    if isinstance(config, dict):
-        new_config = {}
-        for k, v in six.iteritems(config):
-            new_config[k] = resolve_environment_variables(v)
-        return new_config
-    elif isinstance(config, list):
-        new_config = []
-        for i, _ in enumerate(config):
-            new_config.append(resolve_environment_variables(config[i]))
-        return new_config
-    elif isinstance(config, six.string_types):
-        return ENVVAR_RE.sub(lambda m: getenv(m), config)
-    return config
+    def _map_fn(value):
+        if not isinstance(value, six.string_types):
+            return value
+        return ENVVAR_RE.sub(lambda m: getenv(m, training=training), value)
+    return _map_config_fn(config, _map_fn)
+
+def resolve_remote_files(config, local_dir, storage_client):
+    """Downloads remote files present in config locally."""
+    def _map_fn(value):
+        if not isinstance(value, six.string_types) or not storage_client.is_managed_path(value):
+            return value
+        storage_id, remote_path = storage_client.parse_managed_path(value)
+        if remote_path[0] == '/':
+            remote_path = remote_path[1:]
+        local_path = os.path.join(local_dir, storage_id, remote_path)
+        # can be a file or a directory
+        storage_client.get(remote_path, local_path, storage_id=storage_id, directory=None)
+        return local_path
+    return _map_config_fn(config, _map_fn)
 
 def load_config(config_arg):
     """Loads the configuration from a string, a file, or the standard input."""
@@ -69,18 +97,24 @@ class Utility(object):
         workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
         self._output_dir = os.path.join(workspace_dir, 'output')
         self._data_dir = os.path.join(workspace_dir, 'data')
+        self._shared_dir = os.path.join(workspace_dir, 'shared')
         self._tmp_dir = os.path.join(workspace_dir, 'tmp')
         if not os.path.exists(self._output_dir):
             os.makedirs(self._output_dir)
         if not os.path.exists(self._data_dir):
             os.makedirs(self._data_dir)
+        if not os.path.exists(self._shared_dir):
+            os.makedirs(self._shared_dir)
         if not os.path.exists(self._tmp_dir):
             os.makedirs(self._tmp_dir)
-        self._parser = argparse.ArgumentParser()
 
     @property
     @abc.abstractmethod
     def name(self):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def declare_arguments(self, parser):
         raise NotImplementedError()
 
     @abc.abstractmethod
@@ -104,6 +138,9 @@ class Utility(object):
                                   "(push notifications of activity)."))
         parser.add_argument('-bi', '--beat_interval', default=30, type=int,
                             help="Interval of beat requests in seconds.")
+        parser.add_argument('--statistics_url', default=None,
+                            help=('Endpoint that listens to statistics summaries generated '
+                                  'at the end of the execution'))
 
         parser.add_argument('-ms', '--model_storage', default=None,
                             help='Model storage in the form <storage_id>:[<path>].')
@@ -123,8 +160,7 @@ class Utility(object):
         parser.add_argument('--no_push', default=False, action='store_true',
                             help='Do not push model.')
 
-        parser.add_argument('utility_args', nargs=argparse.REMAINDER, help=self._parser.format_usage())
-
+        self.declare_arguments(parser)
         args = parser.parse_args(args=args)
 
         if args.task_id is None:
@@ -163,14 +199,19 @@ class Utility(object):
         self._model = args.model
         self._no_push = args.no_push
 
-        logger.info('Starting executing utility %s=%s with args [%s]',
-                    self.name, args.image, " ".join(args.utility_args))
+        logger.info('Starting executing utility %s=%s', self.name, args.image)
         start_time = time.time()
-
-        self.exec_function(args.utility_args)
-
+        stats = self.exec_function(args)
         end_time = time.time()
         logger.info('Finished executing utility in %s seconds', str(end_time-start_time))
+
+        if args.statistics_url is not None:
+            requests.post(args.statistics_url, json={
+                'task_id': self._task_id,
+                'start_time': start_time,
+                'end_time': end_time,
+                'statistics': stats or {}
+            })
 
     def _merge_multi_training_files(self, data_path, train_dir, source, target):
         merged_dir = os.path.join(self._data_dir, 'merged')
@@ -181,6 +222,18 @@ class Utility(object):
                     merged_path, source, target)
         data.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
+
+    def convert_to_local_file(self, nextval):
+        new_val = []
+        for val in nextval:
+            inputs = val.split(',')
+            local_inputs = []
+            for remote_input in inputs:
+                local_input = os.path.join(self._data_dir, self._storage.split(remote_input)[-1])
+                self._storage.get_file(remote_input, local_input)
+                local_inputs.append(local_input)
+            new_val.append(','.join(local_inputs))
+        return new_val
 
 
 def build_model_dir(model_dir, objects, config, check_integrity_fn):

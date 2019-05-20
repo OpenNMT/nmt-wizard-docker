@@ -9,10 +9,13 @@ import time
 import filecmp
 import re
 import six
+import gzip
+import shutil
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample
-from nmtwizard.utility import Utility, merge_config, resolve_environment_variables
+from nmtwizard.utility import Utility, merge_config
+from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
 from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
 from nmtwizard import serving
@@ -56,6 +59,7 @@ class Framework(Utility):
               tgt_file,
               src_vocab_info,
               tgt_vocab_info,
+              align_file=None,
               model_path=None,
               gpuid=0):
         """Trains for one epoch.
@@ -64,6 +68,7 @@ class Framework(Utility):
           config: The run configuration.
           src_file: The local path to the preprocessed (if any) source file.
           tgt_file: The local path to the preprocessed (if any) target file.
+          align_file: The local path to the alignment file (between source and target).
           src_vocab_info: Source vocabulary metadata (see _get_vocab_info).
           tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
           model_path: The path to a model to load from.
@@ -87,7 +92,13 @@ class Framework(Utility):
         """
         raise NotImplementedError()
 
-    def translate_as_release(self, config, model_path, input, output, gpuid=0):
+    def translate_as_release(self,
+                             config,
+                             model_path,
+                             input,
+                             output,
+                             optimization_level=None,
+                             gpuid=0):
         """Translates a file in release condition.
 
         This is useful when the released model contains optimizations that
@@ -102,17 +113,21 @@ class Framework(Utility):
           model_path: The path to the checkpoint to release.
           input: The local path to the preprocessed (if any) source file.
           output: The local path to the file that should contain the translation.
+          optimization_level: An integer defining the level of optimization to
+            apply to the released model. 0 = no optimization, 1 = quantization.
           gpuid: The GPU identifier.
         """
         return self.trans(config, model_path, input, output, gpuid=gpuid)
 
     @abc.abstractmethod
-    def release(self, config, model_path, gpuid=0):
+    def release(self, config, model_path, optimization_level=None, gpuid=0):
         """Releases a model for serving.
 
         Args:
           config: The run configuration.
           model_path: The path to the model to release.
+          optimization_level: An integer defining the level of optimization to
+            apply to the released model. 0 = no optimization, 1 = quantization.
           gpuid: The GPU identifier.
 
         Returns:
@@ -186,27 +201,35 @@ class Framework(Utility):
                 os.path.join(data_dir, 'train.%s' % config['target']),
                 src_vocab_info,
                 tgt_vocab_info,
+                align_file=os.path.join(data_dir, 'train.align'),
                 model_path=model_path,
                 gpuid=gpuid)
 
-    def exec_function(self, args):
-        """Main entrypoint."""
-        parser = argparse.ArgumentParser()
-
+    def declare_arguments(self, parser):
         subparsers = parser.add_subparsers(help='Run type', dest='cmd')
         parser_train = subparsers.add_parser('train', help='Run a training.')
 
         parser_trans = subparsers.add_parser('trans', help='Run a translation.')
         parser_trans.add_argument('-i', '--input', required=True, nargs='+',
-                                  help='Input file.')
+                                  help='Input files')
         parser_trans.add_argument('-o', '--output', required=True, nargs='+',
-                                  help='Output file.')
+                                  help='Output files')
+        parser_trans.add_argument('--copy_source', default=False, action='store_true',
+                                  help='Copy source files on same storage and same name than outputs')
         parser_trans.add_argument('--as_release', default=False, action='store_true',
                                   help='Translate from a released model.')
+        parser_trans.add_argument('--release_optimization_level', type=int, default=1,
+                                  help=('Control the level of optimization applied to '
+                                        'released models (for compatible frameworks). '
+                                        '0 = no optimization, 1 = quantization.'))
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
         parser_release.add_argument('-d', '--destination', default=None,
                                     help='Released model storage (defaults to the model storage).')
+        parser_release.add_argument('-o', '--optimization_level', type=int, default=1,
+                                    help=('Control the level of optimization applied to '
+                                          'released models (for compatible frameworks). '
+                                          '0 = no optimization, 1 = quantization.'))
 
         parser_serve = subparsers.add_parser('serve', help='Serve a model.')
         parser_serve.add_argument('-hs', '--host', default="0.0.0.0",
@@ -219,7 +242,8 @@ class Framework(Utility):
                                        help='Preprocess data into a model.')
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
 
-        args = parser.parse_args(args=args)
+    def exec_function(self, args):
+        """Main entrypoint."""
         if self._config is None and self._model is None:
             parser.error('at least one of --config or --model options must be set')
 
@@ -253,7 +277,7 @@ class Framework(Utility):
             if parent_model is not None and config['modelType'] not in ('checkpoint', 'base', 'preprocess'):
                 raise ValueError('cannot train from a model that is not a training checkpoint, '
                                  'a base model, or a preprocess model')
-            self.train_wrapper(
+            return self.train_wrapper(
                 self._task_id,
                 config,
                 self._storage,
@@ -275,14 +299,16 @@ class Framework(Utility):
         elif args.cmd == 'trans':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('translation requires a training checkpoint')
-            self.trans_wrapper(
+            return self.trans_wrapper(
                 config,
                 model_path,
                 self._storage,
                 args.input,
                 args.output,
                 as_release=args.as_release,
-                gpuid=self._gpuid)
+                release_optimization_level=args.release_optimization_level,
+                gpuid=self._gpuid,
+                copy_source=args.copy_source)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('releasing requires a training checkpoint')
@@ -294,6 +320,7 @@ class Framework(Utility):
                 self._storage,
                 self._image,
                 args.destination,
+                optimization_level=args.optimization_level,
                 gpuid=self._gpuid,
                 push_model=not self._no_push)
         elif args.cmd == 'serve':
@@ -308,7 +335,7 @@ class Framework(Utility):
                 if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
                     raise ValueError('cannot preprocess from a model that is not a training '
                                      'checkpoint or a base model')
-                self.preprocess_into_model(
+                return self.preprocess_into_model(
                     self._task_id,
                     config,
                     self._storage,
@@ -332,17 +359,17 @@ class Framework(Utility):
         logger.info('Starting training model %s', model_id)
         start_time = time.time()
 
-        local_config = resolve_environment_variables(config)
+        parent_model_type = config.get('modelType') if model_path is not None else None
+
+        local_config = self._finalize_config(config)
         local_model_config = (
-            resolve_environment_variables(model_config)
+            self._finalize_config(model_config)
             if model_config is not None else None)
 
         src_vocab_info = self._get_vocab_info(
             'source', config, local_config, model_config=local_model_config)
         tgt_vocab_info = self._get_vocab_info(
             'target', config, local_config, model_config=local_model_config)
-
-        parent_model_type = config.get('modelType') if model_path is not None else None
 
         if parent_model_type == 'preprocess':
             train_dir = 'data'
@@ -397,11 +424,14 @@ class Framework(Utility):
             config['build'] = build_info
 
         # Build and push the model package.
-        bundle_dependencies(objects, config)
+        bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
+        return {
+            'num_sentences': config['build'].get('sentenceCount')
+        }
 
     def build_vocab(self,
                     model_id,
@@ -411,10 +441,11 @@ class Framework(Utility):
                     image,
                     push_model=True):
         start_time = time.time()
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config)
         objects, tokenization_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
+        local_config['tokenization'] = resolve_environment_variables(tokenization_config)
         config['tokenization'] = tokenization_config
         config['model'] = model_id
         config['modelType'] = 'base'
@@ -425,53 +456,108 @@ class Framework(Utility):
             'startDate': start_time
         }
 
-        bundle_dependencies(objects, config)
+        bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
-    def trans_wrapper(self, config, model_path, storage,
-                      inputs, outputs, as_release=False, gpuid=0):
+    def trans_wrapper(self,
+                      config,
+                      model_path,
+                      storage,
+                      inputs,
+                      outputs,
+                      as_release=False,
+                      release_optimization_level=None,
+                      gpuid=0,
+                      copy_source=False):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
 
-        local_config = resolve_environment_variables(config)
+        def translate_fn(*args, **kwargs):
+            if as_release:
+                return self.translate_as_release(
+                    *args, optimization_level=release_optimization_level, **kwargs)
+            else:
+                return self.trans(*args, **kwargs)
+
+        local_config = self._finalize_config(config, training=False)
         failed_translation = 0
-        translate_fn = self.translate_as_release if as_release else self.trans
+        translated_lines = 0
+        generated_tokens = 0
 
         for input, output in zip(inputs, outputs):
             try:
                 path_input = os.path.join(self._data_dir, storage.split(input)[-1])
                 path_output = os.path.join(self._output_dir, storage.split(output)[-1])
                 storage.get_file(input, path_input)
+
+                path_input_unzipped = decompress_file(path_input)
+                path_input_unzipped_parts = path_input_unzipped.split('.')
+                if copy_source and len(path_input_unzipped_parts) < 2:
+                    raise ValueError("In copy_source mode, input files should have language suffix")
+                path_output_is_zipped = False
+                if path_output.endswith(".gz"):
+                    path_output_is_zipped = True
+                    path_output = path_output[:-3]
+                path_output_parts = path_output.split('.')
+                if copy_source and len(path_output_parts) < 2:
+                    raise ValueError("In copy_source mode, output files should have language suffix")
+
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input = self._preprocess_file(local_config, path_input)
+                path_input_preprocessed = self._preprocess_file(local_config, path_input_unzipped)
                 metadata = None
-                if isinstance(path_input, tuple):
-                    path_input, metadata = path_input
+                if isinstance(path_input_preprocessed, tuple):
+                    path_input_preprocessed, metadata = path_input_preprocessed
                 translate_fn(local_config,
                              model_path,
-                             path_input,
+                             path_input_preprocessed,
                              path_output,
                              gpuid=gpuid)
                 if metadata is not None:
-                    path_input = (path_input, metadata)
-                path_output = self._postprocess_file(local_config, path_input, path_output)
+                    path_input_preprocessed = (path_input_preprocessed, metadata)
+                num_lines, num_tokens = file_stats(path_output)
+                translated_lines += num_lines
+                generated_tokens += num_tokens
+                path_output = self._postprocess_file(local_config, path_input_preprocessed, path_output)
+
+                if copy_source:
+                    copied_input = output
+                    copied_input_parts = copied_input.split('.')
+                    if path_output_is_zipped:
+                        copied_input_parts[-2] = path_input_unzipped_parts[-1]
+                        if path_input_unzipped == path_input:
+                            path_input = compress_file(path_input_unzipped)
+                    else:
+                        copied_input_parts[-1] = path_input_unzipped_parts[-1]
+                        path_input = path_input_unzipped
+
+                    storage.push(path_input, ".".join(copied_input_parts))
+
+                if path_output_is_zipped:
+                    path_output = compress_file(path_output)
+
                 storage.push(path_output, output)
+
                 end_time = time.time()
                 logger.info('Finished translation in %s seconds', str(end_time-start_time))
             except Exception as e:
                 # Catch any exception to not impact other translations.
                 filename = path_input if not isinstance(path_input, tuple) else path_input[0]
-                logger.error("Translation of %s failed with error %s" % (filename, str(e)))
+                logger.error("Translation of %s failed with error \"%s: %s\"" % (
+                    filename, e.__class__.__name__, str(e)))
                 logger.warning("Skipping translation of %s" % filename)
                 failed_translation += 1
 
         if failed_translation == len(inputs):
             raise RuntimeError("All translation failed, see error logs")
+        return {
+            'num_sentences': translated_lines,
+            'num_tokens': generated_tokens
+        }
 
     def release_wrapper(self,
                         config,
@@ -479,10 +565,15 @@ class Framework(Utility):
                         storage,
                         image,
                         destination,
+                        optimization_level=None,
                         gpuid=0,
                         push_model=True):
-        local_config = resolve_environment_variables(config)
-        objects = self.release(local_config, model_path, gpuid=gpuid)
+        local_config = self._finalize_config(config, training=False)
+        objects = self.release(
+            local_config,
+            model_path,
+            optimization_level=optimization_level,
+            gpuid=gpuid)
         extract_model_resources(objects, config)
         model_id = config['model'] + '_release'
         config['model'] = model_id
@@ -497,7 +588,7 @@ class Framework(Utility):
             storage.push(objects_dir, storage.join(destination, model_id))
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config, training=False)
         serving.start_server(
             host,
             port,
@@ -512,7 +603,7 @@ class Framework(Utility):
         logger.info('Starting preprocessing data ')
         start_time = time.time()
 
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config)
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
 
@@ -532,7 +623,7 @@ class Framework(Utility):
         logger.info('Starting preprocessing %s', model_id)
         start_time = time.time()
 
-        local_config = resolve_environment_variables(config)
+        local_config = self._finalize_config(config)
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
         if num_samples == 0:
@@ -566,7 +657,7 @@ class Framework(Utility):
 
         # Build and push the model package.
         objects = {'data': data_dir}
-        bundle_dependencies(objects, config)
+        bundle_dependencies(objects, config, local_config)
         # Forward other files from the parent model.
         if model_path is not None:
             for f in os.listdir(model_path):
@@ -576,6 +667,9 @@ class Framework(Utility):
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
+        return {
+            'num_sentences': build_info.get('sentenceCount')
+        }
 
     def _get_vocab_info(self, side, config, local_config, model_config=None):
         if config.get('tokenization', {}).get(side, {}).get('vocabulary') is None:
@@ -616,7 +710,6 @@ class Framework(Utility):
         elif 'src_tokenizer' in state:
             input = input.encode('utf-8')
             tokens, _ = state['src_tokenizer'].tokenize(input)
-            tokens = [token.decode('utf-8') for token in tokens]
         else:
             tokens = input.split()
         return tokens
@@ -627,7 +720,6 @@ class Framework(Utility):
         elif 'tgt_tokenizer' in state:
             output = [out.encode('utf-8') for out in target]
             text = state['tgt_tokenizer'].detokenize(output)
-            text.decode('utf-8')
         else:
             text = ' '.join(target)
         return text
@@ -725,6 +817,28 @@ class Framework(Utility):
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
 
+    def _finalize_config(self, config, training=True):
+        config = resolve_environment_variables(config, training=training)
+        config = self._upgrade_data_config(config, training=training)
+        config = resolve_remote_files(config, self._shared_dir, self._storage)
+        return config
+
+    def _upgrade_data_config(self, config, training=True):
+        if not training or 'data' not in config or 'sample_dist' not in config['data']:
+            return config
+        data = config['data']
+        if 'train_dir' in data:
+            train_dir = data['train_dir']
+            del data['train_dir']
+        else:
+            train_dir = 'train'
+        basedir = os.path.join(self._corpus_dir, train_dir)
+        for dist in data['sample_dist']:
+            if not self._storage.is_managed_path(dist['path']) and not os.path.isabs(dist['path']):
+                dist['path'] = os.path.join(basedir, dist['path'])
+        return config
+
+
 def map_config_fn(config, fn):
     if isinstance(config, list):
         for i, _ in enumerate(config):
@@ -737,18 +851,24 @@ def map_config_fn(config, fn):
     else:
         return fn(config)
 
-def bundle_dependencies(objects, options):
+def bundle_dependencies(objects, config, local_config):
     """Bundles additional resources in the model package."""
-    def _map_fn(options):
-        if isinstance(options, six.string_types):
-            m = ENVVAR_ABS_RE.match(options)
+    if isinstance(config, list):
+        for i, _ in enumerate(config):
+            config[i] = bundle_dependencies(objects, config[i], local_config[i])
+        return config
+    elif isinstance(config, dict):
+        for k, v in six.iteritems(config):
+            local_v = local_config.get(k) if local_config is not None else None
+            config[k] = bundle_dependencies(objects, v, local_v)
+        return config
+    else:
+        if isinstance(config, six.string_types):
+            m = ENVVAR_ABS_RE.match(config)
             if m and "TRAIN" not in m.group(1):
-                path = ENVVAR_RE.sub(
-                    lambda m: os.getenv(m.group(1), ''), str(options))
-                objects[m.group(2)] = path
+                objects[m.group(2)] = local_config
                 return '${MODEL_DIR}/%s' % m.group(2)
-        return options
-    return map_config_fn(options, _map_fn)
+        return config
 
 def extract_model_resources(objects, config):
     """Returns resources included in the model directory."""
@@ -763,4 +883,31 @@ def extract_model_resources(objects, config):
 
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
-    return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data')
+    return f not in ('README.md', 'TRAINING_LOG', 'checksum.md5', 'data') and not f.startswith('.')
+
+def file_stats(path):
+    num_lines = 0
+    num_tokens = 0
+    with open(path, "rb") as f:
+        for line in f:
+            num_lines += 1
+            num_tokens += len(line.strip().split())
+    return num_lines, num_tokens
+
+def compress_file(path_input):
+    path_input_new = path_input
+    if not path_input.endswith(".gz"):
+        logger.info('Starting gzip %s', path_input)
+        path_input_new += ".gz"
+        with open(path_input, 'rb') as f_in, gzip.open(path_input_new, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    return path_input_new
+
+def decompress_file(path_input):
+    path_input_new = path_input
+    if path_input.endswith(".gz"):
+        logger.info('Starting unzip %s', path_input)
+        path_input_new = path_input[:-3]
+        with gzip.open(path_input, 'rb') as f_in, open(path_input_new, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    return path_input_new

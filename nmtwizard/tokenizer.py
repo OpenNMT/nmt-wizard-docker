@@ -2,6 +2,7 @@
 
 import os
 import six
+import shutil
 
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
@@ -14,19 +15,21 @@ def build_tokenizer(args):
             local_args[k] = v
     mode = local_args['mode']
     del local_args['mode']
-    del local_args['vocabulary']
+    if 'vocabulary' in local_args:
+        del local_args['vocabulary']
     return pyonmttok.Tokenizer(mode, **local_args)
 
 def tokenize_file(tokenizer, input, output):
     """Tokenizes an input file."""
-    with open(input, 'r') as input_file, open(output, 'w') as output_file:
-        for line in input_file:
-            if tokenizer:
-                tokens, _ = tokenizer.tokenize(line.strip())
+    if not tokenizer:
+        shutil.copy(input, output)
+    else:
+        with open(input, 'rb') as input_file, open(output, 'w') as output_file:
+            for line in input_file:
+                line = line.strip().decode('utf-8', 'ignore').encode('utf-8')
+                tokens, _ = tokenizer.tokenize(line)
                 output_file.write(' '.join(tokens))
                 output_file.write('\n')
-            else:
-                output_file.write(line)
 
 def detokenize_file(tokenizer, input, output):
     """Detokenizes an input file."""

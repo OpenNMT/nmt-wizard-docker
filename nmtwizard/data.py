@@ -20,8 +20,11 @@ def merge_files_in_directory(input_dir, output_dir, src_suffix, tgt_suffix):
     files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
     src_files = sorted(os.path.join(input_dir, f) for f in files if f.endswith(src_suffix))
     tgt_files = sorted(os.path.join(input_dir, f) for f in files if f.endswith(tgt_suffix))
+    align_files = sorted(os.path.join(input_dir, f) for f in files if f.endswith("align"))
     merge_files(src_files, os.path.join(output_dir, 'train.%s' % src_suffix))
     merge_files(tgt_files, os.path.join(output_dir, 'train.%s' % tgt_suffix))
+    if align_files :
+        merge_files(align_files, os.path.join(output_dir, 'train.align'))
 
 def paste_files(input_files, output_file, separator='\t'):
     input_fhs = [open(f, 'rb') for f in input_files]

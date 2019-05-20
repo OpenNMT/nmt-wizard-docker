@@ -1,6 +1,7 @@
 import abc
 import time
 import six
+import io
 
 from nmtwizard.framework import Framework
 from nmtwizard.serving import TranslationOutput
@@ -51,13 +52,14 @@ class CloudTranslationFramework(Framework):
     def trans(self, config, model_path, input, output, gpuid=0):
         self._check_lang(config['source'])
         self._check_lang(config['target'])
-        with open(input, 'r') as input_file, open(output, 'w') as output_file:
+        with io.open(input, mode='r', encoding='utf-8') as input_file, \
+             io.open(output, mode='w', encoding='utf-8') as output_file:
             for batch in _batch_iter(input_file, 10):
                 translations = self.translate_batch(
                     batch, config['source'], config['target'])
                 for translation in translations:
                     output_file.write(translation)
-                    output_file.write('\n')
+                    output_file.write(u'\n')
 
     def train(self, *args, **kwargs):
         raise NotImplementedError('This framework can only be used for translation')

@@ -2,8 +2,16 @@
     "source": "en",
     "target": "de",
     "tokenization": {
-        "mode": "aggressive",
-        "joiner_annotate": true
+        "source": {
+            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        },
+        "target": {
+            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": true
+        }
     },
     "options": {
         "config": {
@@ -24,7 +32,7 @@
                 "rnn_size": 512
             },
             "trans": {
-                "replace_unk": "true"
+                "replace_unk": true
             }
         }
     }

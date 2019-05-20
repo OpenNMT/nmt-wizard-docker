@@ -1,6 +1,6 @@
-FROM nvidia/cuda:9.0-devel-ubuntu16.04 as cuda_devel
+FROM nvidia/cuda:10.0-devel-ubuntu16.04 as cuda_devel
 
-FROM tensorflow/serving:1.11.0-gpu
+FROM tensorflow/serving:1.13.0-gpu
 
 COPY --from=cuda_devel \
      /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/
@@ -18,9 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 ADD frameworks/opennmt_tf/requirements.txt /root
-RUN pip --no-cache-dir install -r /root/requirements.txt && \
-    pip --no-cache-dir install 'grpcio>=1.0,<2' && \
-    pip --no-cache-dir install --no-deps 'tensorflow-serving-api==1.11.0'
+RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ENV CORPUS_DIR=/root/corpus
 ENV MODELS_DIR=/root/models

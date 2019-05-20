@@ -2,22 +2,20 @@
 
 The aim of this project is to encapsulate training frameworks in Docker containers and expose a standardized interface for:
 
+* preprocessing
 * training
 * translating
-* data sampling and preprocessing - useful mainly for data preparation and vocabulary building
-* serving (for selected frameworks)
+* serving
 
-The training data are mounted at the container start and follow a specific directory structure (described later). Models and translation files can be fetched and pushed from various remote storage platform. Currently only SSH and Amazon S3 are supported.
+The training data are mounted at the container start and follow a specific directory structure (described later). Models and translation files can be fetched and pushed from various remote storage platform, including Amazon S3.
 
 ## Overview
 
 Each framework exposes the same command line interface for providing training, translation, and deployment services. See for example:
 
 ```bash
-python frameworks/opennmt_lua/entrypoint.py -h
+docker run nmtwizard/opennmt-tf -h
 ```
-
-which is defined as the entrypoint in `frameworks/opennmt_lua/Dockerfile`. The environment such as the framework location, the corpus location, the credentials, etc. are defined via environment variables. The `Dockerfile`s also encapsulate the environment specific to each framework.
 
 ## Configuration
 
@@ -41,15 +39,6 @@ The JSON configuration file contains the parameters necessary to run the command
     "source": "string",  // (mandatory) 2-letter iso code for source language
     "target": "string",  // (mandatory) 2-letter iso code for target language
     "model": "string",  // (mandatory for trans, serve) Full model name as uuid64
-    "imageTag": "string",  // (mandatory) Full URL of the image: url/image:tag.
-    "description": "md5 string", // (optional) description for he model
-    "build": {
-        // (optional) Generated at the end of a training.
-        "containerId": "string",  // (optional) ID of the builder container
-        "distribution": { },  // Files and patterns sampled for this epoch
-        "endDate": Float,  // Timestamp of this epoch end
-        "startDate": Float  // Timestamp of this epoch start
-    },
     "data": {
         //  (optional) Data distribution rules.
     },
@@ -90,6 +79,7 @@ Multiple storage destinations can be defined with the `--storage_config` option 
     "storage_id_2": {
         "type": "ssh",
         "server": "my-server.com",
+        "basedir": "myrepo",
         "user": "root",
         "password": "root"
     }
@@ -99,16 +89,33 @@ Multiple storage destinations can be defined with the `--storage_config` option 
 These storages can then be used to define model and file locations, e.g.:
 
 ```bash
-python entrypoint.py --storage_config storages.json --model_storage storage_id_2: \
-    --model MODEL_ID trans -i storage_id_1:test.fr -o storage_id_2:test.en
+docker run nmtwizard/opennmt-tf --storage_config storages.json \
+    --model_storage storage_id_2: --model MODEL_ID \
+    trans -i storage_id_1:test.fr -o storage_id_2:test.en
 ```
 
 If the configuration is not provided or a storage identifier is not set, the host filesystem is used.
 
 Available storage types are:
-* `ssh`: transfer files or directories using ssh, requires `server` name, `user` and `password`
-* `s3`: transfer files or directories using ssh, requires `bucket` and `aws_credentials`
-* `http`: transfer files only using simple GET and POST requests. Requires `get_pattern` and `push_pattern` that are urls using `%s` string placeholders, expanded with python `%` operator: for instance `http://opennmt.net/%s/`
+
+* `local`: local storage. Available options:
+  * `basedir` (optional): defines base directory for relative paths
+* `ssh`: transfer files via SSH. Available options:
+  * `server`: server hostname
+  * `port` (default: 22): port to use for connecting
+  * `user`: username for login
+  * `password` or `pkey`: login credentials
+  * `basedir` (optional): defines base directory for relative paths
+* `s3`: transfer files to and from Amazon S3. Available options:
+  * `bucket`: name of the bucket
+  * `aws_credentials`: Amazon credentials with,
+    * `access_key_id`
+    * `secret_access_key`
+    * `region_name`
+* `http`: transfer files via GET and POST requests. Requires to configure patterns that are URLs containing the `%s` string placeholders that will be expanded with python `%` operator (e.g. `http://opennmt.net/%s/`):
+  * `get_pattern`
+  * `post_pattern`
+  * `list_pattern`
 
 ### Training data sampling
 
@@ -160,15 +167,20 @@ When running the Docker container, the corpus directory should be mounted, e.g. 
 
 ## Models
 
-The models are saved in a directory named by their ID. This package contains all the resources necessary for translation or deployment (BPE models, vocabularies, etc.). For instance, a typical OpenNMT-lua model will contain:
+The models are saved in a directory named by their ID. This package contains all the resources necessary for translation or deployment (BPE models, vocabularies, etc.). For instance, a typical OpenNMT-tf model will contain:
 
 ```text
-952f4f9b-b446-4aa4-bfc0-28a510c6df73/checksum.md5
-952f4f9b-b446-4aa4-bfc0-28a510c6df73/config.json
-952f4f9b-b446-4aa4-bfc0-28a510c6df73/model.t7
-952f4f9b-b446-4aa4-bfc0-28a510c6df73/model_released.t7
-952f4f9b-b446-4aa4-bfc0-28a510c6df73/vocab.src.dict
-952f4f9b-b446-4aa4-bfc0-28a510c6df73/vocab.tgt.dict
+$ ls -1 952f4f9b-b446-4aa4-bfc0-28a510c6df73/
+checkpoint
+checksum.md5
+config.json
+de-vocab.txt
+en-vocab.txt
+model.ckpt-149.data-00000-of-00002
+model.ckpt-149.data-00001-of-00002
+model.ckpt-149.index
+model.ckpt-149.meta
+model_description.py
 ```
 
 In the `config.json` file, the path to the model dependencies is prefixed by `${MODEL_DIR}` which is automatically set when a model is loaded.
@@ -181,7 +193,7 @@ In the `config.json` file, the path to the model dependencies is prefixed by `${
 Before serving a trained model, it is required to run a `release` step, for example:
 
 ```bash
-python frameworks/opennmt_lua/entrypoint.py \
+docker run nmtwizard/opennmt-tf \
     --storage_config storages.json \
     --model_storage s3_model: \
     --model 952f4f9b-b446-4aa4-bfc0-28a510c6df73 \
@@ -198,7 +210,7 @@ Released models are smaller and more efficient but can only be used for serving.
 Compatible frameworks provide an uniform API for serving released model via the `serve` command, e.g.:
 
 ```bash
-python frameworks/opennmt_lua/entrypoint.py \
+nvidia-docker run nmtwizard/opennmt-tf \
     --storage_config storages.json \
     --model_storage s3_model: \
     --model 952f4f9b-b446-4aa4-bfc0-28a510c6df73_release \
@@ -315,14 +327,6 @@ Unload the model from the reserved resource. In its simplest form, this route wi
 #### `POST /reload_model`
 
 Reload the model on the reserved resource. In its simplest form, this route will terminate the backend translation service if it is still running and start a new instance.
-
-### Supported frameworks
-
-Serving is currently supported by the following frameworks:
-
-* `google_transate`
-* `opennmt_lua`
-* `opennmt_tf`
 
 ## Usage
 

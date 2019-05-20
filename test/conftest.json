@@ -1,0 +1,35 @@
+{
+	"storages": {
+    "local_abs": {
+      "type": "local"
+    },
+    "local_rel": {
+      "type": "local",
+      "basedir": "/tmp"
+    },
+    "_s3_test": {
+      "description": "test repository on s3",
+      "type": "s3",
+      "bucket": "auto-test-bucket-systran",
+      "aws_credentials": {
+          "access_key_id": "[[ACCESSKEYID]]",
+          "secret_access_key": "[[SECRETACCESSKEY]]"
+      }
+    },
+    "_local_ssh_wbasedir": {
+      "description": "localhost server",
+      "type": "ssh",
+      "server": "localhost",
+      "user": "[[LOGIN]]",
+      "password": "[[PASSWORD]]",
+      "basedir": "/Users/test/sshtest"
+    },
+    "_remote_ssh_wobasedir": {
+      "description": "localhost server",
+      "type": "ssh",
+      "server": "[[SERVER]]",
+      "user": "[[LOGIN]]",
+      "pkey": "[[PRIVATEKEY]]"
+    }
+  }
+}

@@ -1,7 +1,8 @@
-OpenNMT-tf==1.15.0
+OpenNMT-tf==1.22.0
 boto3
 paramiko
 pyonmttok==1.*
 requests
 scp
-tensorflow-gpu==1.11.0
+tensorflow-gpu==1.13.1
+tensorflow-serving-api-gpu==1.13.0
