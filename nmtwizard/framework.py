@@ -241,18 +241,20 @@ class Framework(Utility):
         parser_preprocess.add_argument('--build_model', default=False, action='store_true',
                                        help='Preprocess data into a model.')
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
+        self.parser = parser
 
     def exec_function(self, args):
         """Main entrypoint."""
         if self._config is None and self._model is None:
-            parser.error('at least one of --config or --model options must be set')
+            self.parser.error('at least one of --config or --model options must be set')
 
         config = {} if self._config is None else self._config
 
         if not self._stateless and \
            (args.cmd != 'preprocess' or args.build_model) and \
+           not args.no_push and \
            (self._model_storage_write is None or self._model_storage_write is None):
-            parser.error('Missing model storage argument')
+            self.parser.error('Missing model storage argument')
 
         parent_model = self._model or config.get('model')
 
