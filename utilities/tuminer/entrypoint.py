@@ -40,7 +40,7 @@ sys.path.append(LASER + '/source')
 sys.path.append(LASER + '/source/lib')
 
 from text_processing import Token, BPEfastApply
-from embed import SentenceEncoder, EncodeLoad, EncodeFile, EmbedLoad
+from embed import SentenceEncoder, EncodeFile, EmbedLoad
 from mine_bitexts import TextLoadUnify, knn, score, score_candidates
 
 def tok(lang, inputF, outputF, verbose):
@@ -61,7 +61,7 @@ def bpe(bpecodes, inputF, outputF, verbose):
                  over_write=False)
 
 
-def emb(encoder, inputF, outputF, verbose, buffer_size=1000):
+def emb(encoder, inputF, outputF, verbose, buffer_size):
     EncodeFile(encoder,
                inputF,
                outputF,
@@ -70,7 +70,7 @@ def emb(encoder, inputF, outputF, verbose, buffer_size=1000):
                buffer_size=buffer_size)
 
 
-def loadEncoder(encoderF, buffer_size=1000, max_tokens=1200, max_sentences=None, cpu=False, stable=False):
+def loadEncoder(encoderF, buffer_size, max_tokens, max_sentences=None, cpu=False, stable=False):
     buffer_size = max(buffer_size, 1)
     assert not max_sentences or max_sentences <= buffer_size, '--max-sentences/--batch-size ' \
                                                               'cannot be larger than --buffer-size'
@@ -83,15 +83,15 @@ def loadEncoder(encoderF, buffer_size=1000, max_tokens=1200, max_sentences=None,
                            cpu=cpu)
 
 
-def TokBpeEmb(lang, inputF, tokF, bpeF, embF, bpeCodesF, encoder, verbose, gpuid):
+def TokBpeEmb(lang, inputF, tokF, bpeF, embF, bpeCodesF, encoder, buffer_size, max_tokens, verbose, gpuid):
     tok(lang, inputF, tokF, verbose)
     bpe(bpeCodesF, tokF, bpeF, verbose)
     setCUDA_VISIBLE_DEVICES(gpuid)
 
     if isinstance(encoder, str):
-        encoder = loadEncoder(encoder, gpuid == 0)
+        encoder = loadEncoder(encoder, buffer_size, max_tokens, cpu=(gpuid == 0))
 
-    emb(encoder, bpeF, embF, verbose)
+    emb(encoder, bpeF, embF, verbose, buffer_size=buffer_size)
 
 
 def unique_embeddings(emb, ind):
@@ -180,7 +180,12 @@ class TuminerUtility(Utility):
         parser.add_argument('--encoder', required=False, default=None,
                             help='Multi-lingual encoder to be used to encode both source and target files.'
                                  ' (default model provided in docker)')
-        parser.add_argument('--encoderdim', required=False, default=1024, help='Encoder output dimension')
+        parser.add_argument('--encoderdim', required=False, default=1024,
+                            help='Encoder output dimension')
+        parser.add_argument('--encoderbuffersize', required=False, type=int, default=10000,
+                            help='Encoder buffer size')
+        parser.add_argument('--encodermaxtokens', required=False, type=int, default=12000,
+                            help='Encoder max_token size')
 
     def exec_function(self, args):
 
@@ -237,11 +242,13 @@ class TuminerUtility(Utility):
                 import torch.multiprocessing as mp
 
                 srcP = mp.Process(target=TokBpeEmb, args=(args.srclang, srcF_local, srcTokF, srcBpeF, srcEmbF,
-                                  bpeCodesF_local, encoderF_local, args.verbose, args.gpuid[0]))
+                                  bpeCodesF_local, encoderF_local, args.encoderbuffersize, args.encodermaxtokens,
+                                  args.verbose, args.gpuid[0]))
                 srcP.start()
 
                 tgtP = mp.Process(target=TokBpeEmb, args=(args.tgtlang, tgtF_local, tgtTokF, tgtBpeF, tgtEmbF,
-                                  bpeCodesF_local, encoderF_local, args.verbose, args.gpuid[1]))
+                                  bpeCodesF_local, encoderF_local, args.encoderbuffersize, args.encodermaxtokens,
+                                  args.verbose, args.gpuid[1]))
                 tgtP.start()
 
                 srcP.join()
@@ -249,11 +256,12 @@ class TuminerUtility(Utility):
 
             else:
                 logger.info(' - perform src and tgt embedding in series')
-                encoder = loadEncoder(encoderF_local, cpu=(args.gpuid == 0))
+                encoder = loadEncoder(encoderF_local, args.encoderbuffersize, args.encodermaxtokens,
+                                      cpu=(args.gpuid == 0))
                 TokBpeEmb(args.srclang, srcF_local, srcTokF, srcBpeF, srcEmbF, bpeCodesF_local, encoder,
-                          args.verbose, args.gpuid)
+                          args.encoderbuffersize, args.encodermaxtokens, args.verbose, args.gpuid)
                 TokBpeEmb(args.tgtlang, tgtF_local, tgtTokF, tgtBpeF, tgtEmbF, bpeCodesF_local, encoder,
-                          args.verbose, args.gpuid)
+                          args.encoderbuffersize, args.encodermaxtokens, args.verbose, args.gpuid)
 
             # LASER options
             setCUDA_VISIBLE_DEVICES(args.gpuid)
