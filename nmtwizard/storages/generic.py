@@ -13,6 +13,9 @@ _META_SUBDIR = '.snw'
 
 @contextlib.contextmanager
 def lock(fname):
+    if int(os.getenv('LOCK_FREE_STORAGE', '0')) == 1:
+        yield
+        return
     if fname.endswith('/'):
         fname = fname[:-1]
     dname, basename = os.path.split(fname)
