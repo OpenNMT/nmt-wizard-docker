@@ -1,4 +1,4 @@
-git # TU Miner Utility
+# TU Miner Utility
 
 ## Build docker
 
