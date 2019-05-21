@@ -1,6 +1,0 @@
-boto3
-paramiko
-pyonmttok==1.*
-requests
-scp
-theano==0.8.2
