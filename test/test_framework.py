@@ -241,7 +241,7 @@ def test_train_with_sampling_v2(tmpdir):
         "data": {
             "sample": 1000,
             "sample_dist": [{
-                "path": "${DATA_DIR}",
+                "path": "${DATA_DIR}/train",
                 "distribution": [
                     ["europarl", 1]
                 ]
@@ -249,26 +249,25 @@ def test_train_with_sampling_v2(tmpdir):
         },
         "tokenization": {
             "source": {
-                "vocabulary": "${XXX_DIR}/vocab/en-vocab.txt",
+                "vocabulary": "${DATA_DIR}/vocab/en-vocab.txt",
                 "mode": "aggressive",
                 "joiner_annotate": True
             },
             "target": {
-                "vocabulary": "${XXX_TRAIN_DIR}/vocab/de-vocab.txt",
+                "vocabulary": "${DATA_TRAIN_DIR}/vocab/de-vocab.txt",
                 "mode": "aggressive",
                 "joiner_annotate": True
             }
         },
         "options": {}
     }
-    os.environ["XXX_DIR"] = os.path.join(_test_dir(), "corpus")
-    os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus", "train")
+    os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
     model_dir = _run_framework(tmpdir, "model0", "train", config=config, corpus_env=False)
     config = _read_config(model_dir)
     assert config["build"]["sentenceCount"] == 1000
     assert os.path.exists(os.path.join(model_dir, "en-vocab.txt"))
     assert not os.path.exists(os.path.join(model_dir, "de-vocab.txt"))
-    del os.environ["XXX_DIR"]
+    assert not os.path.exists(os.path.join(model_dir, "train"))
     del os.environ["DATA_DIR"]
 
 def test_train_chain(tmpdir):
