@@ -4,12 +4,15 @@ import os
 import boto3
 import tempfile
 import shutil
+import datetime
+import calendar
 
 from nmtwizard.storages.generic import Storage
 
 from nmtwizard.logger import get_logger
 
 LOGGER = get_logger(__name__)
+
 
 class S3Storage(Storage):
     """Storage on Amazon S3."""
@@ -93,15 +96,23 @@ class S3Storage(Storage):
             paginator = client.get_paginator('list_objects')
             result = paginator.paginate(Bucket=self._bucket_name, Prefix=remote_path, Delimiter='/')
             for prefix in result.search('CommonPrefixes'):
-                lsdir[prefix.get('Prefix')] = 1
+                if prefix:
+                    lsdir[prefix.get('Prefix')] = prefix.get('Prefix')
+            for content in result.search('Contents'):
+                if content:
+                    lsdir[content['Key']] = {'Key': content['Key'],
+                                             'LastModified': calendar.timegm(content.get('LastModified').timetuple()),
+                                             'Size': content.get('Size')}
         else:
             objects = list(self._bucket.objects.filter(Prefix=remote_path))
             for obj in objects:
                 path = obj.key
                 if remote_path == '' or \
                    path == remote_path or remote_path.endswith('/') or path.startswith(remote_path + '/'):
-                    lsdir[path] = 0
-        return lsdir.keys()
+                    lsdir[path] = {'Key': obj.key,
+                                   'LastModified': calendar.timegm(obj.last_modified.timetuple()),
+                                   'Size': obj.size}
+        return lsdir.values()
 
     def mkdir(self, remote_path):
         pass

@@ -164,7 +164,9 @@ class RemoteStorage(Storage):
                     else:
                         listfile.append(self._external_path(fullpath)+'/')
                 else:
-                    listfile.append(self._external_path(fullpath))
+                    listfile.append({'Key': self._external_path(fullpath),
+                                     'Size': f.st_size,
+                                     'LastModified': f.st_mtime})
 
         getfiles_rec(remote_path)
         return listfile

@@ -70,7 +70,10 @@ class LocalStorage(Storage):
                     if recursive:
                         getfiles_rec(fullpath)
                     else:
-                        listfile.append(rel_fullpath+'/')
+                        f = os.stat(fullpath)
+                        listfile.append({'Key': rel_fullpath+'/',
+                                         'Size': f.st_size,
+                                         'LastModified': f.st_mtime})
                 else:
                     listfile.append(rel_fullpath)
 

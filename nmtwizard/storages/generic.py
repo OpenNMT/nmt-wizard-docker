@@ -102,6 +102,8 @@ class Storage(object):
 
                 list_remote_files = self.listdir(remote_path, recursive=True)
                 for f in list_remote_files:
+                    if type(f) == dict:
+                        f = f['Key']
                     internal_path = self._internal_path(f)
                     assert internal_path.startswith(remote_path)
                     subpath = internal_path[len(remote_path)+1:]
@@ -188,6 +190,8 @@ class Storage(object):
             def rm_rec(path):
                 files = self.listdir(remote_path=path)
                 for f in files:
+                    if type(f) == dict:
+                        f = f['Key']
                     internal_path = self._internal_path(f)
                     if internal_path.endswith('/'):
                         rm_rec(internal_path)
