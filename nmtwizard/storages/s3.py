@@ -87,17 +87,19 @@ class S3Storage(Storage):
         return generate()
 
     def listdir(self, remote_path, recursive=False):
-        objects = list(self._bucket.objects.filter(Prefix=remote_path))
         lsdir = {}
-        for obj in objects:
-            path = obj.key
-            if remote_path == '' or \
-               path == remote_path or remote_path.endswith('/') or path.startswith(remote_path + '/'):
-                p = path.find('/', len(remote_path)+1)
-                if not recursive and p != -1:
-                    path = path[0:p+1]
-                    lsdir[path] = 1
-                else:
+        if not recursive:
+            client = self._s3.meta.client
+            paginator = client.get_paginator('list_objects')
+            result = paginator.paginate(Bucket=self._bucket_name, Prefix=remote_path, Delimiter='/')
+            for prefix in result.search('CommonPrefixes'):
+                lsdir[prefix.get('Prefix')] = 1
+        else:
+            objects = list(self._bucket.objects.filter(Prefix=remote_path))
+            for obj in objects:
+                path = obj.key
+                if remote_path == '' or \
+                   path == remote_path or remote_path.endswith('/') or path.startswith(remote_path + '/'):
                     lsdir[path] = 0
         return lsdir.keys()
 
