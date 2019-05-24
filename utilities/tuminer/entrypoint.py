@@ -144,33 +144,48 @@ def scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF, encoding,
     fout.close()
 
 
-def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, outputF, encoding, margin,
-               retrieval, threshold, verbose):
+def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
+               outputFSrc, outputFTgt, outputFScore, encoding, margin, retrieval, threshold, verbose):
     logger.info(' - mining for parallel data')
     fwd_scores = score_candidates(x, y, x2y_ind, x2y_mean, y2x_mean, margin, verbose)
     bwd_scores = score_candidates(y, x, y2x_ind, y2x_mean, x2y_mean, margin, verbose)
     fwd_best = x2y_ind[np.arange(x.shape[0]), fwd_scores.argmax(axis=1)]
     bwd_best = y2x_ind[np.arange(y.shape[0]), bwd_scores.argmax(axis=1)]
 
-    logger.info(' - writing alignments to {:s}'.format(outputF))
+    logger.info(' - writing mined output to {:s}, {:s}, {:s}'.format(outputFSrc, outputFTgt, outputFScore))
     if threshold > 0:
         logger.info(' - with threshold of {:f}'.format(threshold))
 
-    if outputF.endswith('.gz'):
-        fout = gzip.open(outputF, mode='wt', encoding=encoding, errors='surrogateescape')
+    if outputFSrc.endswith('.gz'):
+        foutSrc = gzip.open(outputFSrc, mode='wt', encoding=encoding, errors='surrogateescape')
     else:
-        fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
+        foutSrc =open(outputFSrc, mode='w', encoding=encoding, errors='surrogateescape')
+
+    if outputFTgt.endswith('.gz'):
+        foutTgt = gzip.open(outputFTgt, mode='wt', encoding=encoding, errors='surrogateescape')
+    else:
+        foutTgt = open(outputFTgt, mode='w', encoding=encoding, errors='surrogateescape')
+
+    if outputFScore.endswith('.gz'):
+        foutTgt = gzip.open(outputFScore, mode='wt', encoding=encoding, errors='surrogateescape')
+    else:
+        foutScore = open(outputFScore, mode='w', encoding=encoding, errors='surrogateescape')
+
+    def printTriplet(src,tgt,score):
+            foutSrc.write('{:s}\n'.format(src))
+            foutTgt.write('{:s}\n'.format(tgt))
+            foutScore.write('{:f}\n'.format(score))
 
     if retrieval == 'fwd':
         for i, j in enumerate(fwd_best):
-            fout.write('{:f}\t{:s}\t{:s}\n'.format(fwd_scores[i].max(), src_sents[i], trg_sents[j]))
+            printTriplet(src_sents[i], trg_sents[j], fwd_scores[i].max())
     if retrieval == 'bwd':
         for j, i in enumerate(bwd_best):
-            fout.write('{:f}\t{:s}\t{:s}\n'.format(bwd_scores[j].max(), src_sents[i], trg_sents[j]))
+            printTriplet(src_sents[i], trg_sents[j], bwd_scores[j].max())
     if retrieval == 'intersect':
         for i, j in enumerate(fwd_best):
             if bwd_best[j] == i:
-                fout.write('{:f}\t{:s}\t{:s}\n'.format(fwd_scores[i].max(), src_sents[i], trg_sents[j]))
+                printTriplet(src_sents[i], trg_sents[j], fwd_scores[i].max())
     if retrieval == 'max':
         indices = np.stack((np.concatenate((np.arange(x.shape[0]), bwd_best)),
                             np.concatenate((fwd_best, np.arange(y.shape[0])))), axis=1)
@@ -182,15 +197,16 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
                 seen_src.add(src_ind)
                 seen_trg.add(trg_ind)
                 if scores[i] > threshold:
-                    fout.write('{:f}\t{:s}\t{:s}\n'.format(scores[i], src_sents[src_ind], trg_sents[trg_ind]))
-    fout.close()
+                    printTriplet(src_sents[src_ind], trg_sents[trg_ind], scores[i])
+    foutSrc.close()
+    foutTgt.close()
+    foutScore.close()
 
 
 def inferLangFromFilename(filename):
     if filename.endswith('.gz'):
         return filename[-5:-3]
-    else:
-        return filename[-2:]
+    return filename[-2:]
 
 
 class TuminerUtility(Utility):
@@ -248,12 +264,10 @@ class TuminerUtility(Utility):
 
         srcF_local = os.path.join(self._data_dir, self._storage.split(args.srcfile)[-1])
         tgtF_local = os.path.join(self._data_dir, self._storage.split(args.tgtfile)[-1])
-
         self._storage.get_file(args.srcfile, srcF_local)
         self._storage.get_file(args.tgtfile, tgtF_local)
 
-        if args.output != '-':
-            outputF_local = os.path.join(self._data_dir, self._storage.split(args.output)[-1])
+        outputF_local = os.path.join(self._data_dir, self._storage.split(args.output)[-1])
 
         if args.bpecodes is not None:
             bpeCodesF_local = os.path.join(self._data_dir, self._storage.split(args.bpecodes)[-1])
@@ -261,7 +275,6 @@ class TuminerUtility(Utility):
         if args.encoder is not None:
             encoderF_local = os.path.join(self._data_dir, self._storage.split(args.encoder)[-1])
             self._storage.get_file(args.encoder, encoderF_local)
-
 
         if args.srclang is None:
             args.srclang = inferLangFromFilename(args.srcfile)
@@ -355,15 +368,29 @@ class TuminerUtility(Utility):
 
             if args.mode == 'score':
                 scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF_local, args.encoding, margin)
+                self._storage.push(outputF_local, args.output)
+
             elif args.mode == 'mine':
-                mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, outputF_local,
+                foutSrc = outputF_local+'.'+args.srclang
+                foutSrc_remote = args.output+'.'+args.srclang
+                if srcF_local.endswith('.gz'):
+                    foutSrc = foutSrc+'.gz'
+                    foutSrc_remote = foutSrc_remote+'.gz'
+                foutTgt = outputF_local+'.'+args.tgtlang
+                foutTgt_remote = args.output+'.'+args.tgtlang
+                if tgtF_local.endswith('.gz'):
+                    foutTgt = foutTgt+'.gz'
+                    foutTgt_remote = foutTgt_remote+'.gz'
+                foutScore = outputF_local+'.tuminer-score'
+                foutScore_remote = args.output+'.tuminer-score'
+
+                mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, foutSrc, foutTgt, foutScore,
                            args.encoding, margin, retrieval, args.threshold, args.verbose)
 
-        #################
-        # Save output
-        #################
-        if outputF_local is not None:
-            self._storage.push(outputF_local, args.output)
+                self._storage.push(foutSrc, foutSrc_remote)
+                self._storage.push(foutTgt, foutTgt_remote)
+                self._storage.push(foutScore, foutScore_remote)
+
 
 
 if __name__ == '__main__':
