@@ -330,7 +330,7 @@ class TuminerUtility(Utility):
                 return inds, sents, emb
 
             src_inds, src_sents, x = _loadTextAndEmb(srcF_local, args.encoding, srcEmbF, args.encoderdim, unify, args.verbose)
-            trg_inds, trg_sents, y = _loadTextAndEmb(srcF_local, args.encoding, srcEmbF, args.encoderdim, unify, args.verbose)
+            trg_inds, trg_sents, y = _loadTextAndEmb(tgtF_local, args.encoding, tgtEmbF, args.encoderdim, unify, args.verbose)
 
             # calculate knn in both directions
             if retrieval != 'bwd':
