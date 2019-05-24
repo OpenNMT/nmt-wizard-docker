@@ -131,14 +131,16 @@ def unique_embeddings(emb, ind):
     return emb[[aux[i] for i in range(len(aux))]]
 
 
+def openOutputF(filename, encoding):
+    if filename.endswith('.gz'):
+        return gzip.open(filename, mode='wt', encoding=encoding, errors='surrogateescape')
+    return open(filename, mode='w', encoding=encoding, errors='surrogateescape')
+
+
 def scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF, encoding, margin):
     logger.info(' - Scoring parallel data')
 
-    if outputF.endswith('.gz'):
-        fout = gzip.open(outputF, mode='wt', encoding=encoding, errors='surrogateescape')
-    else:
-        fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
-
+    fout = openOutputF(outputF, encoding)
     for i, j in zip(src_inds, trg_inds):
         fout.write('{:f}\n'.format(score(x[i], y[j], x2y_mean[i], y2x_mean[j], margin)))
     fout.close()
@@ -156,20 +158,9 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
     if threshold > 0:
         logger.info(' - with threshold of {:f}'.format(threshold))
 
-    if outputFSrc.endswith('.gz'):
-        foutSrc = gzip.open(outputFSrc, mode='wt', encoding=encoding, errors='surrogateescape')
-    else:
-        foutSrc =open(outputFSrc, mode='w', encoding=encoding, errors='surrogateescape')
-
-    if outputFTgt.endswith('.gz'):
-        foutTgt = gzip.open(outputFTgt, mode='wt', encoding=encoding, errors='surrogateescape')
-    else:
-        foutTgt = open(outputFTgt, mode='w', encoding=encoding, errors='surrogateescape')
-
-    if outputFScore.endswith('.gz'):
-        foutTgt = gzip.open(outputFScore, mode='wt', encoding=encoding, errors='surrogateescape')
-    else:
-        foutScore = open(outputFScore, mode='w', encoding=encoding, errors='surrogateescape')
+    foutSrc = openOutputF(outputFSrc, encoding)
+    foutTgt = openOutputF(outputFTgt, encoding)
+    foutScore = openOutputF(outputFScore, encoding)
 
     def printTriplet(src,tgt,score):
             foutSrc.write('{:s}\n'.format(src))
