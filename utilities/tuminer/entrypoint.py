@@ -12,6 +12,7 @@ import os
 import sys
 import six
 import tempfile
+import gzip
 
 import numpy as np
 import faiss
@@ -41,7 +42,7 @@ sys.path.append(LASER + '/source/lib')
 
 from text_processing import Token, BPEfastApply
 from embed import SentenceEncoder, EncodeFile, EmbedLoad
-from mine_bitexts import TextLoadUnify, knn, score, score_candidates
+from mine_bitexts import knn, score, score_candidates
 
 def tok(lang, inputF, outputF, verbose):
     Token(inputF,
@@ -49,7 +50,7 @@ def tok(lang, inputF, outputF, verbose):
           lang=lang,
           romanize=True if lang == 'el' else False,
           lower_case=True,
-          gzip=False,
+          gzip=True if inputF.endswith('.gz') else False,
           verbose=verbose,
           over_write=False)
 
@@ -94,6 +95,36 @@ def TokBpeEmb(lang, inputF, tokF, bpeF, embF, bpeCodesF, encoder, buffer_size, m
     emb(encoder, bpeF, embF, verbose, buffer_size=buffer_size)
 
 
+def TextLoadUnify(fname, encoding, unify, verbose):
+    if verbose:
+        print(' - loading texts {:s}: '.format(fname), end='')
+
+    if fname.endswith('.gz'):
+        fin = gzip.open(fname, mode='rt', encoding=encoding, errors='surrogateescape')
+    else:
+        fin = open(fname, mode='r', encoding=encoding, errors='surrogateescape')
+
+    inds = []
+    sents = []
+    sent2ind = {}
+    n = 0
+    nu = 0
+    for line in fin:
+        new_ind = len(sent2ind)
+        inds.append(sent2ind.setdefault(line, new_ind))
+        if unify:
+            if inds[-1] == new_ind:
+                sents.append(line[:-1])
+                nu += 1
+        else:
+            sents.append(line[:-1])
+            nu += 1
+        n += 1
+    if verbose:
+        print('{:d} lines, {:d} unique'.format(n, nu))
+    del sent2ind
+    return inds, sents
+
 def unique_embeddings(emb, ind):
     aux = {j: i for i, j in enumerate(ind)}
     logger.info(' - unify embeddings: {:d} -> {:d}'.format(len(emb), len(aux)))
@@ -102,9 +133,14 @@ def unique_embeddings(emb, ind):
 
 def scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF, encoding, margin):
     logger.info(' - Scoring parallel data')
-    fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
+
+    if outputF.endswith('.gz'):
+        fout = gzip.open(outputF, mode='wt', encoding=encoding, errors='surrogateescape')
+    else:
+        fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
+
     for i, j in zip(src_inds, trg_inds):
-        print(score(x[i], y[j], x2y_mean[i], y2x_mean[j], margin), file=fout)
+        fout.write('{:f}\n'.format(score(x[i], y[j], x2y_mean[i], y2x_mean[j], margin)))
     fout.close()
 
 
@@ -120,18 +156,21 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
     if threshold > 0:
         logger.info(' - with threshold of {:f}'.format(threshold))
 
-    fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
+    if outputF.endswith('.gz'):
+        fout = gzip.open(outputF, mode='wt', encoding=encoding, errors='surrogateescape')
+    else:
+        fout = open(outputF, mode='w', encoding=encoding, errors='surrogateescape')
 
     if retrieval == 'fwd':
         for i, j in enumerate(fwd_best):
-            print(fwd_scores[i].max(), src_sents[i], trg_sents[j], sep='\t', file=fout)
+            fout.write('{:f}\t{:s}\t{:s}\n'.format(fwd_scores[i].max(), src_sents[i], trg_sents[j]))
     if retrieval == 'bwd':
         for j, i in enumerate(bwd_best):
-            print(bwd_scores[j].max(), src_sents[i], trg_sents[j], sep='\t', file=fout)
+            fout.write('{:f}\t{:s}\t{:s}\n'.format(bwd_scores[j].max(), src_sents[i], trg_sents[j]))
     if retrieval == 'intersect':
         for i, j in enumerate(fwd_best):
             if bwd_best[j] == i:
-                print(fwd_scores[i].max(), src_sents[i], trg_sents[j], sep='\t', file=fout)
+                fout.write('{:f}\t{:s}\t{:s}\n'.format(fwd_scores[i].max(), src_sents[i], trg_sents[j]))
     if retrieval == 'max':
         indices = np.stack((np.concatenate((np.arange(x.shape[0]), bwd_best)),
                             np.concatenate((fwd_best, np.arange(y.shape[0])))), axis=1)
@@ -143,7 +182,7 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
                 seen_src.add(src_ind)
                 seen_trg.add(trg_ind)
                 if scores[i] > threshold:
-                    print(scores[i], src_sents[src_ind], trg_sents[trg_ind], sep='\t', file=fout)
+                    fout.write('{:f}\t{:s}\t{:s}\n'.format(scores[i], src_sents[src_ind], trg_sents[trg_ind]))
     fout.close()
 
 
@@ -267,11 +306,9 @@ class TuminerUtility(Utility):
             setCUDA_VISIBLE_DEVICES(args.gpuid)
             unify, retrieval, margin, neighborhood, gpu = True, 'max', 'ratio', 5, (args.gpuid != 0)
 
-            args.unify = unify
-
             # load bitext
-            src_inds, src_sents = TextLoadUnify(srcF_local, args)
-            trg_inds, trg_sents = TextLoadUnify(tgtF_local, args)
+            src_inds, src_sents = TextLoadUnify(srcF_local, args.encoding, unify, args.verbose)
+            trg_inds, trg_sents = TextLoadUnify(tgtF_local, args.encoding, unify, args.verbose)
 
             # load the embeddings
             x = EmbedLoad(srcEmbF, args.encoderdim, verbose=args.verbose)
