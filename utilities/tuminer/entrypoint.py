@@ -186,6 +186,13 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
     fout.close()
 
 
+def inferLangFromFilename(filename):
+    if filename.endswith('.gz'):
+        return filename[-5:-3]
+    else:
+        return filename[-2:]
+
+
 class TuminerUtility(Utility):
     def __init__(self):
         super(TuminerUtility, self).__init__()
@@ -197,11 +204,11 @@ class TuminerUtility(Utility):
     def declare_arguments(self, parser):
         parser.add_argument('--mode', required=True, choices=['score', 'mine'],
                             help='Tuminer mode')
-        parser.add_argument('--srclang', required=True,
+        parser.add_argument('--srclang', required=False,
                             help='Source language (two-letter language code; ISO 639-1).')
         parser.add_argument('--srcfile', required=True,
                             help='Source language file.')
-        parser.add_argument('--tgtlang', required=True,
+        parser.add_argument('--tgtlang', required=False,
                             help='Target language (two-letter language code; ISO 639-1).')
         parser.add_argument('--tgtfile', required=True,
                             help='Target language file.')
@@ -254,6 +261,12 @@ class TuminerUtility(Utility):
         if args.encoder is not None:
             encoderF_local = os.path.join(self._data_dir, self._storage.split(args.encoder)[-1])
             self._storage.get_file(args.encoder, encoderF_local)
+
+
+        if args.srclang is None:
+            args.srclang = inferLangFromFilename(args.srcfile)
+        if args.tgtlang is None:
+            args.tgtlang = inferLangFromFilename(args.tgtfile)
 
         logger.info("srclang: %s, srcfile: %s (%s)" % (args.srclang, args.srcfile, srcF_local))
         logger.info("tgtlang: %s, tgtfile: %s (%s)" % (args.tgtlang, args.tgtfile, tgtF_local))
