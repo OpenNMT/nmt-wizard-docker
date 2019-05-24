@@ -162,21 +162,21 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
     foutTgt = openOutputF(outputFTgt, encoding)
     foutScore = openOutputF(outputFScore, encoding)
 
-    def printTriplet(src,tgt,score):
+    def _printTriplet(src,tgt,score):
             foutSrc.write('{:s}\n'.format(src))
             foutTgt.write('{:s}\n'.format(tgt))
             foutScore.write('{:f}\n'.format(score))
 
     if retrieval == 'fwd':
         for i, j in enumerate(fwd_best):
-            printTriplet(src_sents[i], trg_sents[j], fwd_scores[i].max())
+            _printTriplet(src_sents[i], trg_sents[j], fwd_scores[i].max())
     if retrieval == 'bwd':
         for j, i in enumerate(bwd_best):
-            printTriplet(src_sents[i], trg_sents[j], bwd_scores[j].max())
+            _printTriplet(src_sents[i], trg_sents[j], bwd_scores[j].max())
     if retrieval == 'intersect':
         for i, j in enumerate(fwd_best):
             if bwd_best[j] == i:
-                printTriplet(src_sents[i], trg_sents[j], fwd_scores[i].max())
+                _printTriplet(src_sents[i], trg_sents[j], fwd_scores[i].max())
     if retrieval == 'max':
         indices = np.stack((np.concatenate((np.arange(x.shape[0]), bwd_best)),
                             np.concatenate((fwd_best, np.arange(y.shape[0])))), axis=1)
@@ -188,7 +188,7 @@ def mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean,
                 seen_src.add(src_ind)
                 seen_trg.add(trg_ind)
                 if scores[i] > threshold:
-                    printTriplet(src_sents[src_ind], trg_sents[trg_ind], scores[i])
+                    _printTriplet(src_sents[src_ind], trg_sents[trg_ind], scores[i])
     foutSrc.close()
     foutTgt.close()
     foutScore.close()
@@ -247,12 +247,9 @@ class TuminerUtility(Utility):
         bpeCodesF_local = LASER + '/models/93langs.fcodes'
         encoderF_local = LASER + '/models/bilstm.93langs.2018-12-26.pt'
 
-        srcF_local, tgtF_local, outputF_local = None, None, None
-
         #################
         # Parse arguments and retrieve files
         #################
-
         srcF_local = os.path.join(self._data_dir, self._storage.split(args.srcfile)[-1])
         tgtF_local = os.path.join(self._data_dir, self._storage.split(args.tgtfile)[-1])
         self._storage.get_file(args.srcfile, srcF_local)
@@ -323,19 +320,17 @@ class TuminerUtility(Utility):
             setCUDA_VISIBLE_DEVICES(args.gpuid)
             unify, retrieval, margin, neighborhood, gpu = True, 'max', 'ratio', 5, (args.gpuid != 0)
 
-            # load bitext
-            src_inds, src_sents = TextLoadUnify(srcF_local, args.encoding, unify, args.verbose)
-            trg_inds, trg_sents = TextLoadUnify(tgtF_local, args.encoding, unify, args.verbose)
+            # load bitext and embeddings
+            def _loadTextAndEmb(textF, encoding, embF, encoderDim, unify, verbose):
+                inds, sents = TextLoadUnify(textF, encoding, unify, verbose)
+                emb = EmbedLoad(embF, encoderDim, verbose=verbose)
+                if unify:
+                    emb = unique_embeddings(emb, inds)
+                faiss.normalize_L2(emb)
+                return inds, sents, emb
 
-            # load the embeddings
-            x = EmbedLoad(srcEmbF, args.encoderdim, verbose=args.verbose)
-            if unify:
-                x = unique_embeddings(x, src_inds)
-            faiss.normalize_L2(x)
-            y = EmbedLoad(tgtEmbF, args.encoderdim, verbose=args.verbose)
-            if unify:
-                y = unique_embeddings(y, trg_inds)
-            faiss.normalize_L2(y)
+            src_inds, src_sents, x = _loadTextAndEmb(srcF_local, args.encoding, srcEmbF, args.encoderdim, unify, args.verbose)
+            trg_inds, trg_sents, y = _loadTextAndEmb(srcF_local, args.encoding, srcEmbF, args.encoderdim, unify, args.verbose)
 
             # calculate knn in both directions
             if retrieval != 'bwd':
@@ -362,18 +357,17 @@ class TuminerUtility(Utility):
                 self._storage.push(outputF_local, args.output)
 
             elif args.mode == 'mine':
-                foutSrc = outputF_local+'.'+args.srclang
-                foutSrc_remote = args.output+'.'+args.srclang
+                foutSrc, foutSrc_remote = outputF_local+'.'+args.srclang, args.output+'.'+args.srclang
                 if srcF_local.endswith('.gz'):
                     foutSrc = foutSrc+'.gz'
                     foutSrc_remote = foutSrc_remote+'.gz'
-                foutTgt = outputF_local+'.'+args.tgtlang
-                foutTgt_remote = args.output+'.'+args.tgtlang
+
+                foutTgt, foutTgt_remote = outputF_local+'.'+args.tgtlang, args.output+'.'+args.tgtlang
                 if tgtF_local.endswith('.gz'):
                     foutTgt = foutTgt+'.gz'
                     foutTgt_remote = foutTgt_remote+'.gz'
-                foutScore = outputF_local+'.tuminer-score'
-                foutScore_remote = args.output+'.tuminer-score'
+
+                foutScore, foutScore_remote = outputF_local+'.tuminer-score', args.output+'.tuminer-score'
 
                 mineBitext(src_sents, trg_sents, x, y, x2y_ind, x2y_mean, y2x_ind, y2x_mean, foutSrc, foutTgt, foutScore,
                            args.encoding, margin, retrieval, args.threshold, args.verbose)
