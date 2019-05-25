@@ -200,6 +200,11 @@ def inferLangFromFilename(filename):
     return filename[-2:]
 
 
+def getScoreDist(scoreF):
+    arr = np.loadtxt(scoreF)
+    return arr.size, np.min(arr), np.max(arr), np.average(arr), np.std(arr)
+
+
 class TuminerUtility(Utility):
     def __init__(self):
         super(TuminerUtility, self).__init__()
@@ -355,6 +360,8 @@ class TuminerUtility(Utility):
             if args.mode == 'score':
                 scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF_local, args.encoding, margin)
                 self._storage.push(outputF_local, args.output)
+                statCnt, statMin, statMax, statAvg, statStddev = getScoreDist(outputF_local)
+
 
             elif args.mode == 'mine':
                 foutSrc, foutSrc_remote = outputF_local+'.'+args.srclang, args.output+'.'+args.srclang
@@ -376,6 +383,11 @@ class TuminerUtility(Utility):
                 self._storage.push(foutTgt, foutTgt_remote)
                 self._storage.push(foutScore, foutScore_remote)
 
+                statCnt, statMin, statMax, statAvg, statStddev = getScoreDist(foutScore)
+
+
+            logger.info('Score statistics -- CNT: {:d}, MIN: {:f}, MAX: {:f}, AVG: {:f}, STDDEV: {:f}'
+                        .format(statCnt, statMin, statMax, statAvg, statStddev))
 
 
 if __name__ == '__main__':
