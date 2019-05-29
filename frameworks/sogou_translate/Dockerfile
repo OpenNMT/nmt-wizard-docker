@@ -7,8 +7,9 @@ RUN apt-get update && apt-get install -y  --no-install-recommends \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
-ADD frameworks/sogou_translate/requirements.txt /root
-RUN pip install -r /root/requirements.txt
+ADD requirements.txt /root
+RUN pip --no-cache-dir install --upgrade pip
+RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ADD frameworks/sogou_translate/entrypoint.py /root
 ADD nmtwizard /root/nmtwizard

@@ -130,7 +130,7 @@ RUN ldconfig && \
 # nmt-wizard-docker
 #####################################################################################################
 ADD nmtwizard /nmtwizard
-ADD utilities/tuminer/requirements.txt /
+ADD requirements.txt /
 RUN pip --no-cache-dir install -r /requirements.txt && rm /requirements.txt
 
 ADD utilities/tuminer/entrypoint.py /

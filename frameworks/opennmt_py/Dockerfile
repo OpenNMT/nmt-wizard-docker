@@ -12,7 +12,10 @@ WORKDIR ${OPENNMT_PY_DIR}
 RUN python setup.py install
 WORKDIR /root
 
+ADD requirements.txt /root/base_requirements.txt
 ADD frameworks/opennmt_py/requirements.txt /root
+RUN pip --no-cache-dir install --upgrade pip
+RUN pip --no-cache-dir install -r /root/base_requirements.txt
 RUN pip --no-cache-dir install -r /root/requirements.txt
 RUN pip --no-cache-dir install -r ${OPENNMT_PY_DIR}/requirements.txt
 
