@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
-ADD utilities/score/requirements.txt /root
+ADD requirements.txt /root
+RUN pip --no-cache-dir install --upgrade pip
 RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ADD nmtwizard /root/nmtwizard
