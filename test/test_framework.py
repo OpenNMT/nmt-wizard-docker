@@ -309,6 +309,34 @@ def test_release(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["tokenization"]["target"]["vocabulary"])))
 
+def test_release_with_inference_options(tmpdir):
+    config = copy.deepcopy(config_base)
+    config["preprocess"] = {"domain": {"some_training_field": {}}}
+    config["inference_options"] = {
+        "json_schema": {
+            "type": "object",
+            "properties": {
+                "domain": {
+                    "type": "string",
+                    "title": "Domain",
+                    "enum": ["IT", "News"]
+                }
+            }
+        },
+        "options": [{
+            "option_path": "domain",
+            "config_path": "preprocess/domain"
+        }]
+    }
+    _run_framework(tmpdir, "model0", "train", config=config)
+    _run_framework(tmpdir, "release0", "release", parent="model0")
+    model_dir = str(tmpdir.join("models").join("model0_release"))
+    options_path = os.path.join(model_dir, "options.json")
+    assert os.path.exists(options_path)
+    with open(options_path) as options_file:
+        schema = json.load(options_file)
+        assert schema == config["inference_options"]["json_schema"]
+
 def test_integrity_check(tmpdir):
     model_dir = _run_framework(tmpdir, "model0", "train", config=config_base)
     DummyCheckpoint(model_dir).corrupt()
