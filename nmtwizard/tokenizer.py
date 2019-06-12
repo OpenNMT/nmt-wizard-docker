@@ -24,23 +24,14 @@ def tokenize_file(tokenizer, input, output):
     if not tokenizer:
         shutil.copy(input, output)
     else:
-        with open(input, 'rb') as input_file, open(output, 'w') as output_file:
-            for line in input_file:
-                line = line.strip().decode('utf-8', 'ignore').encode('utf-8')
-                tokens, _ = tokenizer.tokenize(line)
-                output_file.write(' '.join(tokens))
-                output_file.write('\n')
+        tokenizer.tokenize_file(input, output)
 
 def detokenize_file(tokenizer, input, output):
     """Detokenizes an input file."""
-    with open(input, 'r') as input_file, open(output, 'w') as output_file:
-        for line in input_file:
-            if tokenizer:
-                text = tokenizer.detokenize(line.strip().split())
-            else:
-                text = line.strip()
-            output_file.write(text)
-            output_file.write('\n')
+    if not tokenizer:
+        shutil.copy(input, output)
+    else:
+        tokenizer.detokenize_file(input, output)
 
 def tokenize_directory(input_dir,
                        output_dir,

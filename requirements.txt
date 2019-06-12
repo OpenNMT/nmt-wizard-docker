@@ -1,5 +1,5 @@
 boto3
 paramiko
-pyonmttok>=1.12.0,<2
+pyonmttok>=1.13.0,<2
 requests
 scp
