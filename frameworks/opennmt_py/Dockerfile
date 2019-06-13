@@ -19,9 +19,6 @@ RUN pip --no-cache-dir install -r /root/base_requirements.txt
 RUN pip --no-cache-dir install -r /root/requirements.txt
 RUN pip --no-cache-dir install -r ${OPENNMT_PY_DIR}/requirements.txt
 
-ENV CORPUS_DIR=/root/corpus
-ENV MODELS_DIR=/root/models
-
 ADD frameworks/opennmt_py/entrypoint.py /root
 ADD nmtwizard /root/nmtwizard
 

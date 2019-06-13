@@ -24,6 +24,9 @@ ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
 
 logger = get_logger(__name__)
 
+os.environ.setdefault('CORPUS_DIR', '/root/corpus')
+os.environ.setdefault('MODELS_DIR', '/root/models')
+
 def getenv(m, training=True):
     var = m.group(1)
     if 'TRAIN_' in var:
