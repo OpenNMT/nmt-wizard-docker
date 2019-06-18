@@ -18,6 +18,7 @@ from nmtwizard.utility import Utility, merge_config
 from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
 from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
+from nmtwizard import config as config_util
 from nmtwizard import serving
 from nmtwizard import tokenizer
 
@@ -584,6 +585,13 @@ class Framework(Utility):
         for name in ("parent_model", "build", "data"):
             if name in config:
                 del config[name]
+        inference_options = config.get('inference_options')
+        if inference_options is not None:
+            schema = config_util.validate_inference_options(inference_options, config)
+            options_path = os.path.join(self._output_dir, 'options.json')
+            with open(options_path, 'w') as options_file:
+                json.dump(schema, options_file)
+            objects[os.path.basename(options_path)] = options_path
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
@@ -594,7 +602,7 @@ class Framework(Utility):
         serving.start_server(
             host,
             port,
-            local_config.get('serving'),
+            local_config,
             self._serving_state(local_config),
             lambda: self.serve(local_config, model_path, gpuid=gpuid),
             self._preprocess_input,
@@ -706,7 +714,7 @@ class Framework(Utility):
             state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
         return state
 
-    def _preprocess_input(self, state, input, extra_config):
+    def _preprocess_input(self, state, input, config):
         if isinstance(input, list):
             tokens = input
         elif 'src_tokenizer' in state:
@@ -716,7 +724,7 @@ class Framework(Utility):
             tokens = input.split()
         return tokens
 
-    def _postprocess_output(self, state, source, target, extra_config):
+    def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
             text = target
         elif 'tgt_tokenizer' in state:

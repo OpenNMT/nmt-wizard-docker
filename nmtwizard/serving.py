@@ -47,9 +47,9 @@ def start_server(host,
       port: The port used by the service.
       serving_state: The framework state to propagate to pre/postprocessing callbacks.
       backend_service_fn: A callable to start the framework dependent backend service.
-      preprocess_fn: A callable taking (serving_state, text, extra_config) and returning tokens.
+      preprocess_fn: A callable taking (serving_state, text, config) and returning tokens.
       translation_fn: A callable that forwards the request to the translation backend.
-      postprocess_fn: A callable taking (serving_state, src_tokens, tgt_tokens, extra_config)
+      postprocess_fn: A callable taking (serving_state, src_tokens, tgt_tokens, config)
         and returning text.
     """
     global backend_process
@@ -57,7 +57,8 @@ def start_server(host,
     backend_process, backend_info = backend_service_fn()
     global_timeout = None
     global_max_batch_size = None
-    if config is not None and isinstance(config, dict):
+    serving_config = config.get('serving')
+    if serving_config is not None and isinstance(serving_config, dict):
         global_timeout = config.get('timeout')
         global_max_batch_size = config.get('max_batch_size')
 
@@ -133,11 +134,13 @@ def start_server(host,
                 return
             timeout = global_timeout
             max_batch_size = global_max_batch_size
-            batch_config = {}
-            if 'options' in request and isinstance(request['options'], dict):
-                timeout = request['options'].get('timeout', timeout)
-                max_batch_size = request['options'].get('max_batch_size', max_batch_size)
-                batch_config = request['options'].get('config', batch_config)
+            batch_config = config
+            request_options = request.get('options')
+            if request_options is not None and isinstance(request_options, dict):
+                timeout = request_options.get('timeout', timeout)
+                max_batch_size = request_options.get('max_batch_size', max_batch_size)
+                if 'config' in request_options:
+                    batch_config = merge_dict(copy.deepcopy(config), request['options']['config'])
             extra_config = []
             batch_metadata = []
             batch_offsets = []
@@ -145,8 +148,16 @@ def start_server(host,
             offset = 0
             for src in request['src']:
                 local_config = batch_config
-                if 'config' in src:
-                    local_config = merge_dict(copy.deepcopy(local_config), src['config'])
+                if 'config' in src or 'options' in src:
+                    local_config = copy.deepcopy(local_config)
+                    if 'config' in src:
+                        local_config = merge_dict(local_config, src['config'])
+                    if 'options' in src:
+                        try:
+                            update_config_with_options(local_config, src['options'])
+                        except ValueError as e:
+                            self.send_error(400, e.message)
+                            return
                 data = preprocess_fn(serving_state, src['text'], local_config)
                 # Preprocessing may return additional metadata.
                 if isinstance(data, tuple):
