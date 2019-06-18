@@ -227,7 +227,7 @@ class Framework(Utility):
                                         'released models (for compatible frameworks). '
                                         '0 = no optimization, 1 = quantization.'))
         parser_trans.add_argument('--no_postprocess', default=False, action='store_true',
-                                  help=('Do not apply postprocessing on the target files.')
+                                  help='Do not apply postprocessing on the target files.')
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
         parser_release.add_argument('-d', '--destination', default=None,
