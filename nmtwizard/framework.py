@@ -215,13 +215,19 @@ class Framework(Utility):
         parser_trans.add_argument('-o', '--output', required=True, nargs='+',
                                   help='Output files')
         parser_trans.add_argument('--copy_source', default=False, action='store_true',
-                                  help='Copy source files on same storage and same name than outputs')
+                                  help=('Copy source files on same storage and same name '
+                                        'as the outputs (useful for chaining back-translation '
+                                        'trainings). By default, the original source file is '
+                                        'copied but when --no_postprocess is used, the '
+                                        'preprocessed source file is copied instead.'))
         parser_trans.add_argument('--as_release', default=False, action='store_true',
                                   help='Translate from a released model.')
         parser_trans.add_argument('--release_optimization_level', type=int, default=1,
                                   help=('Control the level of optimization applied to '
                                         'released models (for compatible frameworks). '
                                         '0 = no optimization, 1 = quantization.'))
+        parser_trans.add_argument('--no_postprocess', default=False, action='store_true',
+                                  help=('Do not apply postprocessing on the target files.')
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
         parser_release.add_argument('-d', '--destination', default=None,
@@ -310,7 +316,8 @@ class Framework(Utility):
                 as_release=args.as_release,
                 release_optimization_level=args.release_optimization_level,
                 gpuid=self._gpuid,
-                copy_source=args.copy_source)
+                copy_source=args.copy_source,
+                no_postprocess=args.no_postprocess)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('releasing requires a training checkpoint')
@@ -473,7 +480,8 @@ class Framework(Utility):
                       as_release=False,
                       release_optimization_level=None,
                       gpuid=0,
-                      copy_source=False):
+                      copy_source=False,
+                      no_postprocess=False):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
@@ -524,18 +532,22 @@ class Framework(Utility):
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
-                path_output = self._postprocess_file(local_config, path_input_preprocessed, path_output)
+                if not no_postprocess:
+                    path_output = self._postprocess_file(
+                        local_config, path_input_preprocessed, path_output)
 
                 if copy_source:
                     copied_input = output
                     copied_input_parts = copied_input.split('.')
+                    source_to_copy = (
+                        path_input_unzipped if not no_postprocess else path_input_preprocessed)
                     if path_output_is_zipped:
                         copied_input_parts[-2] = path_input_unzipped_parts[-1]
                         if path_input_unzipped == path_input:
-                            path_input = compress_file(path_input_unzipped)
+                            path_input = compress_file(source_to_copy)
                     else:
                         copied_input_parts[-1] = path_input_unzipped_parts[-1]
-                        path_input = path_input_unzipped
+                        path_input = source_to_copy
 
                     storage.push(path_input, ".".join(copied_input_parts))
 
