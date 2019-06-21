@@ -44,7 +44,7 @@ class ScoreUtility(Utility):
                                   help='Lang ID')
         parser_score.add_argument('-tok', '--tok_config',
                                   help='Configuration for tokenizer')
-        parser_score.add_argument('-ph', '--placeholder', action="store_false",
+        parser_score.add_argument('-ph', '--keep_placeholder', action="store_true",
                                   help='Remove placeholder by default')
         parser_score.add_argument('-m', '--metrics', default=['BLEU', 'Otem-Utem', 'NIST'], nargs='+',
                                   help='Specify metrics to evaluate, by default ignore TER and METEOR')
@@ -241,7 +241,7 @@ class ScoreUtility(Utility):
             if not self.check_file_exist([output] + list_ref_files):
                 continue
 
-            if args.placeholder:
+            if not args.keep_placeholder:
                 output = self.remove_ph(output)
 
             output_tok = self.tokenize_files([output], lang_tokenizer)
