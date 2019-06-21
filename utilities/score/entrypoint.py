@@ -44,6 +44,8 @@ class ScoreUtility(Utility):
                                   help='Lang ID')
         parser_score.add_argument('-tok', '--tok_config',
                                   help='Configuration for tokenizer')
+        parser_score.add_argument('-ph', '--placeholder', action="store_false",
+                                  help='Remove placeholder by default')
         parser_score.add_argument('-m', '--metrics', default=['BLEU', 'Otem-Utem', 'NIST'], nargs='+',
                                   help='Specify metrics to evaluate, by default ignore TER and METEOR')
 
@@ -67,6 +69,14 @@ class ScoreUtility(Utility):
         if 'sp_nbest_size' in tok_config:
             tok_config['sp_nbest_size'] = 0
         return tokenizer.build_tokenizer(tok_config)
+
+    def remove_ph(self, file):
+        outfile = tempfile.NamedTemporaryFile(delete=False)
+        with open(file, 'r') as input_file, open(outfile.name, 'w') as output_file:
+            for line in input_file:
+                line = re.sub(r"｟.+?：(.+?)｠", r'\1', line)
+                output_file.write(line)
+        return outfile.name
 
     def tokenize_files(self, file_list, lang_tokenizer):
         outfile_group = []
@@ -230,6 +240,9 @@ class ScoreUtility(Utility):
             list_ref_files = list_ref[i].split(',')
             if not self.check_file_exist([output] + list_ref_files):
                 continue
+
+            if args.placeholder:
+                output = self.remove_ph(output)
 
             output_tok = self.tokenize_files([output], lang_tokenizer)
             reffile_tok = self.tokenize_files(list_ref_files, lang_tokenizer)
