@@ -49,11 +49,11 @@ _test_inference_options = {
     "options": [
         {
             "option_path": "bpreprocess/politeness",
-            "config_path": "bpreprocess/classifiers/0"
+            "config_path": "bpreprocess/classifiers/0/value"
         },
         {
             "option_path": "bpreprocess/domain",
-            "config_path": "bpreprocess/classifiers/1",
+            "config_path": "bpreprocess/classifiers/1/value",
         }
     ]
 }
@@ -84,6 +84,10 @@ def test_inference_options_index_config():
             == cfg["bpreprocess"]["classifiers"][1])
     with pytest.raises(ValueError, match="Invalid path"):
         config.index_config(cfg, "bpreprocess/annotate")
+    assert (config.index_config(cfg, "bpreprocess/classifiers/1/value", index_structure=False)
+            == (cfg["bpreprocess"]["classifiers"][1], "value"))
+    with pytest.raises(ValueError, match="Invalid path"):
+        config.index_config(cfg, "bpreprocess/classifiers/1/value")
 
 def test_inference_options_validation():
     schema = config.validate_inference_options(_test_inference_options, _test_config)
