@@ -5,9 +5,14 @@ import jsonschema
 from nmtwizard import utils
 
 
-def index_config(config, path):
+def index_config(config, path, index_structure=True):
     """Index a configuration with a path-like string."""
-    for section in path.split('/'):
+    key = None
+    sections = path.split('/')
+    if not index_structure:
+        key = sections[-1]
+        sections = sections[:-1]
+    for section in sections:
         if isinstance(config, dict):
             if section not in config:
                 raise ValueError('Invalid path %s in config' % path)
@@ -20,7 +25,10 @@ def index_config(config, path):
             config = config[section_index]
         else:
             raise ValueError('Paths in config can only represent object and array structures')
-    return config
+    if index_structure:
+        return config
+    else:
+        return config, key
 
 def index_schema(schema, path):
     """Index a JSON schema with a path-like string."""
@@ -54,7 +62,7 @@ def validate_mapping(schema, options, config):
         config_path = mapping.get('config_path')
         if config_path is None:
             raise ValueError('Missing "config_path" in option mapping %d' % i)
-        dst_config = index_config(config, config_path)
+        dst_config, _ = index_config(config, config_path, index_structure=False)
         if not isinstance(dst_config, dict):
             raise ValueError('Paths in config can only index object structures')
         option_path = mapping.get('option_path')
@@ -78,5 +86,5 @@ def update_config_with_options(config, options):
             option_value = index_config(options, mapping['option_path'])
         except ValueError:
             continue  # Option not passed for this request.
-        dst_config = index_config(config, mapping['config_path'])
-        dst_config['value'] = option_value
+        dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
+        dst_config[dst_key] = option_value

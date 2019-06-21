@@ -25,7 +25,7 @@ Custom frameworks can declare options they accept during inference. Suppose a tr
         "options": [
             {
                 "option_path": "domain",
-                "config_path": "preprocess/domain"
+                "config_path": "preprocess/domain/value"
             }
         ]
     },
