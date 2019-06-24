@@ -314,6 +314,22 @@ def test_release(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["tokenization"]["target"]["vocabulary"])))
 
+def test_release_change_file(tmpdir):
+    _run_framework(tmpdir, "model0", "train", config=config_base)
+
+    new_vocab = "vocab.src"
+    with open(str(tmpdir.join(new_vocab)), "w") as vocab_src:
+        vocab_src.write("0\n")
+    override = {"tokenization": {"source": {"vocabulary": "${TMP_DIR}/%s" % new_vocab}}}
+    _run_framework(tmpdir, "release0", "release",
+                   parent="model0", config=override,
+                   env={"TMP_DIR": str(tmpdir)})
+    model_dir = str(tmpdir.join("models").join("model0_release"))
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_vocab
+    assert os.path.isfile(
+        os.path.join(model_dir, os.path.basename(config["tokenization"]["source"]["vocabulary"])))
+
 def test_release_with_inference_options(tmpdir):
     config = copy.deepcopy(config_base)
     config["preprocess"] = {"domain": {"some_training_field": {}}}
