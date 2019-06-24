@@ -11,6 +11,7 @@ import six
 from six.moves import SimpleHTTPServer
 from six.moves import socketserver
 
+from nmtwizard import config as config_util
 from nmtwizard.logger import get_logger
 from nmtwizard.utils import merge_dict
 
@@ -154,7 +155,7 @@ def start_server(host,
                         local_config = merge_dict(local_config, src['config'])
                     if 'options' in src:
                         try:
-                            update_config_with_options(local_config, src['options'])
+                            config_util.update_config_with_options(local_config, src['options'])
                         except ValueError as e:
                             self.send_error(400, e.message)
                             return
