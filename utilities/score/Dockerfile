@@ -14,17 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
-ADD requirements.txt /root
-RUN pip --no-cache-dir install --upgrade pip
-RUN pip --no-cache-dir install -r /root/requirements.txt
-
-ADD nmtwizard /root/nmtwizard
-
-ADD utilities/score/entrypoint.py /root/
-ADD utilities/score/BLEU /root/tools/BLEU
-ADD utilities/score/TER /root/tools/TER
-ADD utilities/score/NIST /root/tools/NIST
-
 ARG OTEMUTEM_URL
 ENV OTEMUTEM_URL=${OTEMUTEM_URL:-https://github.com/DeepLearnXMU/Otem-Utem.git}
 ARG OTEMUTEM_REF
@@ -43,5 +32,16 @@ RUN wget $METEOR_URL && \
   tar xvf meteor-1.5.tar.gz && \
   mv meteor-1.5 /root/tools/METEOR && \
   rm meteor-1.5.tar.gz
+
+ADD requirements.txt /root
+RUN pip --no-cache-dir install --upgrade pip
+RUN pip --no-cache-dir install -r /root/requirements.txt
+
+ADD nmtwizard /root/nmtwizard
+
+ADD utilities/score/entrypoint.py /root/
+ADD utilities/score/BLEU /root/tools/BLEU
+ADD utilities/score/TER /root/tools/TER
+ADD utilities/score/NIST /root/tools/NIST
 
 ENTRYPOINT ["python", "entrypoint.py"]
