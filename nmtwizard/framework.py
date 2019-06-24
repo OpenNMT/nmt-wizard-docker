@@ -589,7 +589,7 @@ class Framework(Utility):
             model_path,
             optimization_level=optimization_level,
             gpuid=gpuid)
-        extract_model_resources(objects, config)
+        bundle_dependencies(objects, config, local_config)
         model_id = config['model'] + '_release'
         config['model'] = model_id
         config['modelType'] = 'release'
@@ -893,17 +893,6 @@ def bundle_dependencies(objects, config, local_config):
                 objects[m.group(2)] = local_config
                 return '${MODEL_DIR}/%s' % m.group(2)
         return config
-
-def extract_model_resources(objects, config):
-    """Returns resources included in the model directory."""
-    def _map_fn(config):
-        if isinstance(config, six.string_types):
-            m = ENVVAR_ABS_RE.match(config)
-            if m and "MODEL_DIR" in m.group(1):
-                objects[m.group(2)] = ENVVAR_RE.sub(
-                    lambda m: os.getenv(m.group(1), ''), str(config))
-        return config
-    return map_config_fn(config, _map_fn)
 
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
