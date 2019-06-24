@@ -142,20 +142,13 @@ class ScoreUtility(Utility):
 
         otem_utem_score = {'OTEM': 0, 'UTEM': 0}
         result = self.exec_command_with_timeout(['/usr/bin/python',
-                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
+                                            os.path.join(self._tools_dir, 'Otem-Utem', 'metric.py'),
                                             tgtfile,
                                             reffile_prefix])
-        otem = re.match(r"^OTEM\s=\s([\d\.]+),", result.decode('ascii'))
+        otem = re.match(r"^OTEM-2/UTEM-4/BLEU-4: ([\d\.]+)/([\d\.]+)/([\d\.]+)", result.decode('ascii'))
         if otem is not None:
             otem_utem_score['OTEM'] = float(otem.group(1))
-
-        result = self.exec_command_with_timeout(['/usr/bin/python',
-                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
-                                            tgtfile,
-                                            reffile_prefix])
-        utem = re.match(r"^UTEM\s=\s([\d\.]+),", result.decode('ascii'))
-        if utem is not None:
-            otem_utem_score['UTEM'] = float(utem.group(1))
+            otem_utem_score['UTEM'] = float(otem.group(2))
 
         for idx in range(len(reffile)):
             os.remove('%s%d' % (reffile_prefix, idx))
