@@ -28,7 +28,7 @@ ADD utilities/score/NIST /root/tools/NIST
 ARG OTEMUTEM_URL
 ENV OTEMUTEM_URL=${OTEMUTEM_URL:-https://github.com/DeepLearnXMU/Otem-Utem.git}
 ARG OTEMUTEM_REF
-ENV OTEMUTEM_REF=${OTEMUTEM_REF:-master}
+ENV OTEMUTEM_REF=${OTEMUTEM_REF:-8b4891827d6e4894ebb364284eb38b4cce57cb5e}
 
 RUN git clone --depth 1 --single-branch ${OTEMUTEM_URL} /root/OTEMUTEM && \
 	cd OTEMUTEM && git checkout ${OTEMUTEM_REF} && cd / && \
