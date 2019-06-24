@@ -11,214 +11,263 @@ from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
-def mkdir_p(path):
-    try:
-        os.makedirs(path)
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir(path):
-            pass
-        else:
-            raise
+class SamplerFile:
+    """Class to store necessary information about the sampled files."""
+    def __init__(self, fullpathdir, basename, files, linecount = 0):
+        self._fullpathdir = fullpathdir
+        self._basename = basename
+        self._linecount = linecount
+        self._files = files
+
+    def close_files(self) :
+        for f in self._files :
+            if not f.closed:
+                f.close()
 
 def count_lines(path):
+    f = None
+    i = 0
     if os.path.isfile(path + ".gz"):
         f = gzip.open(path + ".gz", 'rb')
-    elif not os.path.isfile(path):
-        raise RuntimeError('%s is not a file' % path)
-    else:
+    elif os.path.isfile(path):
         f = open(path, 'rb')
-    i = 0
-    for i, _ in enumerate(f):
-        pass
-    f.close()
-    return i + 1
+    if f is not None:
+        for i, _ in enumerate(f):
+            pass
+        f.seek(0)
+    return f, i + 1
 
-def sample(gsample, sample_dist, source_dir, target_dir, src_suffix, tgt_suffix):
+def sample(config, source_dir):
 
-    def _countLine(filepath):
-        logger.debug("Processing %s", filepath[0])
-        src_lines = count_lines(filepath[0] + src_suffix)
-        tgt_lines = count_lines(filepath[0] + tgt_suffix)
-        if src_lines != tgt_lines:
-            raise RuntimeError('source and target line count mismatch (%d/%d)'
-                               % (src_lines, tgt_lines))
-        if src_lines == 0:
-            raise RuntimeError('file %s is empty' % filepath[0])
-        return src_lines
+    def _countLines(filepath):
+        files = []
+        logger.debug("Processing %s", filepath)
 
-    def _buildFile(fullpath, file, count, totalcount, rule):
-        logger.debug("Building %d/%d in %s (rule: %s)", count, totalcount, file, rule)
-        src_compressed = os.path.isfile(fullpath + src_suffix + ".gz")
-        tgt_compressed = os.path.isfile(fullpath + tgt_suffix + ".gz")
-        if count == totalcount and not src_compressed and not tgt_compressed:
-            # copy files
-            shutil.copyfile(fullpath + src_suffix, os.path.join(target_dir, file) + src_suffix)
-            shutil.copyfile(fullpath + tgt_suffix, os.path.join(target_dir, file) + tgt_suffix)
-        else:
-            # sample
-            rand_smpl = sorted(random.randint(0, totalcount - 1) for _ in range(count))
-            idx = 0
+        # Check all directions are present and aligned, open files
+        src_file, src_lines = count_lines(filepath + src_suffix)
+        files.append(src_file)
 
-            if src_compressed:
-                fisrc = gzip.open(fullpath + src_suffix + ".gz", 'rb')
-            else:
-                fisrc = open(fullpath + src_suffix, 'rb')
+        if src_file and src_lines :
+            # TODO : multiple sources and targets
+            tgt_file, tgt_lines = count_lines(filepath + tgt_suffix)
+            files.append(tgt_file)
+            if src_lines != tgt_lines:
+                return files, 0
 
-            if tgt_compressed:
-                fitgt = gzip.open(fullpath + tgt_suffix + ".gz", 'rb')
-            else:
-                fitgt = open(fullpath + tgt_suffix, 'rb')
+        return files, src_lines
 
-            fosrc = open(os.path.join(target_dir, file) + src_suffix, "wb")
-            fotgt = open(os.path.join(target_dir, file) + tgt_suffix, "wb")
-            lidx = 0
-            while idx < len(rand_smpl):
-                lsrc = fisrc.readline()
-                ltgt = fitgt.readline()
-                while idx < count and lidx == rand_smpl[idx]:
-                    fosrc.write(lsrc)
-                    fotgt.write(ltgt)
-                    idx += 1
-                lidx += 1
-            fisrc.close()
-            fitgt.close()
-            fosrc.close()
-            fotgt.close()
+    def _discover_files():
 
-    if not os.path.exists(target_dir):
-        mkdir_p(target_dir)
+        allfiles = []
+        pattern_weights_sum = 0
+        pattern_sizes = {}
 
-    if not os.path.isdir(target_dir):
-        raise RuntimeError('target directory %s does not exist' % target_dir)
+        for d_idx,d_item in enumerate(sample_dist):
+            # check path and ditribution
+            if "path" not in d_item or "distribution" not in d_item or not isinstance(d_item['distribution'], list):
+                raise ValueError('invalid distribution in collection %s' % d_item)
+            if not os.path.isabs(d_item["path"]):
+                if not os.path.exists(source_dir) or not os.path.isdir(source_dir):
+                    raise RuntimeError('source directory %s does not exist' % source_dir)
+                dpath=os.path.join(source_dir, d_item["path"])
+                if not os.path.exists(dpath) or not os.path.isdir(dpath):
+                    raise RuntimeError('distribution path %s does not exist' % dpath)
+                d_item["path"] = dpath
 
-    for d in sample_dist:
-        if "path" not in d or "distribution" not in d:
-            raise ValueError('invalid distribution in collection %s' % d)
-        if not os.path.isabs(d["path"]):
-            if not os.path.exists(source_dir) or not os.path.isdir(source_dir):
-                raise RuntimeError('source directory %s does not exist' % source_dir)
-            d["path"] = os.path.join(source_dir, d["path"])
+            distribution = d_item['distribution']
+            # walk over all files in path
+            for root, _, files in os.walk(d_item['path']):
+                for f in files:
+                    src_file = os.path.join(root, f)
 
-    # start collecting the files
-    allfiles = []
-    for ri in range(len(sample_dist)):
-        for root, _, files in os.walk(sample_dist[ri]['path']):
-            for file in files:
-                if file.endswith(src_suffix):
-                    fullpath = os.path.join(root, file[:-len(src_suffix)])
-                    allfiles.append((fullpath, file[:-len(src_suffix)], ri))
-                elif file.endswith(src_suffix + ".gz"):
-                    fullpath = os.path.join(root, file[:-len(src_suffix) - 3])
-                    allfiles.append((fullpath, file[:-len(src_suffix) - 3], ri))
-
-    weights = []
-    pattern_weights_sum = 0
-    pattern_sizes = {}
-    file_sizes = []
-    for (fp, f, ri) in allfiles:
-        size = -1
-        w = None
-        # distribution is a list of ["pattern", weight, "addtl options"]
-        for rule in sample_dist[ri]['distribution']:
-            pattern = rule[0]
-            weight = rule[1]
-            extra = None
-            if len(rule) > 2:
-                extra = rule[2]
-            if weight != '*' and isinstance(weight, six.string_types):
-                weight = float(weight)
-            if pattern == '*' or re.search(pattern, f):
-                size = _countLine((fp, f, ri))
-                w = {"pattern": pattern, "weight": weight, "extra": extra}
-                if weight != '*':
-                    if pattern not in pattern_sizes:
-                        pattern_weights_sum += float(weight)
-                        pattern_sizes[pattern] = size
+                    # check if filename is regular, matches main source direction and get basename
+                    if (not (os.path.isfile(src_file))) :
+                        continue
+                    if f.endswith(src_suffix):
+                        basename = f[:-len(src_suffix)]
+                    elif f.endswith(src_suffix + ".gz"):
+                        basename = f[:-len(src_suffix) - 3]
                     else:
-                        pattern_sizes[pattern] += size
-                break
-        file_sizes.append(size)
-        weights.append(w)
+                        continue
 
-    weights_sum = 0
-    reserved_sample = 0
-    for (f, c, w) in zip(allfiles, file_sizes, weights):
-        if w is not None:
-            if w["weight"] == '*':
-                reserved_sample += c
-            else:
-                file_weight = float(c) / pattern_sizes[w["pattern"]]
-                pattern_weight = float(w["weight"]) / pattern_weights_sum
-                w["weight"] = file_weight * pattern_weight
-                weights_sum += w["weight"]
+                    # Check all directions are present and aligned
+                    # Return opened files and line count
+                    files, size = _countLines(os.path.join(root,basename))
+                    # Returns 0 if all files do not exist, cannot be aligned or empty
+                    if (size == 0) :
+                        for f in files :
+                            if not f.closed:
+                                f.close()
+                        continue
 
-    distribute = max(0, gsample - reserved_sample)
-    summary_by_pattern = collections.defaultdict(int)
-    summary_by_file = {}
-    metadata = {}
-    samplefile = []
-    for (f, c, w) in zip(allfiles, file_sizes, weights):
-        if w is None:
-            logger.debug('No rules matching %s', f[0])
+                    # build file structure
+                    allfiles.append(SamplerFile(root, basename, files, size))
+
+                    # loop over patterns in distribution, check patterns are ok and file matches one
+                    for rule in distribution:
+                        # distribution is a list of [pattern, weight, addtl options]
+                        if (len(rule) < 2 or not isinstance(rule[0], six.string_types)) :
+                            raise ValueError('invalid distribution element : %s' % rule)
+                        pattern = rule[0]
+
+                        # TODO : same pattern for different blocks
+                        weight = rule[1]
+                        extra = None
+                        # TODO : oversampling with "*N"
+                        if weight != '*' and isinstance(weight, six.string_types):
+                            weight = float(weight)
+                        if len(rule) > 2:
+                            extra = rule[2]
+                        if pattern == '*' or re.search(pattern, basename):
+                            if hasattr(allfiles[-1], "_weight") and allfiles[-1]._weight is not None:
+                                raise RuntimeError('file %s matches more than one rule.' % allfiles[-1]._basename)
+                            d_idx_pattern = str(d_idx) + "-" + pattern
+                            w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
+                            allfiles[-1]._weight = w
+                            if weight != '*':
+                                if d_idx_pattern not in pattern_sizes:
+                                    pattern_weights_sum += float(weight)
+                                    pattern_sizes[d_idx_pattern] = size
+                                else:
+                                    pattern_sizes[d_idx_pattern] += size
+
+        return allfiles, pattern_weights_sum, pattern_sizes
+
+
+    def _selectLines(f):
+
+        sample_unique = True if 'sample_unique' not in config['data'] \
+                        else config['data']['sample_unique']
+
+        random_sample = {}
+
+        # Unique sampling, duplicates only if oversampling.
+        if not gsample or sample_unique:
+            # Minimal number of occurences for each line.
+                # 1  if full sample (linekept == linecount or no gsample)
+                # >1 if oversampling (linekept > linecount)
+                # 0  if undersampling (linekept < linecount)
+            min_occurrence = int(not gsample) or f._linekept/f._linecount
+
+            if min_occurrence:
+                random_sample = {i:min_occurrence for i in range(f._linecount)}
+
+            # Randomly sampled additional occurences.
+            if gsample:
+                # Robert Floyd's algorithm for sampling without replacement.
+                sampling_size = f._linekept - min_occurrence * f._linecount
+                for d in range (f._linecount - sampling_size, f._linecount):
+                    t = random.randint(0, d)
+                    if t not in random_sample or random_sample[t] == min_occurrence:
+                        random_sample[t] = random_sample.get(t, 0) + 1
+                    else :
+                        random_sample[d] = random_sample.get(d, 0) + 1
+
+        # Simple random sampling, possibly with duplicates.
         else:
-            metadata[f[1]] = w["extra"]
-            if w["weight"] == '*':
-                samplefile.append((f[0], f[1], c, c, w["pattern"]))
-                summary_by_pattern[w["pattern"]] += c
-                summary_by_file[f[0]] = c
+            for _ in range(f._linekept):
+                i = random.randint(0, f._linecount - 1)
+                random_sample[i] = random_sample.get(i, 0) + 1
+
+        f._random_sample = random_sample
+
+
+    gsample = 0
+    if 'data' in config and 'sample' in config['data'] :
+        gsample = config['data']['sample']
+    else :
+        logger.warning('No \'sample\' size specified in configuration,'
+                       'all data will be sampled.')
+
+    # TODO multiple sources and targets
+    src_suffix=config["source"]
+    tgt_suffix=config["target"]
+
+    # If there is not 'sample_dist', take uniform distribution from default data directory.
+    if 'data' not in config or 'sample_dist' not in config['data'] :
+        sample_dist = [ {"path": source_dir,
+                         "distribution" : ["*", "1" ] } ]
+    else :
+        sample_dist = config['data']['sample_dist']
+
+    # Check and read 'sample_dist'.
+    assert isinstance(sample_dist, list), "sample_dist json should be a list"
+
+    # Find all consistent files in the directory.
+    allfiles, pattern_weights_sum, pattern_sizes = _discover_files()
+
+    # In strict mode, check that all patterns have been triggered
+    if 'mode_strict' in config['data'] and config['data']['mode_strict']:
+        for d_idx, d_item in enumerate(sample_dist):
+            for rule in d['distribution'] :
+                pattern = rule[0]
+                d_idx_pattern = str(d_idx) + "-" + pattern
+                if (d_idx_pattern not in pattern_sizes) :
+                    raise RuntimeError('pattern %s in block %d doesn\'t match any file with strict mode enabled.' % pattern, d_idx)
+
+
+    # Adjust weights based on all sampled files for each pattern.
+    weights_sum = 0
+    weights_size = 0
+    reserved_sample = 0
+    basenames = set()
+    for f in allfiles:
+        if hasattr(f, "_weight") and f._weight is not None:
+            if f._basename in basenames:
+                # Different paths in distribution produced files with the same name.
+                # This is not allowed since we write output files in the same folder.
+                raise RuntimeError('Two files with the same name %s where sampled.' % f._basename)
             else:
-                nsent = int(round(distribute * (w["weight"] / weights_sum)))
-                summary_by_pattern[w["pattern"]] += nsent
-                summary_by_file[f[0]] = nsent
-                if nsent >= 1:
-                    samplefile.append((f[0], f[1], nsent, c, w["pattern"]))
-                else:
-                    logger.debug('Zero line to select for: %s', f[0])
+                basenames.add(f._basename)
+            linecount = f._linecount
+            pattern = f._weight["pattern"]
+            if f._weight["weight"] == '*':
+                reserved_sample += linecount
+            else:
+                file_weight = float(linecount) / pattern_sizes[pattern]
+                pattern_weight = float(f._weight["weight"]) / pattern_weights_sum
+                f._weight["weight"] = file_weight * pattern_weight
+                weights_sum += f._weight["weight"]
+                weights_size += 1
+        else:
+            logger.debug('No rules matching %s', f._basename)
 
-    for sample in samplefile:
-        _buildFile(*sample)
+    # Calculate the number of lines to keep using weights and linecounts, select lines randomly.
+    distribute = max(0, gsample - reserved_sample)
+    metadata = {}
+    summary = {}
+    num_samples = 0
+    leftover = 0
+    for f in allfiles:
+        extra, pattern = None, None
+        f._linekept = 0
+        if hasattr(f, "_weight") and f._weight is not None:
+            extra = f._weight["extra"]
+            pattern = f._weight["pattern"]
+            weight = f._weight["weight"]
+            linekept = f._linecount
+            if gsample and weight != '*':
+                weights_size -= 1
+                res = distribute * (weight / weights_sum)
+                leftover += res - int(res)
+                linekept = int(res)
+                if leftover >= 1 :
+                    linekept += 1
+                    leftover -= 1.0
+                if weights_size == 0 and leftover > 0.5 :
+                    linekept += 1
 
-    return {"pattern": summary_by_pattern, "file": summary_by_file}, metadata
+            f._linekept = linekept
+        summary[f._basename] = {
+            "linecount" : f._linecount,
+            "linesampled" : f._linekept,
+            "pattern" : pattern,
+            "linefiltered" : f._linekept
+            # TODO : add linefiltered after preprocessing
+        }
+        metadata[f._basename] = extra
+        num_samples += f._linekept
 
-def main():
-    import argparse
-    import json
+        _selectLines(f)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--sample_dist', required=True,
-                        help='sampling distribution file')
-    parser.add_argument('-S', '--source_dir', required=True,
-                        help='source directory where to sample from')
-    parser.add_argument('-T', '--target_dir', required=True,
-                        help='target directory where to sample to')
-    parser.add_argument('-s', '--src_suffix', required=True,
-                        help='suffix of source language files')
-    parser.add_argument('-t', '--tgt_suffix', required=True,
-                        help='suffix of target language files')
-    parser.add_argument('-g', '--gsample', type=int, required=True,
-                        help='number of sentences to sample')
-    parser.add_argument('-l', '--log_level', default='INFO',
-                        help='log level')
-
-    args = parser.parse_args()
-
-    logger.setLevel(args.log_level)
-
-    if not os.path.exists(args.sample_dist) or not os.path.isfile(args.sample_dist):
-        raise ValueError('distribution file %s does not exist or is not a file' % args.sample_dist)
-
-    with open(args.sample_dist) as data:
-        sample_dist = json.load(data)
-
-    if not isinstance(sample_dist, list):
-        raise ValueError('sample_dist should a collection of {path, [sample_rules]}')
-
-    res, metadata = sample(args.gsample, sample_dist,
-                           args.source_dir, args.target_dir,
-                           args.src_suffix, args.tgt_suffix)
-    print('res=', json.dumps(res))
-    print('metadata=', json.dumps(metadata))
-
-
-if __name__ == "__main__":
-    main()
+    return allfiles, summary, metadata, num_samples

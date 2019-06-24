@@ -20,6 +20,7 @@ from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
 from nmtwizard import serving
 from nmtwizard import tokenizer
+from nmtwizard import preprocess
 
 
 logger = get_logger(__name__)
@@ -707,6 +708,8 @@ class Framework(Utility):
         return state
 
     def _preprocess_input(self, state, input, extra_config):
+        # TODO : remove tokenization, build full preprocess pipeline
+        # state ?
         if isinstance(input, list):
             tokens = input
         elif 'src_tokenizer' in state:
@@ -717,6 +720,8 @@ class Framework(Utility):
         return tokens
 
     def _postprocess_output(self, state, source, target, extra_config):
+        # TODO : remove tokenization, build full postprocess pipeline
+        # state ?
         if not isinstance(target, list):
             text = target
         elif 'tgt_tokenizer' in state:
@@ -727,6 +732,7 @@ class Framework(Utility):
         return text
 
     def _preprocess_file(self, config, input):
+        # TODO : based on _preprocess_input + read/write from/to file
         if 'tokenization' in config:
             tok_config = config['tokenization']
             src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
@@ -736,6 +742,7 @@ class Framework(Utility):
         return input
 
     def _postprocess_file(self, config, source, target):
+        # TODO : based on _postprocess_input + read/write from/to file
         if 'tokenization' in config:
             tok_config = config['tokenization']
             tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
@@ -761,50 +768,11 @@ class Framework(Utility):
         return converted_vocab_file
 
     def _generate_training_data(self, config):
-        if 'data' in config and 'train_dir' in config['data']:
-            train_dir = config['data']['train_dir']
-        else:
-            train_dir = 'train'
-        data_path = os.path.join(self._corpus_dir, train_dir)
-        num_samples = None
-        summary = None
-        metadata = None
-        if 'data' in config and 'sample_dist' in config['data']:
-            sample_dir = os.path.join(self._data_dir, 'sample')
-            if not os.path.exists(sample_dir):
-                os.mkdir(sample_dir)
-            sample_path = os.path.join(sample_dir, train_dir)
-            logger.info('Sampling training data to %s', sample_path)
-            summary, metadata = sample(
-                config['data']['sample'],
-                config['data']['sample_dist'],
-                data_path,
-                sample_path,
-                config['source'],
-                config['target'])
-            num_samples = sum(six.itervalues(summary['file']))
-            data_path = sample_path
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            src_tokenizer = 'source' in tok_config and tokenizer.build_tokenizer(tok_config['source'])
-            tgt_tokenizer = 'target' in tok_config and tokenizer.build_tokenizer(tok_config['target'])
-            tokenized_dir = os.path.join(self._data_dir, 'tokenized')
-            if not os.path.exists(tokenized_dir):
-                os.mkdir(tokenized_dir)
-            tokenized_path = os.path.join(tokenized_dir, train_dir)
-            logger.info('Tokenizing training data to %s', tokenized_path)
-            tokenizer.tokenize_directory(
-                data_path,
-                tokenized_path,
-                src_tokenizer,
-                tgt_tokenizer,
-                config['source'],
-                config['target'])
-            data_path = tokenized_path
-
-        return data_path, train_dir, num_samples, summary, metadata
+        return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
 
     def _generate_vocabularies(self, config):
+        # TODO : move to a separate module
+        # Migrate implementation from C++
         raise NotImplementedError('vocabularies generation is not supported yet')
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
@@ -813,7 +781,7 @@ class Framework(Utility):
             cum_sent_count = 0
             if parent_build_info is not None:
                 cum_sent_count = parent_build_info.get('cumSentenceCount')
-            sent_count = sum(six.itervalues(distribution['file']))
+            sent_count = sum(v.get('linefiltered', 0) for v in six.itervalues(distribution))
             build_info['sentenceCount'] = sent_count
             build_info['cumSentenceCount'] = (
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
