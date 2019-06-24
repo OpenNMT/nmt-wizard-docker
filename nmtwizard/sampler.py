@@ -113,8 +113,7 @@ def sample(config, source_dir):
                         # TODO : same pattern for different blocks
                         weight = rule[1]
                         extra = None
-                        # TODO : oversampling with "*N"
-                        if weight != '*' and isinstance(weight, six.string_types):
+                        if isinstance(weight, six.string_types) and not weight.startswith('*'):
                             weight = float(weight)
                         if len(rule) > 2:
                             extra = rule[2]
@@ -124,7 +123,7 @@ def sample(config, source_dir):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
                             allfiles[-1]._weight = w
-                            if weight != '*':
+                            if not isinstance(weight, six.string_types):
                                 if d_idx_pattern not in pattern_sizes:
                                     pattern_weights_sum += float(weight)
                                     pattern_sizes[d_idx_pattern] = size
@@ -221,8 +220,14 @@ def sample(config, source_dir):
                 basenames.add(f._basename)
             linecount = f._linecount
             pattern = f._weight["pattern"]
-            if f._weight["weight"] == '*':
-                reserved_sample += linecount
+            weight = f._weight["weight"]
+            if isinstance(weight, six.string_types):
+                # Oversampling with "*N"
+                m = re.match(r"\*([0-9]*)$", weight)
+                if not m :
+                    raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (weight, pattern))
+                oversample = int(m.groups()[0]) if m.groups()[0] else 1
+                reserved_sample += linecount * oversample
             else:
                 file_weight = float(linecount) / pattern_sizes[pattern]
                 pattern_weight = float(f._weight["weight"]) / pattern_weights_sum
@@ -246,7 +251,7 @@ def sample(config, source_dir):
             pattern = f._weight["pattern"]
             weight = f._weight["weight"]
             linekept = f._linecount
-            if gsample and weight != '*':
+            if gsample and not isinstance(weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (weight / weights_sum)
                 leftover += res - int(res)

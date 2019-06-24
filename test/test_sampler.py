@@ -14,7 +14,7 @@ def test_sampler(tmpdir):
                     "distribution": [
                         ["generic", 1],
                         ["specific", 5.2],
-                        ["news.*pattern", "*"],
+                        ["news.*pattern", "*1"],
                         [".*something", 1]
                     ]
                 }
