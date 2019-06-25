@@ -59,12 +59,10 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                 # pipeline.add(buildPreprocessPipeline(config['preprocess']))
                 pipeline.add(prepoperator.Writer(f, preprocess_dir))
 
-                tu_batch = []
-                while pipeline(tu_batch) :
+                for tu_batch in pipeline():
+                    print (len(tu_batch))
                     # TODO : parallelization
-                    # TODO : iterator/generator ?
                     # TODO : count linefiltered in summary
-                    del tu_batch[:] # TODO: Is it sufficient to empty list efficiently ?
 
             f.close_files()
 

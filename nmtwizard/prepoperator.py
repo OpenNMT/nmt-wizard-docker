@@ -11,7 +11,7 @@ class Prepoperator(object):
 
     @abc.abstractmethod
     def __call__(self, tu_batch):
-        return len(tu_batch) # TODO sum of occurences ?
+        raise NotImplementedError()
 
 class PreprocessingPipeline(Prepoperator):
 
@@ -21,12 +21,15 @@ class PreprocessingPipeline(Prepoperator):
     def add(self, op):
         self._ops.append(op)
 
-    def __call__(self, tu_batch):
-        for op in self._ops:
-            result = op(tu_batch)
-            if not result :
-                break
-        return result
+    def __call__(self):
+        tu_batch = []
+        while True:
+            del tu_batch[:] # TODO: Check memory usage on a big corpus
+            for op in self._ops:
+                op(tu_batch)
+                if not len(tu_batch) :
+                    return
+            yield tu_batch
 
 class Loader(Prepoperator):
 
@@ -52,7 +55,6 @@ class Loader(Prepoperator):
                 tu_batch.append(tu.TranslationUnit(src_line, tgt_line, occurences))
                 batch_line += 1
             self._current_line += 1
-        return super(Loader, self).__call__(tu_batch)
 
 
 class Writer(Prepoperator):
@@ -76,6 +78,4 @@ class Writer(Prepoperator):
                 # Write preprocessed instead of raw
                 self._src_file_out.write(tu._src_raw)
                 self._tgt_file_out.write(tu._tgt_raw)
-
-        return super(Writer, self).__call__(tu_batch)
 
