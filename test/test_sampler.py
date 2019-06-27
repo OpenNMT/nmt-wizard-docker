@@ -48,21 +48,3 @@ def test_sampler(tmpdir):
                 rf_dict[line] = 1
         for l, c in rf_dict.items() :
             assert 2 <= c <= 3
-
-
-    config["data"]["sample_dist"] = [
-        {
-            "path": str(pytest.config.rootdir.join('corpus/train')),
-            "distribution": [
-                ["generic", 1],
-                ["corpus", 1],
-            ]
-        }
-    ]
-
-    with pytest.raises(RuntimeError, match=r"matches more than one rule"):
-        generate_preprocessed_data(config, "", str(tmpdir))
-
-    # TODO :
-    # multiple blocks : should pattern count be global ?
-    # blocks with same pattern

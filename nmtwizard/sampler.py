@@ -110,7 +110,6 @@ def sample(config, source_dir):
                             raise ValueError('invalid distribution element : %s' % rule)
                         pattern = rule[0]
 
-                        # TODO : same pattern for different blocks
                         weight = rule[1]
                         extra = None
                         if isinstance(weight, six.string_types) and not weight.startswith('*'):
@@ -118,8 +117,6 @@ def sample(config, source_dir):
                         if len(rule) > 2:
                             extra = rule[2]
                         if pattern == '*' or re.search(pattern, basename):
-                            if hasattr(allfiles[-1], "_weight") and allfiles[-1]._weight is not None:
-                                raise RuntimeError('file %s matches more than one rule.' % allfiles[-1]._basename)
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
                             allfiles[-1]._weight = w
@@ -129,6 +126,7 @@ def sample(config, source_dir):
                                     pattern_sizes[d_idx_pattern] = size
                                 else:
                                     pattern_sizes[d_idx_pattern] += size
+                            break
 
         return allfiles, pattern_weights_sum, pattern_sizes
 
