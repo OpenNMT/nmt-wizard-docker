@@ -239,7 +239,6 @@ def sample(config, source_dir):
     distribute = max(0, gsample - reserved_sample)
     metadata = {}
     summary = {}
-    num_samples = 0
     leftover = 0
     for f in allfiles:
         extra, pattern = None, None
@@ -264,13 +263,10 @@ def sample(config, source_dir):
         summary[f._basename] = {
             "linecount" : f._linecount,
             "linesampled" : f._linekept,
-            "pattern" : pattern,
-            "linefiltered" : f._linekept
-            # TODO : add linefiltered after preprocessing
+            "pattern" : pattern
         }
         metadata[f._basename] = extra
-        num_samples += f._linekept
 
         _selectLines(f)
 
-    return allfiles, summary, metadata, num_samples
+    return allfiles, summary, metadata

@@ -41,8 +41,9 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
         logger.info('Generating training data to %s', preprocess_dir)
 
         # Sample files and write information to a special file structure.
-        allfiles, summary, metadata, num_samples = sample(config, data_path)
+        allfiles, summary, metadata = sample(config, data_path)
 
+        num_samples = 0
         for f in allfiles:
             if f._linekept :
                 pipeline = prepoperator.PreprocessingPipeline()
@@ -57,13 +58,17 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                 # TODO : Initialize FILE-SPECIFIC preprocessor pipeline
                 # if 'preprocess' in config:
                 # pipeline.add(buildPreprocessPipeline(config['preprocess']))
-                pipeline.add(prepoperator.Writer(f, preprocess_dir))
 
                 for tu_batch in pipeline():
                     print (len(tu_batch))
                     # TODO : parallelization
-                    # TODO : count linefiltered in summary
 
+            if hasattr(f, "_linefiltered") and f._linefiltered is not None:
+                num_samples += f._linefiltered
+                summary[f._basename]["linefiltered"] = f._linefiltered
+            else:
+                num_samples += f._linekept
+                summary[f._basename]["linefiltered"] = f._linekept
             f.close_files()
 
         data_path = preprocess_dir
