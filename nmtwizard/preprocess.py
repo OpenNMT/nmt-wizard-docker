@@ -45,6 +45,7 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
 
         num_samples = 0
         for f in allfiles:
+            linefiltered = 0
             if f._linekept :
                 pipeline = prepoperator.PreprocessingPipeline()
 
@@ -64,12 +65,12 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                 pipeline.add(prepoperator.Writer(f, preprocess_dir))
 
                 for tu_batch in pipeline():
-                    print (len(tu_batch))
+                    linefiltered += len(tu_batch)
                     # TODO : parallelization
 
-            if hasattr(f, "_linefiltered") and f._linefiltered is not None:
-                num_samples += f._linefiltered
-                summary[f._basename]["linefiltered"] = f._linefiltered
+            if linefiltered != f._linekept:
+                num_samples += linefiltered
+                summary[f._basename]["linefiltered"] = linefiltered
             else:
                 num_samples += f._linekept
                 summary[f._basename]["linefiltered"] = f._linekept

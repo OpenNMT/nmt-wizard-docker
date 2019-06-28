@@ -4,7 +4,6 @@ import abc
 import os
 
 from nmtwizard import tokenizer
-
 from nmtwizard import tu
 
 
