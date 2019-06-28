@@ -49,7 +49,7 @@ class Loader(Prepoperator):
 
         # Read sampled lines from all files and build TUs.
         batch_line = 0
-        while (batch_line < self._batch_size and self._current_line < self._file._linecount):
+        while (batch_line < self._batch_size and self._current_line < self._file._lines_count):
             src_line = self._file._files[0].readline().strip()
             tgt_line = self._file._files[1].readline().strip()
             if (self._current_line in self._file._random_sample):

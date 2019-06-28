@@ -13,10 +13,10 @@ logger = get_logger(__name__)
 
 class SamplerFile:
     """Class to store necessary information about the sampled files."""
-    def __init__(self, fullpathdir, basename, files, linecount = 0):
-        self._fullpathdir = fullpathdir
-        self._basename = basename
-        self._linecount = linecount
+    def __init__(self, full_path_dir, base_name, files, lines_count = 0):
+        self._full_path_dir = full_path_dir
+        self._base_name = base_name
+        self._lines_count = lines_count
         self._files = files
 
     def close_files(self) :
@@ -39,17 +39,17 @@ def count_lines(path):
 
 def sample(config, source_dir):
 
-    def _countLines(filepath):
+    def _count_lines(file_path):
         files = []
-        logger.debug("Processing %s", filepath)
+        logger.debug("Processing %s", file_path)
 
         # Check all directions are present and aligned, open files
-        src_file, src_lines = count_lines(filepath + src_suffix)
+        src_file, src_lines = count_lines(file_path + src_suffix)
         files.append(src_file)
 
         if src_file and src_lines :
             # TODO : multiple sources and targets
-            tgt_file, tgt_lines = count_lines(filepath + tgt_suffix)
+            tgt_file, tgt_lines = count_lines(file_path + tgt_suffix)
             files.append(tgt_file)
             if src_lines != tgt_lines:
                 return files, 0
@@ -58,7 +58,7 @@ def sample(config, source_dir):
 
     def _discover_files():
 
-        allfiles = []
+        all_files = []
         pattern_weights_sum = 0
         pattern_sizes = {}
 
@@ -80,19 +80,19 @@ def sample(config, source_dir):
                 for f in files:
                     src_file = os.path.join(root, f)
 
-                    # check if filename is regular, matches main source direction and get basename
+                    # check if filename is regular, matches main source direction and get base_name
                     if (not (os.path.isfile(src_file))) :
                         continue
                     if f.endswith(src_suffix):
-                        basename = f[:-len(src_suffix)]
+                        base_name = f[:-len(src_suffix)]
                     elif f.endswith(src_suffix + ".gz"):
-                        basename = f[:-len(src_suffix) - 3]
+                        base_name = f[:-len(src_suffix) - 3]
                     else:
                         continue
 
                     # Check all directions are present and aligned
                     # Return opened files and line count
-                    files, size = _countLines(os.path.join(root,basename))
+                    files, size = _count_lines(os.path.join(root, base_name))
                     # Returns 0 if all files do not exist, cannot be aligned or empty
                     if (size == 0) :
                         for f in files :
@@ -101,7 +101,7 @@ def sample(config, source_dir):
                         continue
 
                     # build file structure
-                    allfiles.append(SamplerFile(root, basename, files, size))
+                    all_files.append(SamplerFile(root, base_name, files, size))
 
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
@@ -116,10 +116,10 @@ def sample(config, source_dir):
                             weight = float(weight)
                         if len(rule) > 2:
                             extra = rule[2]
-                        if pattern == '*' or re.search(pattern, basename):
+                        if pattern == '*' or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
-                            allfiles[-1]._weight = w
+                            all_files[-1]._weight = w
                             if not isinstance(weight, six.string_types):
                                 if d_idx_pattern not in pattern_sizes:
                                     pattern_weights_sum += float(weight)
@@ -128,10 +128,10 @@ def sample(config, source_dir):
                                     pattern_sizes[d_idx_pattern] += size
                             break
 
-        return allfiles, pattern_weights_sum, pattern_sizes
+        return all_files, pattern_weights_sum, pattern_sizes
 
 
-    def _selectLines(f):
+    def _select_lines(f):
 
         sample_unique = True if 'data' not in config or 'sample_unique' not in config['data'] \
                         else config['data']['sample_unique']
@@ -141,19 +141,19 @@ def sample(config, source_dir):
         # Unique sampling, duplicates only if oversampling.
         if not gsample or sample_unique:
             # Minimal number of occurences for each line.
-                # 1  if full sample (linekept == linecount or no gsample)
-                # >1 if oversampling (linekept > linecount)
-                # 0  if undersampling (linekept < linecount)
-            min_occurrence = not gsample or int(f._linekept/f._linecount)
+                # 1  if full sample (lines_kept == lines_count or no gsample)
+                # >1 if oversampling (lines_kept > lines_count)
+                # 0  if undersampling (lines_kept < lines_count)
+            min_occurrence = not gsample or int(f._lines_kept/f._lines_count)
 
             if min_occurrence:
-                random_sample = {i:min_occurrence for i in range(f._linecount)}
+                random_sample = {i:min_occurrence for i in range(f._lines_count)}
 
             # Randomly sampled additional occurences.
             if gsample:
                 # Robert Floyd's algorithm for sampling without replacement.
-                sampling_size = int(f._linekept - min_occurrence * f._linecount)
-                for d in range (f._linecount - sampling_size, f._linecount):
+                sampling_size = int(f._lines_kept - min_occurrence * f._lines_count)
+                for d in range (f._lines_count - sampling_size, f._lines_count):
                     t = random.randint(0, d)
                     if t not in random_sample or random_sample[t] == min_occurrence:
                         random_sample[t] = random_sample.get(t, 0) + 1
@@ -162,8 +162,8 @@ def sample(config, source_dir):
 
         # Simple random sampling, possibly with duplicates.
         else:
-            for _ in range(f._linekept):
-                i = random.randint(0, f._linecount - 1)
+            for _ in range(f._lines_kept):
+                i = random.randint(0, f._lines_count - 1)
                 random_sample[i] = random_sample.get(i, 0) + 1
 
         f._random_sample = random_sample
@@ -191,7 +191,7 @@ def sample(config, source_dir):
     assert isinstance(sample_dist, list), "sample_dist json should be a list"
 
     # Find all consistent files in the directory.
-    allfiles, pattern_weights_sum, pattern_sizes = _discover_files()
+    all_files, pattern_weights_sum, pattern_sizes = _discover_files()
 
     # In strict mode, check that all patterns have been triggered
     if 'data' in config and 'mode_strict' in config['data'] and config['data']['mode_strict']:
@@ -207,16 +207,16 @@ def sample(config, source_dir):
     weights_sum = 0
     weights_size = 0
     reserved_sample = 0
-    basenames = set()
-    for f in allfiles:
+    base_names = set()
+    for f in all_files:
         if hasattr(f, "_weight") and f._weight is not None:
-            if f._basename in basenames:
+            if f._base_name in base_names:
                 # Different paths in distribution produced files with the same name.
                 # This is not allowed since we write output files in the same folder.
-                raise RuntimeError('Two files with the same name %s where sampled.' % f._basename)
+                raise RuntimeError('Two files with the same name %s where sampled.' % f._base_name)
             else:
-                basenames.add(f._basename)
-            linecount = f._linecount
+                base_names.add(f._base_name)
+            lines_count = f._lines_count
             pattern = f._weight["pattern"]
             weight = f._weight["weight"]
             if isinstance(weight, six.string_types):
@@ -225,48 +225,48 @@ def sample(config, source_dir):
                 if not m :
                     raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (weight, pattern))
                 oversample = int(m.groups()[0]) if m.groups()[0] else 1
-                reserved_sample += linecount * oversample
+                reserved_sample += lines_count * oversample
             else:
-                file_weight = float(linecount) / pattern_sizes[pattern]
+                file_weight = float(lines_count) / pattern_sizes[pattern]
                 pattern_weight = float(f._weight["weight"]) / pattern_weights_sum
                 f._weight["weight"] = file_weight * pattern_weight
                 weights_sum += f._weight["weight"]
                 weights_size += 1
         else:
-            logger.debug('No rules matching %s', f._basename)
+            logger.debug('No rules matching %s', f._base_name)
 
-    # Calculate the number of lines to keep using weights and linecounts, select lines randomly.
+    # Calculate the number of lines to keep using weights and lines_counts, select lines randomly.
     distribute = max(0, gsample - reserved_sample)
     metadata = {}
     summary = {}
     leftover = 0.0
-    for f in allfiles:
+    for f in all_files:
         extra, pattern = None, None
-        f._linekept = 0
+        f._lines_kept = 0
         if hasattr(f, "_weight") and f._weight is not None:
             extra = f._weight["extra"]
             pattern = f._weight["pattern"]
             weight = f._weight["weight"]
-            linekept = f._linecount
+            lines_kept = f._lines_count
             if gsample and not isinstance(weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (weight / weights_sum)
                 leftover += res - int(res)
-                linekept = int(res)
+                lines_kept = int(res)
                 if leftover > 1.0 :
-                    linekept += 1
+                    lines_kept += 1
                     leftover -= 1.0
                 if weights_size == 0 and leftover > 0.5 :
-                    linekept += 1
+                    lines_kept += 1
 
-            f._linekept = linekept
-        summary[f._basename] = {
-            "linecount" : f._linecount,
-            "linesampled" : f._linekept,
+            f._lines_kept = lines_kept
+        summary[f._base_name] = {
+            "lines_count" : f._lines_count,
+            "lines_sampled" : f._lines_kept,
             "pattern" : pattern
         }
-        metadata[f._basename] = extra
+        metadata[f._base_name] = extra
 
-        _selectLines(f)
+        _select_lines(f)
 
-    return allfiles, summary, metadata
+    return all_files, summary, metadata
