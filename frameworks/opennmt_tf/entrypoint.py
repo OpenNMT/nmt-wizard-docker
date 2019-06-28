@@ -110,7 +110,10 @@ class OpenNMTTFFramework(Framework):
         return process, info
 
     def forward_request(self, batch_inputs, info, timeout=None):
-        channel = grpc.insecure_channel("localhost:%s" % info['port'])
+        max_message_length = int(os.getenv('GRPC_MAX_MESSAGE_LENGTH', 100 * 1024 * 1024))  # 100MB
+        channel = grpc.insecure_channel("localhost:%s" % info['port'], options=[
+            ('grpc.max_send_message_length', max_message_length),
+            ('grpc.max_receive_message_length', max_message_length)])
         stub = prediction_service_pb2_grpc.PredictionServiceStub(channel)
 
         max_length = max(len(src) for src in batch_inputs)

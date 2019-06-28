@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import print_function
 import os
 import re
@@ -44,6 +45,8 @@ class ScoreUtility(Utility):
                                   help='Lang ID')
         parser_score.add_argument('-tok', '--tok_config',
                                   help='Configuration for tokenizer')
+        parser_score.add_argument('-ph', '--keep_placeholder', action="store_true",
+                                  help='Remove placeholder by default')
         parser_score.add_argument('-m', '--metrics', default=['BLEU', 'Otem-Utem', 'NIST'], nargs='+',
                                   help='Specify metrics to evaluate, by default ignore TER and METEOR')
 
@@ -67,6 +70,14 @@ class ScoreUtility(Utility):
         if 'sp_nbest_size' in tok_config:
             tok_config['sp_nbest_size'] = 0
         return tokenizer.build_tokenizer(tok_config)
+
+    def remove_ph(self, filename):
+        outfile = tempfile.NamedTemporaryFile(delete=False)
+        with open(filename, 'r') as input_file, open(outfile.name, 'w') as output_file:
+            for line in input_file:
+                line = re.sub(r"｟.+?：(.+?)｠", r'\1', line)
+                output_file.write(line)
+        return outfile.name
 
     def tokenize_files(self, file_list, lang_tokenizer):
         outfile_group = []
@@ -131,20 +142,13 @@ class ScoreUtility(Utility):
 
         otem_utem_score = {'OTEM': 0, 'UTEM': 0}
         result = self.exec_command_with_timeout(['/usr/bin/python',
-                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-otem.py'),
+                                            os.path.join(self._tools_dir, 'Otem-Utem', 'metric.py'),
                                             tgtfile,
                                             reffile_prefix])
-        otem = re.match(r"^OTEM\s=\s([\d\.]+),", result.decode('ascii'))
+        otem = re.match(r"^OTEM-2/UTEM-4/BLEU-4: ([\d\.]+)/([\d\.]+)/([\d\.]+)", result.decode('ascii'))
         if otem is not None:
             otem_utem_score['OTEM'] = float(otem.group(1))
-
-        result = self.exec_command_with_timeout(['/usr/bin/python',
-                                            os.path.join(self._tools_dir, 'Otem-Utem', 'multi-utem.py'),
-                                            tgtfile,
-                                            reffile_prefix])
-        utem = re.match(r"^UTEM\s=\s([\d\.]+),", result.decode('ascii'))
-        if utem is not None:
-            otem_utem_score['UTEM'] = float(utem.group(1))
+            otem_utem_score['UTEM'] = float(otem.group(2))
 
         for idx in range(len(reffile)):
             os.remove('%s%d' % (reffile_prefix, idx))
@@ -230,6 +234,9 @@ class ScoreUtility(Utility):
             list_ref_files = list_ref[i].split(',')
             if not self.check_file_exist([output] + list_ref_files):
                 continue
+
+            if not args.keep_placeholder:
+                output = self.remove_ph(output)
 
             output_tok = self.tokenize_files([output], lang_tokenizer)
             reffile_tok = self.tokenize_files(list_ref_files, lang_tokenizer)

@@ -1,7 +1,2 @@
-boto3
 flask
-paramiko
-pyonmttok==1.*
 pyyaml
-requests
-scp

@@ -263,13 +263,14 @@ The `timeout` and `max_batch_size` values can be overriden for each request.
         "config": {}
     },
     "src": [
-        {"text": "Source sentence 1", "config": {}},
-        {"text": "Source sentence 2", "config": {}}
+        {"text": "Source sentence 1", "config": {}, "options": {}},
+        {"text": "Source sentence 2", "config": {}, "options": {}}
     ]
 }
 ```
 
-The `config` fields define request-specific and sentence-specific overrides to the global configuration file.
+* The `config` fields define request-specific and sentence-specific overrides to the global configuration file.
+* The `options` fields (in `src`) define [inference options](docs/inference_options.md) to be mapped to the global configuration file.
 
 **Output:**
 
@@ -315,6 +316,7 @@ Note that the `score` and `align` fields might not be set by all frameworks and 
   * The input data is not a JSON object.
   * The input data does not contain the `src` field.
   * The `src` field is not a list.
+  * The inference option is unexpected or invalid
 * **HTTP 503**
   * The backend service is unavailable.
 * **HTTP 504**

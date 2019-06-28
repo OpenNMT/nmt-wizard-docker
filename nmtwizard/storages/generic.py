@@ -103,8 +103,9 @@ class Storage(object):
                 list_remote_files = self.listdir(remote_path, recursive=True)
                 for f in list_remote_files:
                     internal_path = self._internal_path(f)
-                    assert internal_path.startswith(remote_path)
-                    subpath = internal_path[len(remote_path)+1:]
+                    norm_path = os.path.normpath(remote_path)
+                    assert internal_path.startswith(norm_path)
+                    subpath = internal_path[len(norm_path)+1:]
                     path = os.path.join(local_path, subpath)
                     if f.endswith('/'):
                         if not os.path.isdir(path):

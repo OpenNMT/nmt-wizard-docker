@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import pytest
 import os
 import tempfile
@@ -83,8 +85,11 @@ class DummyFramework(Framework):
         model_dir = os.path.join(self._output_dir, "model")
         return DummyCheckpoint(model_dir).build(index)
 
-    def trans(self, *args, **kwargs):
-        pass
+    def trans(self, config, model_path, input_path, output_path, gpuid=None):
+        # Reverse the input.
+        with open(input_path) as input_file, open(output_path, "w") as output_file:
+            for line in input_file:
+                output_file.write(" ".join(reversed(line.split())))
 
     def release(self, config, model_path, optimization_level=None, gpuid=0):
         return DummyCheckpoint(model_path).objects()
@@ -309,6 +314,50 @@ def test_release(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["tokenization"]["target"]["vocabulary"])))
 
+def test_release_change_file(tmpdir):
+    _run_framework(tmpdir, "model0", "train", config=config_base)
+
+    new_vocab = "vocab.src"
+    with open(str(tmpdir.join(new_vocab)), "w") as vocab_src:
+        vocab_src.write("0\n")
+    override = {"tokenization": {"source": {"vocabulary": "${TMP_DIR}/%s" % new_vocab}}}
+    _run_framework(tmpdir, "release0", "release",
+                   parent="model0", config=override,
+                   env={"TMP_DIR": str(tmpdir)})
+    model_dir = str(tmpdir.join("models").join("model0_release"))
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_vocab
+    assert os.path.isfile(
+        os.path.join(model_dir, os.path.basename(config["tokenization"]["source"]["vocabulary"])))
+
+def test_release_with_inference_options(tmpdir):
+    config = copy.deepcopy(config_base)
+    config["preprocess"] = {"domain": {"some_training_field": {}}}
+    config["inference_options"] = {
+        "json_schema": {
+            "type": "object",
+            "properties": {
+                "domain": {
+                    "type": "string",
+                    "title": "Domain",
+                    "enum": ["IT", "News"]
+                }
+            }
+        },
+        "options": [{
+            "option_path": "domain",
+            "config_path": "preprocess/domain"
+        }]
+    }
+    _run_framework(tmpdir, "model0", "train", config=config)
+    _run_framework(tmpdir, "release0", "release", parent="model0")
+    model_dir = str(tmpdir.join("models").join("model0_release"))
+    options_path = os.path.join(model_dir, "options.json")
+    assert os.path.exists(options_path)
+    with open(options_path) as options_file:
+        schema = json.load(options_file)
+        assert schema == config["inference_options"]["json_schema"]
+
 def test_integrity_check(tmpdir):
     model_dir = _run_framework(tmpdir, "model0", "train", config=config_base)
     DummyCheckpoint(model_dir).corrupt()
@@ -344,3 +393,32 @@ def test_preprocess_train_chain(tmpdir):
     assert config["modelType"] == "checkpoint"
     assert not os.path.isdir(os.path.join(model_dir, "data"))
     assert DummyCheckpoint(model_dir).index() == 1
+
+def _test_translation(tmpdir, text, args=None, filename="test"):
+    output_dir = tmpdir.join("output")
+    output_dir.ensure(dir=1)
+    output_path = str(output_dir.join("%s.de" % filename))
+    input_path = str(tmpdir.join("%s.en" % filename))
+    with open(input_path, "w") as input_file:
+        input_file.write("%s\n" % text)
+    if args is None:
+        args = []
+    args.extend(["--copy_source", "-i", input_path, "-o", output_path])
+    _run_framework(tmpdir, "model0", "train", config=config_base)
+    _run_framework(tmpdir, "model0_trans", "trans %s" % " ".join(args), parent="model0")
+    copied_input_path = str(output_dir.join(os.path.basename(input_path)))
+    with open(output_path) as output_file:
+        target = output_file.read().strip()
+    with open(copied_input_path) as copied_input_file:
+        source = copied_input_file.read().strip()
+    return source, target
+
+def test_translation(tmpdir):
+    source, target = _test_translation(tmpdir, "Hello world!")
+    assert source == "Hello world!"
+    assert target == "! world Hello"
+
+def test_translation_no_postprocess(tmpdir):
+    source, target = _test_translation(tmpdir, "Hello world!", args=["--no_postprocess"])
+    assert source == "Hello world ￭!"
+    assert target == "￭! world Hello"

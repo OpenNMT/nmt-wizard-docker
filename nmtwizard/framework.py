@@ -18,6 +18,7 @@ from nmtwizard.utility import Utility, merge_config
 from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
 from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
+from nmtwizard import config as config_util
 from nmtwizard import serving
 from nmtwizard import tokenizer
 from nmtwizard import preprocess
@@ -216,13 +217,19 @@ class Framework(Utility):
         parser_trans.add_argument('-o', '--output', required=True, nargs='+',
                                   help='Output files')
         parser_trans.add_argument('--copy_source', default=False, action='store_true',
-                                  help='Copy source files on same storage and same name than outputs')
+                                  help=('Copy source files on same storage and same name '
+                                        'as the outputs (useful for chaining back-translation '
+                                        'trainings). By default, the original source file is '
+                                        'copied but when --no_postprocess is used, the '
+                                        'preprocessed source file is copied instead.'))
         parser_trans.add_argument('--as_release', default=False, action='store_true',
                                   help='Translate from a released model.')
         parser_trans.add_argument('--release_optimization_level', type=int, default=1,
                                   help=('Control the level of optimization applied to '
                                         'released models (for compatible frameworks). '
                                         '0 = no optimization, 1 = quantization.'))
+        parser_trans.add_argument('--no_postprocess', default=False, action='store_true',
+                                  help='Do not apply postprocessing on the target files.')
 
         parser_release = subparsers.add_parser('release', help='Release a model for serving.')
         parser_release.add_argument('-d', '--destination', default=None,
@@ -311,7 +318,8 @@ class Framework(Utility):
                 as_release=args.as_release,
                 release_optimization_level=args.release_optimization_level,
                 gpuid=self._gpuid,
-                copy_source=args.copy_source)
+                copy_source=args.copy_source,
+                no_postprocess=args.no_postprocess)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
                 raise ValueError('releasing requires a training checkpoint')
@@ -474,7 +482,8 @@ class Framework(Utility):
                       as_release=False,
                       release_optimization_level=None,
                       gpuid=0,
-                      copy_source=False):
+                      copy_source=False,
+                      no_postprocess=False):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
                 len(inputs), len(outputs)))
@@ -525,18 +534,22 @@ class Framework(Utility):
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
-                path_output = self._postprocess_file(local_config, path_input_preprocessed, path_output)
+                if not no_postprocess:
+                    path_output = self._postprocess_file(
+                        local_config, path_input_preprocessed, path_output)
 
                 if copy_source:
                     copied_input = output
                     copied_input_parts = copied_input.split('.')
+                    source_to_copy = (
+                        path_input_unzipped if not no_postprocess else path_input_preprocessed)
                     if path_output_is_zipped:
                         copied_input_parts[-2] = path_input_unzipped_parts[-1]
                         if path_input_unzipped == path_input:
-                            path_input = compress_file(path_input_unzipped)
+                            path_input = compress_file(source_to_copy)
                     else:
                         copied_input_parts[-1] = path_input_unzipped_parts[-1]
-                        path_input = path_input_unzipped
+                        path_input = source_to_copy
 
                     storage.push(path_input, ".".join(copied_input_parts))
 
@@ -577,7 +590,7 @@ class Framework(Utility):
             model_path,
             optimization_level=optimization_level,
             gpuid=gpuid)
-        extract_model_resources(objects, config)
+        bundle_dependencies(objects, config, local_config)
         model_id = config['model'] + '_release'
         config['model'] = model_id
         config['modelType'] = 'release'
@@ -585,6 +598,13 @@ class Framework(Utility):
         for name in ("parent_model", "build", "data"):
             if name in config:
                 del config[name]
+        inference_options = config.get('inference_options')
+        if inference_options is not None:
+            schema = config_util.validate_inference_options(inference_options, config)
+            options_path = os.path.join(self._output_dir, 'options.json')
+            with open(options_path, 'w') as options_file:
+                json.dump(schema, options_file)
+            objects[os.path.basename(options_path)] = options_path
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
@@ -595,7 +615,7 @@ class Framework(Utility):
         serving.start_server(
             host,
             port,
-            local_config.get('serving'),
+            local_config,
             self._serving_state(local_config),
             lambda: self.serve(local_config, model_path, gpuid=gpuid),
             self._preprocess_input,
@@ -707,7 +727,7 @@ class Framework(Utility):
             state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
         return state
 
-    def _preprocess_input(self, state, input, extra_config):
+    def _preprocess_input(self, state, input, config):
         if isinstance(input, list):
             tokens = input
         elif 'src_tokenizer' in state:
@@ -717,7 +737,7 @@ class Framework(Utility):
             tokens = input.split()
         return tokens
 
-    def _postprocess_output(self, state, source, target, extra_config):
+    def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
             text = target
         elif 'tgt_tokenizer' in state:
@@ -833,17 +853,6 @@ def bundle_dependencies(objects, config, local_config):
                 objects[m.group(2)] = local_config
                 return '${MODEL_DIR}/%s' % m.group(2)
         return config
-
-def extract_model_resources(objects, config):
-    """Returns resources included in the model directory."""
-    def _map_fn(config):
-        if isinstance(config, six.string_types):
-            m = ENVVAR_ABS_RE.match(config)
-            if m and "MODEL_DIR" in m.group(1):
-                objects[m.group(2)] = ENVVAR_RE.sub(
-                    lambda m: os.getenv(m.group(1), ''), str(config))
-        return config
-    return map_config_fn(config, _map_fn)
 
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
