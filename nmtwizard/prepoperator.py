@@ -50,8 +50,8 @@ class Loader(Prepoperator):
         # Read sampled lines from all files and build TUs.
         batch_line = 0
         while (batch_line < self._batch_size and self._current_line < self._file._linecount):
-            src_line = self._file._files[0].readline()
-            tgt_line = self._file._files[1].readline()
+            src_line = self._file._files[0].readline().strip()
+            tgt_line = self._file._files[1].readline().strip()
             if (self._current_line in self._file._random_sample):
                 while self._file._random_sample[self._current_line] and \
                       batch_line < self._batch_size:
@@ -70,17 +70,17 @@ class Writer(Prepoperator):
         # TODO : multiple files
         # TODO : do we output ALL the files that we take as input ?
         src = os.path.join(preprocess_dir, os.path.basename(f._files[0].name))
-        self._src_file_out = open(src, 'wb')
+        self._src_file_out = open(src, 'w')
 
         tgt = os.path.join(preprocess_dir, os.path.basename(f._files[1].name))
-        self._tgt_file_out = open(tgt, 'wb')
+        self._tgt_file_out = open(tgt, 'w')
 
     def __call__(self, tu_batch):
         # Write lines to files from TUs
         for tu in tu_batch :
             # Write preprocessed instead of raw
-            self._src_file_out.write(tu._src_raw)
-            self._tgt_file_out.write(tu._tgt_raw)
+            self._src_file_out.write("%s\n" % tu._src_raw)
+            self._tgt_file_out.write("%s\n" % tu._tgt_raw)
 
 
 class Tokenizer(Prepoperator):

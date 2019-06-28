@@ -28,9 +28,9 @@ def count_lines(path):
     f = None
     i = 0
     if os.path.isfile(path + ".gz"):
-        f = gzip.open(path + ".gz", 'rb')
+        f = gzip.open(path + ".gz", 'r')
     elif os.path.isfile(path):
-        f = open(path, 'rb')
+        f = open(path, 'r')
     if f is not None:
         for i, _ in enumerate(f):
             pass
@@ -144,7 +144,7 @@ def sample(config, source_dir):
                 # 1  if full sample (linekept == linecount or no gsample)
                 # >1 if oversampling (linekept > linecount)
                 # 0  if undersampling (linekept < linecount)
-            min_occurrence = int(not gsample) or f._linekept/f._linecount
+            min_occurrence = not gsample or int(f._linekept/f._linecount)
 
             if min_occurrence:
                 random_sample = {i:min_occurrence for i in range(f._linecount)}
@@ -152,7 +152,7 @@ def sample(config, source_dir):
             # Randomly sampled additional occurences.
             if gsample:
                 # Robert Floyd's algorithm for sampling without replacement.
-                sampling_size = f._linekept - min_occurrence * f._linecount
+                sampling_size = int(f._linekept - min_occurrence * f._linecount)
                 for d in range (f._linecount - sampling_size, f._linecount):
                     t = random.randint(0, d)
                     if t not in random_sample or random_sample[t] == min_occurrence:
