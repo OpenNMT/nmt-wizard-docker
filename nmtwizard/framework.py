@@ -708,8 +708,6 @@ class Framework(Utility):
         return state
 
     def _preprocess_input(self, state, input, extra_config):
-        # TODO : remove tokenization, build full preprocess pipeline
-        # state ?
         if isinstance(input, list):
             tokens = input
         elif 'src_tokenizer' in state:
@@ -720,8 +718,6 @@ class Framework(Utility):
         return tokens
 
     def _postprocess_output(self, state, source, target, extra_config):
-        # TODO : remove tokenization, build full postprocess pipeline
-        # state ?
         if not isinstance(target, list):
             text = target
         elif 'tgt_tokenizer' in state:
@@ -732,7 +728,6 @@ class Framework(Utility):
         return text
 
     def _preprocess_file(self, config, input):
-        # TODO : based on _preprocess_input + read/write from/to file
         if 'tokenization' in config:
             tok_config = config['tokenization']
             src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
@@ -742,7 +737,6 @@ class Framework(Utility):
         return input
 
     def _postprocess_file(self, config, source, target):
-        # TODO : based on _postprocess_input + read/write from/to file
         if 'tokenization' in config:
             tok_config = config['tokenization']
             tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
@@ -771,8 +765,6 @@ class Framework(Utility):
         return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
 
     def _generate_vocabularies(self, config):
-        # TODO : move to a separate module
-        # Migrate implementation from C++
         raise NotImplementedError('vocabularies generation is not supported yet')
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
