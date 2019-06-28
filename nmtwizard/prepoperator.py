@@ -1,6 +1,9 @@
+# coding: utf-8
 import six
 import abc
 import os
+
+from nmtwizard import tokenizer
 
 import tu
 
@@ -12,6 +15,7 @@ class Prepoperator(object):
     @abc.abstractmethod
     def __call__(self, tu_batch):
         raise NotImplementedError()
+
 
 class PreprocessingPipeline(Prepoperator):
 
@@ -30,6 +34,7 @@ class PreprocessingPipeline(Prepoperator):
                 if not len(tu_batch) :
                     return
             yield tu_batch
+
 
 class Loader(Prepoperator):
 
@@ -78,3 +83,33 @@ class Writer(Prepoperator):
             self._src_file_out.write(tu._src_raw)
             self._tgt_file_out.write(tu._tgt_raw)
 
+
+class Tokenizer(Prepoperator):
+
+    def __init__(self, tok_config):
+        self._src_tokenizer = 'source' in tok_config and \
+                              tokenizer.build_tokenizer(tok_config['source'])
+
+        self._tgt_tokenizer = 'target' in tok_config and \
+                              tokenizer.build_tokenizer(tok_config['target'])
+
+    def __call__(self, tu_batch):
+
+        def _tokenize(tokenizer, text):
+            words, features = tokenizer.tokenize(text)
+            output = ""
+            for i, w in enumerate(words):
+                if i:
+                    output += " "
+                output += w
+                if features:
+                    for f in features:
+                        output += "￨" + f[i]
+            return output
+
+        for tu in tu_batch :
+            if self._src_tokenizer:
+                tu._src_raw = _tokenize(self._src_tokenizer, tu._src_raw)
+
+            if self._tgt_tokenizer:
+                tu._tgt_raw = _tokenize(self._tgt_tokenizer, tu._tgt_raw)

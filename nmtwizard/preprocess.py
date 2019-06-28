@@ -58,6 +58,10 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                 # TODO : Initialize FILE-SPECIFIC preprocessor pipeline
                 # if 'preprocess' in config:
                 # pipeline.add(buildPreprocessPipeline(config['preprocess']))
+                # TODO : ultimately, tokenization should be part of the preprocess pipeline
+                if 'tokenization' in config:
+                    pipeline.add(prepoperator.Tokenizer(config['tokenization']))
+                pipeline.add(prepoperator.Writer(f, preprocess_dir))
 
                 for tu_batch in pipeline():
                     print (len(tu_batch))
