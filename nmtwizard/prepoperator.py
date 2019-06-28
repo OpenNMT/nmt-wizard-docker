@@ -5,7 +5,7 @@ import os
 
 from nmtwizard import tokenizer
 
-import tu
+from nmtwizard import tu
 
 
 @six.add_metaclass(abc.ABCMeta)
