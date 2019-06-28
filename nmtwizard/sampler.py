@@ -239,7 +239,7 @@ def sample(config, source_dir):
     distribute = max(0, gsample - reserved_sample)
     metadata = {}
     summary = {}
-    leftover = 0
+    leftover = 0.0
     for f in allfiles:
         extra, pattern = None, None
         f._linekept = 0
@@ -253,7 +253,7 @@ def sample(config, source_dir):
                 res = distribute * (weight / weights_sum)
                 leftover += res - int(res)
                 linekept = int(res)
-                if leftover >= 1 :
+                if leftover > 1.0 :
                     linekept += 1
                     leftover -= 1.0
                 if weights_size == 0 and leftover > 0.5 :
