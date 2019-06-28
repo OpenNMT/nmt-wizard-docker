@@ -253,6 +253,7 @@ def sample(config, source_dir):
                 res = distribute * (weight / weights_sum)
                 leftover += res - int(res)
                 linekept = int(res)
+                logger.info('Leftover %f for file %s', leftover, f._basename)
                 if leftover > 1.0 :
                     linekept += 1
                     leftover -= 1.0
