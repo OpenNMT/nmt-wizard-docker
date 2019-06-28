@@ -258,8 +258,6 @@ def sample(config, source_dir):
                     leftover -= 1.0
                 if weights_size == 0 and leftover > 0.5 :
                     linekept += 1
-                logger.info('Result %d, leftover %f, linekept %d for file %s', res, leftover, linekept, f._basename)
-
 
             f._linekept = linekept
         summary[f._basename] = {
