@@ -133,7 +133,7 @@ def sample(config, source_dir):
 
     def _selectLines(f):
 
-        sample_unique = True if 'sample_unique' not in config['data'] \
+        sample_unique = True if 'data' not in config or 'sample_unique' not in config['data'] \
                         else config['data']['sample_unique']
 
         random_sample = {}
@@ -183,7 +183,7 @@ def sample(config, source_dir):
     # If there is not 'sample_dist', take uniform distribution from default data directory.
     if 'data' not in config or 'sample_dist' not in config['data'] :
         sample_dist = [ {"path": source_dir,
-                         "distribution" : ["*", "1" ] } ]
+                         "distribution" : [["*", "1" ]] } ]
     else :
         sample_dist = config['data']['sample_dist']
 
@@ -194,7 +194,7 @@ def sample(config, source_dir):
     allfiles, pattern_weights_sum, pattern_sizes = _discover_files()
 
     # In strict mode, check that all patterns have been triggered
-    if 'mode_strict' in config['data'] and config['data']['mode_strict']:
+    if 'data' in config and 'mode_strict' in config['data'] and config['data']['mode_strict']:
         for d_idx, d_item in enumerate(sample_dist):
             for rule in d['distribution'] :
                 pattern = rule[0]
