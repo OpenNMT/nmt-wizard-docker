@@ -30,7 +30,7 @@ class PreprocessingPipeline(Prepoperator):
             del tu_batch[:] # TODO: Check memory usage on a big corpus
             for op in self._ops:
                 op(tu_batch)
-                if not len(tu_batch) :
+                if not tu_batch :
                     return
             yield tu_batch
 
