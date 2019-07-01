@@ -8,7 +8,7 @@ from nmtwizard import tu
 
 
 @six.add_metaclass(abc.ABCMeta)
-class Prepoperator(object):
+class Operator(object):
     """Base class for preprocessing opertators."""
 
     @abc.abstractmethod
@@ -16,7 +16,7 @@ class Prepoperator(object):
         raise NotImplementedError()
 
 
-class PreprocessingPipeline(Prepoperator):
+class PreprocessingPipeline(Operator):
 
     def __init__(self):
         self._ops = []
@@ -24,18 +24,11 @@ class PreprocessingPipeline(Prepoperator):
     def add(self, op):
         self._ops.append(op)
 
-    def __call__(self):
-        tu_batch = []
-        while True:
-            del tu_batch[:] # TODO: Check memory usage on a big corpus
-            for op in self._ops:
-                op(tu_batch)
-                if not tu_batch :
-                    return
-            yield tu_batch
+    def __call__(self, tu_batch):
+        for op in self._ops:
+            op(tu_batch)
 
-
-class Loader(Prepoperator):
+class FileLoader(object):
 
     def __init__(self, f, batch_size = 0):
 
@@ -45,23 +38,30 @@ class Loader(Prepoperator):
         self._batch_size = batch_size
         self._current_line = 0
 
-    def __call__(self, tu_batch):
+    def __call__(self):
 
-        # Read sampled lines from all files and build TUs.
-        batch_line = 0
-        while (batch_line < self._batch_size and self._current_line < self._file.lines_count):
-            src_line = self._file.files[0].readline().strip()
-            tgt_line = self._file.files[1].readline().strip()
-            if (self._current_line in self._file.random_sample):
-                while self._file.random_sample[self._current_line] and \
-                      batch_line < self._batch_size:
-                    tu_batch.append(tu.TranslationUnit(src_line, tgt_line))
-                    batch_line += 1
-                    self._file.random_sample[self._current_line] -= 1
-            self._current_line += 1
+        tu_batch = []
+        while True:
+            del tu_batch[:] # TODO: Check memory usage on a big corpus
+            # Read sampled lines from all files and build TUs.
+            batch_line = 0
+            while (batch_line < self._batch_size and self._current_line < self._file.lines_count):
+                src_line = self._file.files[0].readline().strip()
+                tgt_line = self._file.files[1].readline().strip()
+                if (self._current_line in self._file.random_sample):
+                    while self._file.random_sample[self._current_line] and \
+                          batch_line < self._batch_size:
+                        tu_batch.append(tu.TranslationUnit(src_line, tgt_line))
+                        batch_line += 1
+                        self._file.random_sample[self._current_line] -= 1
+                self._current_line += 1
+            if not tu_batch:
+                return
+
+            yield tu_batch
 
 
-class Writer(Prepoperator):
+class FileWriter(object):
 
     def __init__(self, f, preprocess_dir):
 
@@ -83,7 +83,7 @@ class Writer(Prepoperator):
             self._tgt_file_out.write("%s\n" % tu.tgt_raw)
 
 
-class Tokenizer(Prepoperator):
+class Tokenizer(Operator):
 
     def __init__(self, tok_config):
         self._src_tokenizer = 'source' in tok_config and \

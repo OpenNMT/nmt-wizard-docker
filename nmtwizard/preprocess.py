@@ -47,24 +47,25 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
         for f in all_files:
             lines_filtered = 0
             if f.lines_kept :
-                pipeline = prepoperator.PreprocessingPipeline()
 
                 # Default batch size is the whole sample size.
                 batch_size = f.lines_kept
                 if 'preprocess' in config and 'batch_size' in config['preprocess'] :
                     batch_size = config['preprocess']['batch_size']
 
-                # Loader knows where file reader is and how may lines to load at one go.
-                pipeline.add(prepoperator.Loader(f, batch_size))
+                loader = prepoperator.FileLoader(f, batch_size)
+                pipeline = prepoperator.PreprocessingPipeline()
                 # TODO : Initialize FILE-SPECIFIC preprocessor pipeline
                 # if 'preprocess' in config:
                 # pipeline.add(buildPreprocessPipeline(config['preprocess']))
                 # TODO : ultimately, tokenization should be part of the preprocess pipeline
                 if 'tokenization' in config:
                     pipeline.add(prepoperator.Tokenizer(config['tokenization']))
-                pipeline.add(prepoperator.Writer(f, preprocess_dir))
+                writer = prepoperator.FileWriter(f, preprocess_dir)
 
-                for tu_batch in pipeline():
+                for tu_batch in loader():
+                    pipeline(tu_batch)
+                    writer(tu_batch)
                     lines_filtered += len(tu_batch)
                     # TODO : parallelization
 
