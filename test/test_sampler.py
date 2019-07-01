@@ -3,6 +3,28 @@ import pytest
 from nmtwizard.preprocess import generate_preprocessed_data
 
 def test_sampler(tmpdir):
+
+    corpus_dir = tmpdir.join("corpus")
+    corpus_dir.mkdir()
+
+    def _generate_pseudo_corpus(i, name, suffix):
+        with corpus_dir.join(name+"."+suffix).open(mode='w') as f :
+            for l in range(i):
+                f.write(name + " " + str(l) + "\n")
+
+    _generate_pseudo_corpus(800, "corpus_specific1", "en")
+    _generate_pseudo_corpus(800, "corpus_specific1", "de")
+    _generate_pseudo_corpus(2000, "corpus_specific2", "en")
+    _generate_pseudo_corpus(2000, "corpus_specific2", "de")
+    _generate_pseudo_corpus(50, "generic_added", "en")
+    _generate_pseudo_corpus(50, "generic_added", "de")
+    _generate_pseudo_corpus(100, "generic_corpus", "en")
+    _generate_pseudo_corpus(100, "generic_corpus", "de")
+    _generate_pseudo_corpus(200, "IT", "en")
+    _generate_pseudo_corpus(200, "IT", "de")
+    _generate_pseudo_corpus(3000, "news_pattern", "en")
+    _generate_pseudo_corpus(3000, "news_pattern", "de")
+
     config = {
         "source": "en",
         "target": "de",
@@ -10,7 +32,7 @@ def test_sampler(tmpdir):
             "sample": 5000,
             "sample_dist": [
                 {
-                    "path": str(pytest.config.rootdir.join('corpus/train')),
+                    "path": str(corpus_dir),
                     "distribution": [
                         ["generic", 1],
                         ["specific", 5.2],
