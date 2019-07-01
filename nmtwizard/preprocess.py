@@ -46,11 +46,11 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
         num_samples = 0
         for f in all_files:
             lines_filtered = 0
-            if f._lines_kept :
+            if f.lines_kept :
                 pipeline = prepoperator.PreprocessingPipeline()
 
                 # Default batch size is the whole sample size.
-                batch_size = f._lines_kept
+                batch_size = f.lines_kept
                 if 'preprocess' in config and 'batch_size' in config['preprocess'] :
                     batch_size = config['preprocess']['batch_size']
 
@@ -68,12 +68,12 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                     lines_filtered += len(tu_batch)
                     # TODO : parallelization
 
-            if lines_filtered != f._lines_kept:
+            if lines_filtered != f.lines_kept:
                 num_samples += lines_filtered
-                summary[f._base_name]["lines_filtered"] = lines_filtered
+                summary[f.base_name]["lines_filtered"] = lines_filtered
             else:
-                num_samples += f._lines_kept
-                summary[f._base_name]["lines_filtered"] = f._lines_kept
+                num_samples += f.lines_kept
+                summary[f.base_name]["lines_filtered"] = f.lines_kept
             f.close_files()
 
         data_path = preprocess_dir

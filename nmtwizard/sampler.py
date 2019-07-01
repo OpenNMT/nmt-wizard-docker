@@ -13,14 +13,13 @@ logger = get_logger(__name__)
 
 class SamplerFile:
     """Class to store necessary information about the sampled files."""
-    def __init__(self, full_path_dir, base_name, files, lines_count = 0):
-        self._full_path_dir = full_path_dir
-        self._base_name = base_name
-        self._lines_count = lines_count
-        self._files = files
+    def __init__(self, base_name, files, lines_count = 0):
+        self.base_name = base_name
+        self.lines_count = lines_count
+        self.files = files
 
     def close_files(self) :
-        for f in self._files :
+        for f in self.files :
             if not f.closed:
                 f.close()
 
@@ -101,7 +100,7 @@ def sample(config, source_dir):
                         continue
 
                     # build file structure
-                    all_files.append(SamplerFile(root, base_name, files, size))
+                    all_files.append(SamplerFile(base_name, files, size))
 
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
@@ -119,7 +118,7 @@ def sample(config, source_dir):
                         if pattern == '*' or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
-                            all_files[-1]._weight = w
+                            all_files[-1].weight = w
                             if not isinstance(weight, six.string_types):
                                 if d_idx_pattern not in pattern_sizes:
                                     pattern_weights_sum += float(weight)
@@ -144,16 +143,16 @@ def sample(config, source_dir):
                 # 1  if full sample (lines_kept == lines_count or no gsample)
                 # >1 if oversampling (lines_kept > lines_count)
                 # 0  if undersampling (lines_kept < lines_count)
-            min_occurrence = not gsample or int(f._lines_kept/f._lines_count)
+            min_occurrence = not gsample or int(f.lines_kept/f.lines_count)
 
             if min_occurrence:
-                random_sample = {i:min_occurrence for i in range(f._lines_count)}
+                random_sample = {i:min_occurrence for i in range(f.lines_count)}
 
             # Randomly sampled additional occurences.
             if gsample:
                 # Robert Floyd's algorithm for sampling without replacement.
-                sampling_size = int(f._lines_kept - min_occurrence * f._lines_count)
-                for d in range (f._lines_count - sampling_size, f._lines_count):
+                sampling_size = int(f.lines_kept - min_occurrence * f.lines_count)
+                for d in range (f.lines_count - sampling_size, f.lines_count):
                     t = random.randint(0, d)
                     if t not in random_sample or random_sample[t] == min_occurrence:
                         random_sample[t] = random_sample.get(t, 0) + 1
@@ -162,11 +161,11 @@ def sample(config, source_dir):
 
         # Simple random sampling, possibly with duplicates.
         else:
-            for _ in range(f._lines_kept):
-                i = random.randint(0, f._lines_count - 1)
+            for _ in range(f.lines_kept):
+                i = random.randint(0, f.lines_count - 1)
                 random_sample[i] = random_sample.get(i, 0) + 1
 
-        f._random_sample = random_sample
+        f.random_sample = random_sample
 
 
     gsample = 0
@@ -209,16 +208,16 @@ def sample(config, source_dir):
     reserved_sample = 0
     base_names = set()
     for f in all_files:
-        if hasattr(f, "_weight") and f._weight is not None:
-            if f._base_name in base_names:
+        if hasattr(f, "weight") and f.weight is not None:
+            if f.base_name in base_names:
                 # Different paths in distribution produced files with the same name.
                 # This is not allowed since we write output files in the same folder.
-                raise RuntimeError('Two files with the same name %s where sampled.' % f._base_name)
+                raise RuntimeError('Two files with the same name %s where sampled.' % f.base_name)
             else:
-                base_names.add(f._base_name)
-            lines_count = f._lines_count
-            pattern = f._weight["pattern"]
-            weight = f._weight["weight"]
+                base_names.add(f.base_name)
+            lines_count = f.lines_count
+            pattern = f.weight["pattern"]
+            weight = f.weight["weight"]
             if isinstance(weight, six.string_types):
                 # Oversampling with "*N"
                 m = re.match(r"\*([0-9]*)$", weight)
@@ -228,12 +227,12 @@ def sample(config, source_dir):
                 reserved_sample += lines_count * oversample
             else:
                 file_weight = float(lines_count) / pattern_sizes[pattern]
-                pattern_weight = float(f._weight["weight"]) / pattern_weights_sum
-                f._weight["weight"] = file_weight * pattern_weight
-                weights_sum += f._weight["weight"]
+                pattern_weight = float(f.weight["weight"]) / pattern_weights_sum
+                f.weight["weight"] = file_weight * pattern_weight
+                weights_sum += f.weight["weight"]
                 weights_size += 1
         else:
-            logger.debug('No rules matching %s', f._base_name)
+            logger.debug('No rules matching %s', f.base_name)
 
     # Calculate the number of lines to keep using weights and lines_counts, select lines randomly.
     distribute = max(0, gsample - reserved_sample)
@@ -242,12 +241,12 @@ def sample(config, source_dir):
     leftover = 0.0
     for f in all_files:
         extra, pattern = None, None
-        f._lines_kept = 0
-        if hasattr(f, "_weight") and f._weight is not None:
-            extra = f._weight["extra"]
-            pattern = f._weight["pattern"]
-            weight = f._weight["weight"]
-            lines_kept = f._lines_count
+        f.lines_kept = 0
+        if hasattr(f, "weight") and f.weight is not None:
+            extra = f.weight["extra"]
+            pattern = f.weight["pattern"]
+            weight = f.weight["weight"]
+            lines_kept = f.lines_count
             if gsample and not isinstance(weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (weight / weights_sum)
@@ -259,13 +258,13 @@ def sample(config, source_dir):
                 if weights_size == 0 and leftover > 0.5 :
                     lines_kept += 1
 
-            f._lines_kept = lines_kept
-        summary[f._base_name] = {
-            "lines_count" : f._lines_count,
-            "lines_sampled" : f._lines_kept,
+            f.lines_kept = lines_kept
+        summary[f.base_name] = {
+            "lines_count" : f.lines_count,
+            "lines_sampled" : f.lines_kept,
             "pattern" : pattern
         }
-        metadata[f._base_name] = extra
+        metadata[f.base_name] = extra
 
         _select_lines(f)
 

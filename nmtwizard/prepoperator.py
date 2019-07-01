@@ -49,15 +49,15 @@ class Loader(Prepoperator):
 
         # Read sampled lines from all files and build TUs.
         batch_line = 0
-        while (batch_line < self._batch_size and self._current_line < self._file._lines_count):
-            src_line = self._file._files[0].readline().strip()
-            tgt_line = self._file._files[1].readline().strip()
-            if (self._current_line in self._file._random_sample):
-                while self._file._random_sample[self._current_line] and \
+        while (batch_line < self._batch_size and self._current_line < self._file.lines_count):
+            src_line = self._file.files[0].readline().strip()
+            tgt_line = self._file.files[1].readline().strip()
+            if (self._current_line in self._file.random_sample):
+                while self._file.random_sample[self._current_line] and \
                       batch_line < self._batch_size:
                     tu_batch.append(tu.TranslationUnit(src_line, tgt_line))
                     batch_line += 1
-                    self._file._random_sample[self._current_line] -= 1
+                    self._file.random_sample[self._current_line] -= 1
             self._current_line += 1
 
 
@@ -69,18 +69,18 @@ class Writer(Prepoperator):
 
         # TODO : multiple files
         # TODO : do we output ALL the files that we take as input ?
-        src = os.path.join(preprocess_dir, os.path.basename(f._files[0].name))
+        src = os.path.join(preprocess_dir, os.path.basename(f.files[0].name))
         self._src_file_out = open(src, 'w')
 
-        tgt = os.path.join(preprocess_dir, os.path.basename(f._files[1].name))
+        tgt = os.path.join(preprocess_dir, os.path.basename(f.files[1].name))
         self._tgt_file_out = open(tgt, 'w')
 
     def __call__(self, tu_batch):
         # Write lines to files from TUs
         for tu in tu_batch :
             # Write preprocessed instead of raw
-            self._src_file_out.write("%s\n" % tu._src_raw)
-            self._tgt_file_out.write("%s\n" % tu._tgt_raw)
+            self._src_file_out.write("%s\n" % tu.src_raw)
+            self._tgt_file_out.write("%s\n" % tu.tgt_raw)
 
 
 class Tokenizer(Prepoperator):
@@ -108,7 +108,7 @@ class Tokenizer(Prepoperator):
 
         for tu in tu_batch :
             if self._src_tokenizer:
-                tu._src_raw = _tokenize(self._src_tokenizer, tu._src_raw)
+                tu.src_raw = _tokenize(self._src_tokenizer, tu.src_raw)
 
             if self._tgt_tokenizer:
-                tu._tgt_raw = _tokenize(self._tgt_tokenizer, tu._tgt_raw)
+                tu.tgt_raw = _tokenize(self._tgt_tokenizer, tu.tgt_raw)
