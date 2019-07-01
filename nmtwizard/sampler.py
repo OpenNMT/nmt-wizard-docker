@@ -11,7 +11,7 @@ from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
-class SamplerFile:
+class SamplerFile(object):
     """Class to store necessary information about the sampled files."""
     def __init__(self, base_name, files, lines_count = 0):
         self.base_name = base_name
