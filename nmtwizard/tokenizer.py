@@ -53,3 +53,12 @@ def tokenize_directory(input_dir,
         input_file = os.path.join(input_dir, f)
         output_file = os.path.join(output_dir, f)
         tokenize_file(tokenizer, input_file, output_file)
+
+def tokenize(tokenizer, text):
+    words,_ = tokenizer.tokenize(text)
+    output = ""
+    for i, w in enumerate(words):
+        if i:
+            output += " "
+        output += w
+    return output

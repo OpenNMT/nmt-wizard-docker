@@ -94,21 +94,9 @@ class Tokenizer(Prepoperator):
 
     def __call__(self, tu_batch):
 
-        def _tokenize(tokenizer, text):
-            words, features = tokenizer.tokenize(text)
-            output = ""
-            for i, w in enumerate(words):
-                if i:
-                    output += " "
-                output += w
-                if features:
-                    for f in features:
-                        output += "￨" + f[i]
-            return output
-
         for tu in tu_batch :
             if self._src_tokenizer:
-                tu.src_raw = _tokenize(self._src_tokenizer, tu.src_raw)
+                tu.src_raw = tokenizer.tokenize(self._src_tokenizer, tu.src_raw)
 
             if self._tgt_tokenizer:
-                tu.tgt_raw = _tokenize(self._tgt_tokenizer, tu.tgt_raw)
+                tu.tgt_raw = tokenizer.tokenize(self._tgt_tokenizer, tu.tgt_raw)
