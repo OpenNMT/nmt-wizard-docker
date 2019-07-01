@@ -82,6 +82,12 @@ class FileWriter(object):
             self._src_file_out.write("%s\n" % tu.src_raw)
             self._tgt_file_out.write("%s\n" % tu.tgt_raw)
 
+    def close_files(self):
+        if not self._src_file_out.closed:
+            self._src_file_out.close()
+        if not self._tgt_file_out.closed:
+            self._tgt_file_out.close()
+
 
 class Tokenizer(Operator):
 

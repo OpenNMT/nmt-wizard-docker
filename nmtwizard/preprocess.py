@@ -68,6 +68,8 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                     writer(tu_batch)
                     lines_filtered += len(tu_batch)
                     # TODO : parallelization
+                f.close_files()
+                writer.close_files()
 
             if lines_filtered != f.lines_kept:
                 num_samples += lines_filtered
@@ -75,7 +77,6 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
             else:
                 num_samples += f.lines_kept
                 summary[f.base_name]["lines_filtered"] = f.lines_kept
-            f.close_files()
 
         data_path = preprocess_dir
 
