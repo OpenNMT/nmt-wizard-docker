@@ -1,4 +1,5 @@
 import pytest
+import shutil
 
 from nmtwizard.preprocess import generate_preprocessed_data
 
@@ -70,3 +71,26 @@ def test_sampler(tmpdir):
                 rf_dict[line] = 1
         for l, c in rf_dict.items() :
             assert 2 <= c <= 3
+
+    shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"]["sample_dist"] = [
+        {
+            "path": str(corpus_dir),
+            "distribution": [
+                ["generic", 1],
+                ["specific", 5.2],
+                ["news.*pattern", "*2"],
+                [".*something", 1]
+            ]
+        }
+    ]
+    data_path, train_dir, num_samples, summary, metadata = \
+        generate_preprocessed_data(config, "", str(tmpdir))
+
+    assert num_samples == 6000
+    assert summary['news_pattern.']['lines_sampled'] == 6000
+    assert summary['generic_corpus.']['lines_sampled'] == 0
+    assert summary['generic_added.']['lines_sampled'] == 0
+    assert summary['corpus_specific1.']['lines_sampled'] == 0
+    assert summary['corpus_specific2.']['lines_sampled'] == 0
+    assert summary['IT.']['lines_sampled'] == 0

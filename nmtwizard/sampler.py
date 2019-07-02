@@ -218,13 +218,14 @@ def sample(config, source_dir):
             lines_count = f.lines_count
             pattern = f.weight["pattern"]
             weight = f.weight["weight"]
+            f.oversample = 1
             if isinstance(weight, six.string_types):
                 # Oversampling with "*N"
                 m = re.match(r"\*([0-9]*)$", weight)
                 if not m :
                     raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (weight, pattern))
-                oversample = int(m.groups()[0]) if m.groups()[0] else 1
-                reserved_sample += lines_count * oversample
+                if m.groups()[0]: f.oversample = int(m.groups()[0])
+                reserved_sample += lines_count * f.oversample
             else:
                 file_weight = float(lines_count) / pattern_sizes[pattern]
                 pattern_weight = float(f.weight["weight"]) / pattern_weights_sum
@@ -246,7 +247,7 @@ def sample(config, source_dir):
             extra = f.weight["extra"]
             pattern = f.weight["pattern"]
             weight = f.weight["weight"]
-            lines_kept = f.lines_count
+            lines_kept = f.lines_count * f.oversample
             if gsample and not isinstance(weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (weight / weights_sum)
