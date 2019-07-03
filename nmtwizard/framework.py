@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Shared logic and abstractions of frameworks."""
 
 import os
@@ -223,6 +224,9 @@ class Framework(Utility):
                                         'preprocessed source file is copied instead.'))
         parser_trans.add_argument('--as_release', default=False, action='store_true',
                                   help='Translate from a released model.')
+        parser_trans.add_argument('--add_bt_tag', default=False, action='store_true',
+                                  help=('Add back-translation tag to the front of the generated output. ',
+                                       'Refer to https://arxiv.org/pdf/1906.06442.pdf'))
         parser_trans.add_argument('--release_optimization_level', type=int, default=1,
                                   help=('Control the level of optimization applied to '
                                         'released models (for compatible frameworks). '
@@ -318,6 +322,7 @@ class Framework(Utility):
                 release_optimization_level=args.release_optimization_level,
                 gpuid=self._gpuid,
                 copy_source=args.copy_source,
+                add_bt_tag=args.add_bt_tag,
                 no_postprocess=args.no_postprocess)
         elif args.cmd == 'release':
             if not self._stateless and (parent_model is None or config['modelType'] != 'checkpoint'):
@@ -482,6 +487,7 @@ class Framework(Utility):
                       release_optimization_level=None,
                       gpuid=0,
                       copy_source=False,
+                      add_bt_tag=False,
                       no_postprocess=False):
         if len(inputs) != len(outputs):
             raise ValueError("Mismatch of input/output files number, got %d and %d" % (
@@ -552,6 +558,8 @@ class Framework(Utility):
 
                     storage.push(path_input, ".".join(copied_input_parts))
 
+                if add_bt_tag:
+                    post_add_bt_tag(path_output)
                 if path_output_is_zipped:
                     path_output = compress_file(path_output)
 
@@ -924,3 +932,13 @@ def decompress_file(path_input):
         with gzip.open(path_input, 'rb') as f_in, open(path_input_new, 'wb') as f_out:
             shutil.copyfileobj(f_in, f_out)
     return path_input_new
+
+def post_add_bt_tag(path_input):
+    const_bt_tag = "｟mlk_bt｠"
+
+    path_input_new = '%s.raw' % path_input
+    os.rename(path_input, path_input_new)
+
+    with open(path_input_new, 'r') as f_in, open(path_input, 'w') as f_out:
+        for line in f_in:
+            f_out.write('%s %s' % (const_bt_tag, line))
