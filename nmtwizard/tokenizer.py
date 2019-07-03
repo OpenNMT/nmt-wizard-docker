@@ -56,9 +56,5 @@ def tokenize_directory(input_dir,
 
 def tokenize(tokenizer, text):
     words,_ = tokenizer.tokenize(text)
-    output = ""
-    for i, w in enumerate(words):
-        if i:
-            output += " "
-        output += w
+    output = " ".join(words)
     return output
