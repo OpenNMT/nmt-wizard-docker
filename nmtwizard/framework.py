@@ -940,7 +940,5 @@ def post_add_bt_tag(path_input):
     os.rename(path_input, path_input_new)
 
     with open(path_input_new, 'r') as f_in, open(path_input, 'w') as f_out:
-        line = f_in.readline()
-        while line:
+        for line in f_in:
             f_out.write('%s %s' % (const_bt_tag, line))
-            line = f_in.readline()
