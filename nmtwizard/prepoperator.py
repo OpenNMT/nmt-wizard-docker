@@ -26,7 +26,8 @@ class PreprocessingPipeline(Operator):
 
     def __call__(self, tu_batch):
         for op in self._ops:
-            op(tu_batch)
+            tu_batch = op(tu_batch)
+        return tu_batch
 
 class FileLoader(object):
 
@@ -106,3 +107,5 @@ class Tokenizer(Operator):
 
             if self._tgt_tokenizer:
                 tu.tgt_raw = tokenizer.tokenize(self._tgt_tokenizer, tu.tgt_raw)
+
+        return tu_batch

@@ -64,7 +64,7 @@ def generate_preprocessed_data(config, corpus_dir, data_dir):
                 writer = prepoperator.FileWriter(f, preprocess_dir)
 
                 for tu_batch in loader():
-                    pipeline(tu_batch)
+                    tu_batch = pipeline(tu_batch)
                     writer(tu_batch)
                     lines_filtered += len(tu_batch)
                     # TODO : parallelization
