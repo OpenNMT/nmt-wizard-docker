@@ -426,4 +426,4 @@ def test_translation_no_postprocess(tmpdir):
 def test_translation_add_bt_tag(tmpdir):
     source, target = _test_translation(tmpdir, "Hello world!", args=["--add_bt_tag"])
     assert source == "Hello world!"
-    assert target == "｟mlk_bt｠ ! world Hello"
+    assert target == "｟mrk_bt｠ ! world Hello"

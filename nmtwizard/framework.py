@@ -934,7 +934,7 @@ def decompress_file(path_input):
     return path_input_new
 
 def post_add_bt_tag(path_input):
-    const_bt_tag = "｟mlk_bt｠"
+    const_bt_tag = "｟mrk_bt｠"
 
     path_input_new = '%s.raw' % path_input
     os.rename(path_input, path_input_new)
