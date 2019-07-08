@@ -71,11 +71,19 @@ class ScoreUtility(Utility):
             tok_config['sp_nbest_size'] = 0
         return tokenizer.build_tokenizer(tok_config)
 
+    def remove_ph_escape(self, obj):
+        obj = obj.group(1)
+        obj = obj.replace('％FF03', '＃')
+        obj = obj.replace('％FF1A', '?')
+        obj = obj.replace('％003F', '：')
+        obj = obj.replace('％0020', ' ')
+        return obj
+
     def remove_ph(self, filename):
         outfile = tempfile.NamedTemporaryFile(delete=False)
         with open(filename, 'r') as input_file, open(outfile.name, 'w') as output_file:
             for line in input_file:
-                line = re.sub(r"｟.+?：(.+?)｠", r'\1', line)
+                line = re.sub(r"｟.+?：(.+?)｠", self.remove_ph_escape, line)
                 output_file.write(line)
         return outfile.name
 
