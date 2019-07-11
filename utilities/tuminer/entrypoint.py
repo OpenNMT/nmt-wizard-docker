@@ -214,35 +214,37 @@ class TuminerUtility(Utility):
         return "tuminer"
 
     def declare_arguments(self, parser):
-        parser.add_argument('--mode', required=True, choices=['score', 'mine'],
+        subparsers = parser.add_subparsers(help='Run type', dest='cmd')
+        parser_miner = subparsers.add_parser('tuminer', help='Score or mine bitexts.')
+        parser_miner.add_argument('--tumode', required=True, choices=['score', 'mine'],
                             help='Tuminer mode')
-        parser.add_argument('--srclang', required=False,
+        parser_miner.add_argument('--srclang', required=False,
                             help='Source language (two-letter language code; ISO 639-1).')
-        parser.add_argument('--srcfile', required=True,
+        parser_miner.add_argument('--srcfile', required=True,
                             help='Source language file.')
-        parser.add_argument('--tgtlang', required=False,
+        parser_miner.add_argument('--tgtlang', required=False,
                             help='Target language (two-letter language code; ISO 639-1).')
-        parser.add_argument('--tgtfile', required=True,
+        parser_miner.add_argument('--tgtfile', required=True,
                             help='Target language file.')
-        parser.add_argument('--output', required=True,
+        parser_miner.add_argument('--output', required=True,
                             help='Output file.')
-        parser.add_argument('--encoding', required=False, default='utf-8',
+        parser_miner.add_argument('--encoding', required=False, default='utf-8',
                             help='Encoding of the input and output text files.')
-        parser.add_argument('--verbose', action="store_true",
+        parser_miner.add_argument('--verbose', action="store_true",
                             help="Increase output verbosity.")
-        parser.add_argument('--threshold', required=False, type=float, default=0,
+        parser_miner.add_argument('--threshold', required=False, type=float, default=0,
                             help='When in `mine` mode, threshold value for mined TUs')
-        parser.add_argument('--bpecodes', required=False, default=None,
+        parser_miner.add_argument('--bpecodes', required=False, default=None,
                             help='BPE code to be applied to both source and target files.'
                                  ' (default model provided in docker)')
-        parser.add_argument('--encoder', required=False, default=None,
+        parser_miner.add_argument('--encoder', required=False, default=None,
                             help='Multi-lingual encoder to be used to encode both source and target files.'
                                  ' (default model provided in docker)')
-        parser.add_argument('--encoderdim', required=False, default=1024,
+        parser_miner.add_argument('--encoderdim', required=False, default=1024,
                             help='Encoder output dimension')
-        parser.add_argument('--encoderbuffersize', required=False, type=int, default=10000,
+        parser_miner.add_argument('--encoderbuffersize', required=False, type=int, default=10000,
                             help='Encoder buffer size')
-        parser.add_argument('--encodermaxtokens', required=False, type=int, default=12000,
+        parser_miner.add_argument('--encodermaxtokens', required=False, type=int, default=12000,
                             help='Encoder max_token size')
 
     def exec_function(self, args):
@@ -357,13 +359,13 @@ class TuminerUtility(Utility):
                 # args.margin == 'ratio':
                 margin = lambda a, b: a / b
 
-            if args.mode == 'score':
+            if args.tumode == 'score':
                 scoreBitext(src_inds, trg_inds, x, y, x2y_mean, y2x_mean, outputF_local, args.encoding, margin)
                 self._storage.push(outputF_local, args.output)
                 statCnt, statMin, statMax, statAvg, statStddev = getScoreDist(outputF_local)
 
 
-            elif args.mode == 'mine':
+            elif args.tumode == 'mine':
                 foutSrc, foutSrc_remote = outputF_local+'.'+args.srclang, args.output+'.'+args.srclang
                 if srcF_local.endswith('.gz'):
                     foutSrc = foutSrc+'.gz'
