@@ -5,7 +5,7 @@
 
 ```bash
 (within nmt-wizard-docker top directory)
-docker build -t opennmt/tuminer ${PWD} -f utilities/tuminer/Dockerfile
+docker build -t nmtwizard/tuminer ${PWD} -f utilities/tuminer/Dockerfile
 ```
 
 
@@ -14,27 +14,19 @@ docker build -t opennmt/tuminer ${PWD} -f utilities/tuminer/Dockerfile
 ### Command line options ###
 
 ```bash
-usage: entrypoint.py [-h] [-s STORAGE_CONFIG] [-t TASK_ID] [-i IMAGE]
-                     [-b BEAT_URL] [-bi BEAT_INTERVAL]
-                     [--statistics_url STATISTICS_URL] [-ms MODEL_STORAGE]
-                     [-msr MODEL_STORAGE_READ] [-msw MODEL_STORAGE_WRITE]
-                     [-c CONFIG] [-m MODEL] [-g GPUID] [--no_push] --mode
-                     {score,mine} --srclang SRCLANG --srcfile SRCFILE
-                     --tgtlang TGTLANG --tgtfile TGTFILE --output OUTPUT
-                     [--encoding ENCODING] [--verbose] [--threshold THRESHOLD]
-                     [--bpecodes BPECODES] [--encoder ENCODER]
-                     [--encoderdim ENCODERDIM]
-                     [--encoderbuffersize ENCODERBUFFERSIZE]
-                     [--encodermaxtokens ENCODERMAXTOKENS]
+usage: entrypoint.py tuminer [-h] --tumode {score,mine} [--srclang SRCLANG]
+                             --srcfile SRCFILE [--tgtlang TGTLANG] --tgtfile
+                             TGTFILE --output OUTPUT [--encoding ENCODING]
+                             [--verbose] [--threshold THRESHOLD]
+                             [--bpecodes BPECODES] [--encoder ENCODER]
+                             [--encoderdim ENCODERDIM]
+                             [--encoderbuffersize ENCODERBUFFERSIZE]
+                             [--encodermaxtokens ENCODERMAXTOKENS]
 
 optional arguments:
   -h, --help            show this help message and exit
-  ...
-  -g GPUID, --gpuid GPUID
-                        Comma-separated list of 1-indexed GPU identifiers (0
-                        for CPU).
-  ...
-  --mode {score,mine}   Tuminer mode
+  --tumode {score,mine}
+                        Tuminer mode
   --srclang SRCLANG     Source language (two-letter language code; ISO 639-1).
   --srcfile SRCFILE     Source language file.
   --tgtlang TGTLANG     Target language (two-letter language code; ISO 639-1).
@@ -60,12 +52,13 @@ optional arguments:
 
 ```bash
 nvidia-docker run -it \
-  -v $PWD/test/corpus:/root/corpus:/corpus \
+  -v $PWD/test/corpus:/corpus \
   -v /tmp/output:/output \
-  opennmt/tuminer \
-  --mode score \
+  nmtwizard/tuminer \
+  tuminer \
+  --tumode score \
   --srclang he --srcfile /corpus/train/europarl-v7.de-en.10K.tok.de \
-  --tgtlang en --tgtfile /corpus/train/europarl-v7.de-en.10K.tok.en \ 
+  --tgtlang en --tgtfile /corpus/train/europarl-v7.de-en.10K.tok.en \
   --output /output/europarl-v7.de-en.10K.tok.deen.tuminer-score
 ```
 
