@@ -11,6 +11,7 @@ import uuid
 import six
 import sys
 import requests
+import io
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
@@ -257,7 +258,7 @@ def build_model_dir(model_dir, objects, config, check_integrity_fn):
     objects['config.json'] = config_path
     if "description" in config:
         readme_path = os.path.join(model_dir, 'README.md')
-        with open(readme_path, 'w') as readme_file:
+        with io.open(readme_path, 'w', encoding='utf-8') as readme_file:
             readme_file.write(config['description'])
         objects['README.md'] = readme_path
     md5 = md5files((k, v) for k, v in six.iteritems(objects) if check_integrity_fn(k))
