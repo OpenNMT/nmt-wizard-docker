@@ -372,6 +372,16 @@ def test_preprocess_as_model(tmpdir):
     assert os.path.isfile(os.path.join(model_dir, "data", "train.%s" % config["source"]))
     assert os.path.isfile(os.path.join(model_dir, "data", "train.%s" % config["target"]))
 
+def test_description(tmpdir):
+    description = "A description with a non ascii character: é"
+    config = copy.deepcopy(config_base)
+    config["description"] = description
+    model_dir = _run_framework(tmpdir, "train", "train", config=config)
+    readme = os.path.join(model_dir, "README.md")
+    assert os.path.exists(readme)
+    with open(readme) as readme_file:
+        assert readme_file.read().strip() == description
+
 def test_preprocess_train_chain(tmpdir):
     _run_framework(tmpdir, "preprocess0", "preprocess --build_model", config=config_base)
     model_dir = _run_framework(tmpdir, "model0", "train", parent="preprocess0")
