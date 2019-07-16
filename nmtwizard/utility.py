@@ -97,7 +97,7 @@ class Utility(object):
     """Base class for utilities."""
 
     def __init__(self):
-        self._corpus_dir = os.getenv('CORPUS_DIR', '/root/corpus')
+        self._corpus_dir = os.getenv('CORPUS_DIR')
         workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
         self._output_dir = os.path.join(workspace_dir, 'output')
         self._data_dir = os.path.join(workspace_dir, 'data')

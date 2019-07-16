@@ -47,7 +47,7 @@ class Framework(Utility):
 
         self._stateless = stateless
         self._support_multi_training_files = support_multi_training_files
-        self._models_dir = os.getenv('MODELS_DIR', '/root/models')
+        self._models_dir = os.getenv('MODELS_DIR')
         if not stateless and not os.path.exists(self._models_dir):
             os.makedirs(self._models_dir)
 
