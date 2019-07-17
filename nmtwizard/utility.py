@@ -12,6 +12,7 @@ import six
 import sys
 import requests
 import io
+import tempfile
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
@@ -102,15 +103,13 @@ class Utility(object):
         self._output_dir = os.path.join(workspace_dir, 'output')
         self._data_dir = os.path.join(workspace_dir, 'data')
         self._shared_dir = os.path.join(workspace_dir, 'shared')
-        self._tmp_dir = os.path.join(workspace_dir, 'tmp')
+        self._tmp_dir = tempfile.mkdtemp()
         if not os.path.exists(self._output_dir):
             os.makedirs(self._output_dir)
         if not os.path.exists(self._data_dir):
             os.makedirs(self._data_dir)
         if not os.path.exists(self._shared_dir):
             os.makedirs(self._shared_dir)
-        if not os.path.exists(self._tmp_dir):
-            os.makedirs(self._tmp_dir)
 
     @property
     @abc.abstractmethod
