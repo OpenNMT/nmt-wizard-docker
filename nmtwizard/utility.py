@@ -180,7 +180,6 @@ class Utility(object):
             interval=args.beat_interval)
 
         self._storage = StorageClient(
-            tmp_dir=self._tmp_dir,
             config=load_config(args.storage_config) if args.storage_config else None)
 
         if args.model_storage_read is None:
