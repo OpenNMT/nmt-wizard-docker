@@ -70,7 +70,7 @@ def test_storage_manager(tmpdir):
                     "post_pattern": "herepost/%s"
                 }
     }
-    storages = storage.StorageClient(config=config, tmp_dir=str(tmpdir))
+    storages = storage.StorageClient(config=config)
     s3_models_storage, path = storages._get_storage("s3_models:pathdir/mysupermodel")
     assert isinstance(s3_models_storage, storage.S3Storage)
     assert path == "pathdir/mysupermodel"
@@ -90,7 +90,7 @@ def test_storage_manager(tmpdir):
 
 
 def test_local_storage(tmpdir):
-    storages = storage.StorageClient(tmp_dir=str(tmpdir))
+    storages = storage.StorageClient()
     corpus_dir = str(pytest.config.rootdir / "corpus")
     storages.get(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"), str(tmpdir.join("localcopy")))
     assert os.path.isfile(str(tmpdir.join("localcopy")))
@@ -132,7 +132,7 @@ def test_storages(tmpdir, storages, storage_id):
         return
     corpus_dir = str(pytest.config.rootdir / "corpus")
 
-    storage_client = storage.StorageClient(tmp_dir=str(tmpdir), config=storages)
+    storage_client = storage.StorageClient(config=storages)
 
     with open(os.path.join(corpus_dir, "vocab", "en-vocab.txt"), "rb") as f:
         en_vocab = f.read()

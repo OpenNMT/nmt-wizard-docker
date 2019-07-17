@@ -25,7 +25,7 @@ Some environment variables can be set (e.g. with the `-e` flags on `docker run`)
 
 * `CORPUS_DIR` (default: `/root/corpus`): Path to the training corpus.
 * `MODELS_DIR` (default: `/root/models`): Path to the models directory.
-* `WORKSPACE_DIR` (default: `/root/workspace`): Path to the framework workspace (generated and temporary files).
+* `WORKSPACE_DIR` (default: `/root/workspace`): Path to the framework workspace.
 * `LOG_LEVEL` (default: `INFO`): the Python log level.
 
 Some frameworks may require additional environment variables, see their specific resources in `frameworks/`.

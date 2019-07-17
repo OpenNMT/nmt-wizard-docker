@@ -1,7 +1,6 @@
 """Client to abstract storage location: local, S3, SSH, etc."""
 
 import os
-import tempfile
 
 from nmtwizard.logger import get_logger
 
@@ -15,7 +14,7 @@ LOGGER = get_logger(__name__)
 class StorageClient(object):
     """Client to get and push files to a storage."""
 
-    def __init__(self, config=None, tmp_dir=None):
+    def __init__(self, config=None):
         """Initializes the client.
 
         Args:
@@ -23,7 +22,6 @@ class StorageClient(object):
             and its configuration.
         """
         self._config = config
-        self._tmp_dir = tmp_dir or tempfile.mkdtemp()
         self._storages = {}
 
     def is_managed_path(self, path):

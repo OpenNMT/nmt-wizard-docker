@@ -12,6 +12,7 @@ import six
 import sys
 import requests
 import io
+import tempfile
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
@@ -97,20 +98,21 @@ class Utility(object):
     """Base class for utilities."""
 
     def __init__(self):
-        self._corpus_dir = os.getenv('CORPUS_DIR', '/root/corpus')
+        self._corpus_dir = os.getenv('CORPUS_DIR')
         workspace_dir = os.getenv('WORKSPACE_DIR', '/root/workspace')
         self._output_dir = os.path.join(workspace_dir, 'output')
         self._data_dir = os.path.join(workspace_dir, 'data')
         self._shared_dir = os.path.join(workspace_dir, 'shared')
-        self._tmp_dir = os.path.join(workspace_dir, 'tmp')
-        if not os.path.exists(self._output_dir):
-            os.makedirs(self._output_dir)
-        if not os.path.exists(self._data_dir):
-            os.makedirs(self._data_dir)
-        if not os.path.exists(self._shared_dir):
-            os.makedirs(self._shared_dir)
-        if not os.path.exists(self._tmp_dir):
-            os.makedirs(self._tmp_dir)
+        self._tmp_dir = tempfile.mkdtemp()
+        try:
+            if not os.path.exists(self._output_dir):
+                os.makedirs(self._output_dir)
+            if not os.path.exists(self._data_dir):
+                os.makedirs(self._data_dir)
+            if not os.path.exists(self._shared_dir):
+                os.makedirs(self._shared_dir)
+        except OSError:
+            pass
 
     @property
     @abc.abstractmethod
@@ -180,7 +182,6 @@ class Utility(object):
             interval=args.beat_interval)
 
         self._storage = StorageClient(
-            tmp_dir=self._tmp_dir,
             config=load_config(args.storage_config) if args.storage_config else None)
 
         if args.model_storage_read is None:
