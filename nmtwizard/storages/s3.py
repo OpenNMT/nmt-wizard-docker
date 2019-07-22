@@ -18,15 +18,21 @@ class S3Storage(Storage):
                  region_name=None, assume_role=None, transfer_config=None):
         super(S3Storage, self).__init__(storage_id)
         if assume_role is not None:
-            session_main = boto3.Session(
-                aws_access_key_id=access_key_id,
-                aws_secret_access_key=secret_access_key,
-                region_name=region_name)
-            client_sts = boto3.client('sts')
-            response_assumeRole = client.assume_role(RoleArn=assume_role)
-            session = Session(aws_access_key_id=response['Credentials']['AccessKeyId'],
-                              aws_secret_access_key=response['Credentials']['SecretAccessKey'],
-                              aws_session_token=response['Credentials']['SessionToken'])
+            if not assume_role.get('role_arn') or not assume_role.get('role_session_name'):
+                raise ValueError('invalid "assume_role" configuration: "role_arn" and "role_session_name" are required')
+            session_duration = 3600
+            if assume_role.get('session_duration') is not None:
+                session_duration = assume_role.get('session_duration')
+            sts_client = boto3.client('sts',
+                                      aws_access_key_id=access_key_id,
+                                      aws_secret_access_key=secret_access_key,
+                                      region_name=region_name)
+            response_assume_role = sts_client.assume_role(RoleArn=assume_role.get('role_arn'),
+                                                          RoleSessionName=assume_role.get('role_session_name'),
+                                                          DurationSeconds=session_duration)
+            session = boto3.Session(aws_access_key_id=response_assume_role['Credentials']['AccessKeyId'],
+                                    aws_secret_access_key=response_assume_role['Credentials']['SecretAccessKey'],
+                                    aws_session_token=response_assume_role['Credentials']['SessionToken'])
         else:
             session = boto3.Session(
                 aws_access_key_id=access_key_id,
