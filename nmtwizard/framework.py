@@ -12,6 +12,7 @@ import re
 import six
 import gzip
 import shutil
+import collections
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample
@@ -359,6 +360,7 @@ class Framework(Utility):
                     self._image,
                     parent_model=parent_model,
                     model_path=model_path,
+                    model_config=model_config,
                     push_model=not self._no_push)
 
     def train_wrapper(self,
@@ -383,9 +385,17 @@ class Framework(Utility):
             if model_config is not None else None)
 
         src_vocab_info = self._get_vocab_info(
-            'source', config, local_config, model_config=local_model_config)
+            'source',
+            config,
+            local_config,
+            model_config=model_config,
+            local_model_config=local_model_config)
         tgt_vocab_info = self._get_vocab_info(
-            'target', config, local_config, model_config=local_model_config)
+            'target',
+            config,
+            local_config,
+            model_config=model_config,
+            local_model_config=local_model_config)
 
         if parent_model_type == 'preprocess':
             train_dir = 'data'
@@ -650,11 +660,37 @@ class Framework(Utility):
                               image,
                               parent_model=None,
                               model_path=None,
+                              model_config=None,
                               push_model=True):
         logger.info('Starting preprocessing %s', model_id)
         start_time = time.time()
 
         local_config = self._finalize_config(config)
+        parent_dependencies = {}
+        if model_config is not None:
+            local_model_config = self._finalize_config(model_config)
+            bundle_dependencies(
+                parent_dependencies,
+                copy.deepcopy(model_config),
+                copy.deepcopy(local_model_config))
+        else:
+            local_model_config = None
+
+        _ = self._get_vocab_info(
+            'source',
+            config,
+            local_config,
+            model_config=model_config,
+            local_model_config=local_model_config,
+            keep_previous=True)
+        _ = self._get_vocab_info(
+            'target',
+            config,
+            local_config,
+            model_config=model_config,
+            local_model_config=local_model_config,
+            keep_previous=True)
+
         data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
             self._generate_training_data(local_config))
         if num_samples == 0:
@@ -689,10 +725,10 @@ class Framework(Utility):
         # Build and push the model package.
         objects = {'data': data_dir}
         bundle_dependencies(objects, config, local_config)
-        # Forward other files from the parent model.
+        # Forward other files from the parent model that are not tracked by the config.
         if model_path is not None:
             for f in os.listdir(model_path):
-                if f not in objects:
+                if f not in objects and f not in parent_dependencies:
                     objects[f] = os.path.join(model_path, f)
         objects_dir = os.path.join(self._models_dir, model_id)
         build_model_dir(objects_dir, objects, config, should_check_integrity)
@@ -702,30 +738,54 @@ class Framework(Utility):
             'num_sentences': build_info.get('sentenceCount')
         }
 
-    def _get_vocab_info(self, side, config, local_config, model_config=None):
-        if config.get('tokenization', {}).get(side, {}).get('vocabulary') is None:
+    def _get_vocab_info(self,
+                        side,
+                        config,
+                        local_config,
+                        model_config=None,
+                        local_model_config=None,
+                        keep_previous=False):
+        opt = config.get('tokenization', {}).get(side)
+        if opt is None or 'vocabulary' not in opt:
             return None
+        local_opt = local_config['tokenization'][side]
+
+        current_basename = '%s-vocab.txt' % side
         current_vocab = self._convert_vocab(
-            local_config['tokenization'][side]['vocabulary'],
-            basename='%s-vocab.txt' % side)
-        model_vocab = None
-        vocab_changed = False
-        if model_config is not None:
-            model_vocab = self._convert_vocab(
-                model_config['tokenization'][side]['vocabulary'],
-                basename='model-%s-vocab.txt' % side)
-            vocab_changed = not filecmp.cmp(model_vocab, current_vocab)
-            if vocab_changed and not config['tokenization'][side].get('replace_vocab', False):
-                raise ValueError('%s vocabulary has changed but replace_vocab is not set.'
-                                 % side.capitalize())
-        if 'replace_vocab' in config['tokenization'][side]:
-            del config['tokenization'][side]['replace_vocab']
-            del local_config['tokenization'][side]['replace_vocab']
-        return {
-            'current': current_vocab,
-            'model': model_vocab,
-            'changed': vocab_changed
-        }
+            local_opt['vocabulary'], basename=current_basename)
+
+        # First read previous_vocabulary if given.
+        previous_basename = 'previous-%s-vocab.txt' % side
+        previous_vocab = local_opt.get('previous_vocabulary')
+        if previous_vocab is not None:
+            previous_vocab = self._convert_vocab(
+                previous_vocab, basename=previous_basename)
+            del opt['previous_vocabulary']
+            del local_opt['previous_vocabulary']
+        # Otherwise check if the vocabulary is different than the parent model.
+        elif model_config is not None:
+            model_opt = model_config['tokenization'][side]
+            local_model_opt = local_model_config['tokenization'][side]
+            previous_vocab = self._convert_vocab(
+                local_model_opt['vocabulary'], basename=previous_basename)
+            vocab_changed = not filecmp.cmp(previous_vocab, current_vocab)
+            if vocab_changed:
+                if not opt.get('replace_vocab', False):
+                    raise ValueError('%s vocabulary has changed but replace_vocab is not set.'
+                                     % side.capitalize())
+                if keep_previous:
+                    opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
+                    local_opt['previous_vocabulary'] = local_model_opt['vocabulary']
+            else:
+                os.remove(previous_vocab)
+                previous_vocab = None
+
+        if 'replace_vocab' in opt:
+            del opt['replace_vocab']
+            del local_opt['replace_vocab']
+
+        VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
+        return VocabInfo(current=current_vocab, previous=previous_vocab)
 
     def _serving_state(self, config):
         state = {}

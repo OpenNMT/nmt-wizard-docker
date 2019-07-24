@@ -6,6 +6,7 @@ import tempfile
 import shutil
 import json
 import copy
+import filecmp
 import six
 
 from nmtwizard.framework import Framework
@@ -55,12 +56,30 @@ class DummyCheckpoint(object):
                 model_file.write(content)
         return self.objects()
 
-class DummyFramework(Framework):
-    """Dummy framework for testing."""
+
+class _TestFramework(Framework):
 
     def _map_vocab_entry(self, index, token, converted_vocab):
         converted_vocab.write(token)
         converted_vocab.write(b"\n")
+
+    def train(self, *args, **kwargs):
+        pass
+
+    def trans(self, *args, **kwargs):
+        pass
+
+    def release(self, *args, **kwargs):
+        pass
+
+    def serve(self, *args, **kwargs):
+        pass
+
+    def forward_request(self, *args, **kwargs):
+        pass
+
+class DummyFramework(_TestFramework):
+    """Dummy framework for testing."""
 
     def train(self,
               config,
@@ -94,12 +113,44 @@ class DummyFramework(Framework):
     def release(self, config, model_path, optimization_level=None, gpuid=0):
         return DummyCheckpoint(model_path).objects()
 
-    def serve(self, *args, **kwargs):
-        pass
+class ReplaceVocabChecker(_TestFramework):
 
-    def forward_request(self, *args, **kwargs):
-        pass
+    def __init__(self, src_changed=False, tgt_changed=False):
+        super(ReplaceVocabChecker, self).__init__()
+        self.src_changed = src_changed
+        self.tgt_changed = tgt_changed
 
+    def train(self,
+              config,
+              src_file,
+              tgt_file,
+              src_vocab_info,
+              tgt_vocab_info,
+              align_file=None,
+              model_path=None,
+              gpuid=0):
+        assert os.path.exists(src_vocab_info.current)
+        assert os.path.exists(tgt_vocab_info.current)
+        if self.src_changed:
+            assert src_vocab_info.previous is not None
+            assert os.path.exists(src_vocab_info.previous)
+            assert not filecmp.cmp(
+                src_vocab_info.current, src_vocab_info.previous, shallow=False)
+        else:
+            assert src_vocab_info.previous is None
+        if self.tgt_changed:
+            assert tgt_vocab_info.previous is not None
+            assert os.path.exists(tgt_vocab_info.previous)
+            assert not filecmp.cmp(
+                tgt_vocab_info.current, tgt_vocab_info.previous, shallow=False)
+        else:
+            assert tgt_vocab_info.previous is None
+        model_dir = os.path.join(self._output_dir, "model")
+        os.makedirs(model_dir)
+        checkpoint_path = os.path.join(model_dir, "checkpoint.txt")
+        with open(checkpoint_path, "w") as checkpoint:
+            checkpoint.write("5")
+        return {os.path.basename(checkpoint_path): checkpoint_path}
 
 config_base = {
     "source": "en",
@@ -141,7 +192,8 @@ def _run_framework(tmpdir,
                    auto_ms=True,
                    corpus_env=True,
                    env=None,
-                   storage_config=None):
+                   storage_config=None,
+                   framework_fn=None):
     base_environ = os.environ.copy()
     os.environ["MODELS_DIR"] = str(tmpdir.join("models"))
     os.environ["WORKSPACE_DIR"] = str(tmpdir.join("workspace"))
@@ -161,12 +213,19 @@ def _run_framework(tmpdir,
     if isinstance(args, six.string_types):
         args = args.split(" ")
     full_args += args
-    DummyFramework().run(args=full_args)
+    if framework_fn is None:
+        framework = DummyFramework()
+    else:
+        framework = framework_fn()
+    framework.run(args=full_args)
     _clear_workspace(tmpdir)
     model_dir = os.path.join(os.environ["MODELS_DIR"], task_id)
     os.environ.clear()
     os.environ.update(base_environ)
     return model_dir
+
+def _check_dir(directory, files):
+    assert sorted(os.listdir(directory)) == sorted(files)
 
 
 def test_train(tmpdir):
@@ -403,6 +462,129 @@ def test_preprocess_train_chain(tmpdir):
     assert config["modelType"] == "checkpoint"
     assert not os.path.isdir(os.path.join(model_dir, "data"))
     assert DummyCheckpoint(model_dir).index() == 1
+
+def test_replace_vocab(tmpdir):
+    _run_framework(
+        tmpdir,
+        "model0",
+        "train",
+        config=config_base,
+        framework_fn=ReplaceVocabChecker)
+    new_src_vocab = "new_src_vocab.txt"
+    new_tgt_vocab = "new_tgt_vocab.txt"
+    tmpdir.join(new_src_vocab).write("hello\n")
+    tmpdir.join(new_tgt_vocab).write("hallo\n")
+    config = {"tokenization": {
+        "source": {"vocabulary": "${TMP_DIR}/%s" % new_src_vocab},
+        "target": {"vocabulary": "${TMP_DIR}/%s" % new_tgt_vocab}}
+    }
+    framework_fn = lambda: ReplaceVocabChecker(src_changed=True, tgt_changed=True)
+    run_fn = lambda: _run_framework(
+        tmpdir,
+        "model1",
+        "train",
+        config=config,
+        parent="model0",
+        env={"TMP_DIR": str(tmpdir)},
+        framework_fn=framework_fn)
+    with pytest.raises(ValueError) as exc:
+        run_fn()
+    assert exc.match("replace_vocab")
+    config["tokenization"]["source"]["replace_vocab"] = True
+    config["tokenization"]["target"]["replace_vocab"] = True
+    model_dir = run_fn()
+    _check_dir(model_dir, [
+        new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt", "checksum.md5"])
+    assert filecmp.cmp(
+        os.path.join(model_dir, new_src_vocab),
+        os.path.join(str(tmpdir), new_src_vocab),
+        shallow=False)
+    assert filecmp.cmp(
+        os.path.join(model_dir, new_tgt_vocab),
+        os.path.join(str(tmpdir), new_tgt_vocab),
+        shallow=False)
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_src_vocab
+    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % new_tgt_vocab
+    assert "replace_vocab" not in config["tokenization"]["target"]
+    assert "replace_vocab" not in config["tokenization"]["source"]
+    assert "previous_vocabulary" not in config["tokenization"]["target"]
+    assert "previous_vocabulary" not in config["tokenization"]["source"]
+
+def test_replace_vocab_in_preprocess(tmpdir):
+    framework_fn = lambda: ReplaceVocabChecker()
+    _ = _run_framework(
+        tmpdir,
+        "model0",
+        "train",
+        config=config_base,
+        framework_fn=framework_fn)
+    new_src_vocab = "new_src_vocab.txt"
+    new_tgt_vocab = "new_tgt_vocab.txt"
+    tmpdir.join(new_src_vocab).write("hello\n")
+    tmpdir.join(new_tgt_vocab).write("hallo\n")
+    config = {"tokenization": {
+        "source": {"vocabulary": "${TMP_DIR}/%s" % new_src_vocab, "replace_vocab": True},
+        "target": {"vocabulary": "${TMP_DIR}/%s" % new_tgt_vocab, "replace_vocab": True}}
+    }
+    model_dir = _run_framework(
+        tmpdir,
+        "preprocess1",
+        "preprocess --build_model",
+        parent="model0",
+        config=config,
+        env={"TMP_DIR": str(tmpdir)},
+        framework_fn=framework_fn)
+    _check_dir(model_dir, [
+        new_src_vocab, new_tgt_vocab, "config.json", "data", "checkpoint.txt", "checksum.md5",
+        "previous-source-vocab.txt", "previous-target-vocab.txt"])
+    assert filecmp.cmp(
+        os.path.join(model_dir, new_src_vocab),
+        os.path.join(str(tmpdir), new_src_vocab),
+        shallow=False)
+    assert filecmp.cmp(
+        os.path.join(model_dir, new_tgt_vocab),
+        os.path.join(str(tmpdir), new_tgt_vocab),
+        shallow=False)
+    assert filecmp.cmp(
+        os.path.join(model_dir, "previous-source-vocab.txt"),
+        os.path.join(_test_dir(), "corpus", "vocab", "en-vocab.txt"),
+        shallow=False)
+    assert filecmp.cmp(
+        os.path.join(model_dir, "previous-target-vocab.txt"),
+        os.path.join(_test_dir(), "corpus", "vocab", "de-vocab.txt"),
+        shallow=False)
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["previous_vocabulary"] \
+        == "${MODEL_DIR}/previous-source-vocab.txt"
+    assert config["tokenization"]["target"]["previous_vocabulary"] \
+        == "${MODEL_DIR}/previous-target-vocab.txt"
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_src_vocab
+    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % new_tgt_vocab
+    assert "replace_vocab" not in config["tokenization"]["target"]
+    assert "replace_vocab" not in config["tokenization"]["source"]
+    framework_fn = lambda: ReplaceVocabChecker(src_changed=True, tgt_changed=True)
+    model_dir = _run_framework(
+        tmpdir,
+        "model1",
+        "train",
+        parent="preprocess1",
+        framework_fn=framework_fn)
+    _check_dir(model_dir, [
+        new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt", "checksum.md5"])
+    assert filecmp.cmp(
+        os.path.join(model_dir, new_src_vocab),
+        os.path.join(str(tmpdir), new_src_vocab),
+        shallow=False)
+    assert filecmp.cmp(
+        os.path.join(model_dir, new_tgt_vocab),
+        os.path.join(str(tmpdir), new_tgt_vocab),
+        shallow=False)
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_src_vocab
+    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % new_tgt_vocab
+    assert "previous_vocabulary" not in config["tokenization"]["target"]
+    assert "previous_vocabulary" not in config["tokenization"]["source"]
 
 def _test_translation(tmpdir, text, args=None, filename="test"):
     output_dir = tmpdir.join("output")
