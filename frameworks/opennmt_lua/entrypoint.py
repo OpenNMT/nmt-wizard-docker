@@ -128,10 +128,10 @@ class OpenNMTLuaFramework(Framework):
         options.update(config["options"].get("common", {}))
         options.update(config["options"].get("train", {}))
         options['train_dir'] = data_dir
-        options['src_vocab'] = src_vocab_info["current"]
-        options['tgt_vocab'] = tgt_vocab_info["current"]
+        options['src_vocab'] = src_vocab_info.current
+        options['tgt_vocab'] = tgt_vocab_info.current
         options['update_vocab'] = (
-            'replace' if src_vocab_info['changed'] or tgt_vocab_info['changed'] else 'none')
+            'replace' if src_vocab_info.previous or tgt_vocab_info.previous else 'none')
         options['report_every'] = '1000'
         options['src_suffix'] = config['source']
         options['tgt_suffix'] = config['target']

@@ -38,14 +38,14 @@ class OpenNMTTFFramework(Framework):
               align_file=None,
               model_path=None,
               gpuid=0):
-        if src_vocab_info['changed'] or tgt_vocab_info['changed']:
+        if src_vocab_info.previous or tgt_vocab_info.previous:
             model_path = checkpoint.update_vocab(
                 model_path,
                 os.path.join(self._output_dir, 'new_vocab_checkpoint'),
-                src_vocab_info['model'],
-                tgt_vocab_info['model'],
-                new_src_vocab=src_vocab_info['current'] if src_vocab_info['changed'] else None,
-                new_tgt_vocab=tgt_vocab_info['current'] if tgt_vocab_info['changed'] else None,
+                src_vocab_info.previous if src_vocab_info.previous else src_vocab_info.current,
+                tgt_vocab_info.previous if tgt_vocab_info.previous else tgt_vocab_info.current,
+                new_src_vocab=src_vocab_info.current if src_vocab_info.previous else None,
+                new_tgt_vocab=tgt_vocab_info.current if tgt_vocab_info.previous else None,
                 mode='replace',
                 session_config=tf.ConfigProto(
                     device_count={'GPU': 0}))
@@ -59,8 +59,8 @@ class OpenNMTTFFramework(Framework):
             run_config['data'] = {}
         if 'train' not in run_config:
             run_config['train'] = {}
-        run_config['data']['source_words_vocabulary'] = src_vocab_info['current']
-        run_config['data']['target_words_vocabulary'] = tgt_vocab_info['current']
+        run_config['data']['source_words_vocabulary'] = src_vocab_info.current
+        run_config['data']['target_words_vocabulary'] = tgt_vocab_info.current
         run_config['data']['train_features_file'] = src_file
         run_config['data']['train_labels_file'] = tgt_file
         if align_file is not None and os.path.exists(align_file) :
