@@ -875,8 +875,8 @@ class Framework(Utility):
             self._generate_training_data(config))
         if num_samples == 0:
             raise RuntimeError('data sampling generated 0 sentences')
-        if samples_metadata is not None:
-            tokens_to_add = samples_metadata.get("tokens_to_add")
+        if distribution_summary is not None:
+            tokens_to_add = distribution_summary.get("tokens_to_add")
         else:
             tokens_to_add = None
         if not self._support_multi_training_files:
