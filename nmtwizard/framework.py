@@ -405,13 +405,8 @@ class Framework(Utility):
             del config['sampling']
             logger.info('Using preprocessed data from %s' % data_dir)
         else:
-            data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-                self._generate_training_data(local_config))
-            if num_samples == 0:
-                raise RuntimeError('data sampling generated 0 sentences')
-            if not self._support_multi_training_files:
-                data_dir = self._merge_multi_training_files(
-                    data_dir, train_dir, config['source'], config['target'])
+            data_dir, num_samples, distribution_summary, samples_metadata = (
+                self._build_data(local_config))
 
         if parent_model_type in ('base',):
             model_path = None
@@ -645,8 +640,8 @@ class Framework(Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-            self._generate_training_data(local_config))
+        outputs = self._generate_training_data(local_config)
+        data_dir = outputs[0]
 
         end_time = time.time()
         logger.info('Finished preprocessing data in %s seconds into %s',
@@ -691,13 +686,8 @@ class Framework(Utility):
             local_model_config=local_model_config,
             keep_previous=True)
 
-        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-            self._generate_training_data(local_config))
-        if num_samples == 0:
-            raise RuntimeError('data sampling generated 0 sentences')
-        if not self._support_multi_training_files:
-            data_dir = self._merge_multi_training_files(
-                data_dir, train_dir, config['source'], config['target'])
+        data_dir, num_samples, distribution_summary, samples_metadata = (
+            self._build_data(local_config))
 
         end_time = time.time()
         logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
@@ -848,6 +838,16 @@ class Framework(Utility):
                 self._map_vocab_entry(index, token, converted_vocab)
                 index += 1
         return converted_vocab_file
+
+    def _build_data(self, config):
+        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
+            self._generate_training_data(config))
+        if num_samples == 0:
+            raise RuntimeError('data sampling generated 0 sentences')
+        if not self._support_multi_training_files:
+            data_dir = self._merge_multi_training_files(
+                data_dir, train_dir, config['source'], config['target'])
+        return data_dir, num_samples, distribution_summary, samples_metadata
 
     def _generate_training_data(self, config):
         return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
