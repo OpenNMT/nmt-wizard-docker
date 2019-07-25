@@ -378,40 +378,28 @@ class Framework(Utility):
         start_time = time.time()
 
         parent_model_type = config.get('modelType') if model_path is not None else None
-
         local_config = self._finalize_config(config)
+        if parent_model_type == 'preprocess':
+            data_dir = os.path.join(model_path, 'data')
+            num_samples = config['sampling']['numSamples']
+            samples_metadata = config['sampling']['samplesMetadata']
+            tokens_to_add = {}
+            del config['sampling']
+            logger.info('Using preprocessed data from %s' % data_dir)
+        else:
+            data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add = (
+                self._build_data(local_config))
+
         local_model_config = (
             self._finalize_config(model_config)
             if model_config is not None else None)
 
-        src_vocab_info = self._get_vocab_info(
-            'source',
+        src_vocab_info, tgt_vocab_info = self._get_vocabs_info(
             config,
             local_config,
             model_config=model_config,
-            local_model_config=local_model_config)
-        tgt_vocab_info = self._get_vocab_info(
-            'target',
-            config,
-            local_config,
-            model_config=model_config,
-            local_model_config=local_model_config)
-
-        if parent_model_type == 'preprocess':
-            train_dir = 'data'
-            data_dir = os.path.join(model_path, train_dir)
-            num_samples = config['sampling']['numSamples']
-            samples_metadata = config['sampling']['samplesMetadata']
-            del config['sampling']
-            logger.info('Using preprocessed data from %s' % data_dir)
-        else:
-            data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-                self._generate_training_data(local_config))
-            if num_samples == 0:
-                raise RuntimeError('data sampling generated 0 sentences')
-            if not self._support_multi_training_files:
-                data_dir = self._merge_multi_training_files(
-                    data_dir, train_dir, config['source'], config['target'])
+            local_model_config=local_model_config,
+            tokens_to_add=tokens_to_add)
 
         if parent_model_type in ('base',):
             model_path = None
@@ -645,8 +633,8 @@ class Framework(Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-            self._generate_training_data(local_config))
+        outputs = self._generate_training_data(local_config)
+        data_dir = outputs[0]
 
         end_time = time.time()
         logger.info('Finished preprocessing data in %s seconds into %s',
@@ -666,6 +654,12 @@ class Framework(Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
+        data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add = (
+            self._build_data(local_config))
+
+        end_time = time.time()
+        logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
+
         parent_dependencies = {}
         if model_config is not None:
             local_model_config = self._finalize_config(model_config)
@@ -676,31 +670,13 @@ class Framework(Utility):
         else:
             local_model_config = None
 
-        _ = self._get_vocab_info(
-            'source',
+        self._get_vocabs_info(
             config,
             local_config,
             model_config=model_config,
             local_model_config=local_model_config,
+            tokens_to_add=tokens_to_add,
             keep_previous=True)
-        _ = self._get_vocab_info(
-            'target',
-            config,
-            local_config,
-            model_config=model_config,
-            local_model_config=local_model_config,
-            keep_previous=True)
-
-        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
-            self._generate_training_data(local_config))
-        if num_samples == 0:
-            raise RuntimeError('data sampling generated 0 sentences')
-        if not self._support_multi_training_files:
-            data_dir = self._merge_multi_training_files(
-                data_dir, train_dir, config['source'], config['target'])
-
-        end_time = time.time()
-        logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
 
         # Fill training details.
         if parent_model:
@@ -738,12 +714,40 @@ class Framework(Utility):
             'num_sentences': build_info.get('sentenceCount')
         }
 
+    def _get_vocabs_info(self,
+                         config,
+                         local_config,
+                         model_config=None,
+                         local_model_config=None,
+                         tokens_to_add=None,
+                         keep_previous=False):
+        if tokens_to_add is None:
+            tokens_to_add = {}
+        src_info = self._get_vocab_info(
+            'source',
+            config,
+            local_config,
+            model_config=model_config,
+            local_model_config=local_model_config,
+            tokens_to_add=tokens_to_add.get('source'),
+            keep_previous=keep_previous)
+        tgt_info = self._get_vocab_info(
+            'target',
+            config,
+            local_config,
+            model_config=model_config,
+            local_model_config=local_model_config,
+            tokens_to_add=tokens_to_add.get('target'),
+            keep_previous=keep_previous)
+        return src_info, tgt_info
+
     def _get_vocab_info(self,
                         side,
                         config,
                         local_config,
                         model_config=None,
                         local_model_config=None,
+                        tokens_to_add=None,
                         keep_previous=False):
         opt = config.get('tokenization', {}).get(side)
         if opt is None or 'vocabulary' not in opt:
@@ -783,6 +787,23 @@ class Framework(Utility):
         if 'replace_vocab' in opt:
             del opt['replace_vocab']
             del local_opt['replace_vocab']
+
+        if tokens_to_add:
+            new_filename = next_filename_version(os.path.basename(local_opt["vocabulary"]))
+            new_vocab = os.path.join(self._data_dir, new_filename)
+            shutil.copy(local_opt["vocabulary"], new_vocab)
+            with open(new_vocab, "a") as vocab:
+                for token in tokens_to_add:
+                    vocab.write("%s\n" % token)
+            if previous_vocab is None:
+                previous_vocab = current_vocab
+                if keep_previous:
+                    opt['previous_vocabulary'] = opt['vocabulary']
+                    local_opt['previous_vocabulary'] = local_opt['vocabulary']
+            current_vocab = self._convert_vocab(
+                new_vocab, basename="updated-%s-vocab.txt" % side)
+            opt["vocabulary"] = new_vocab
+            local_opt["vocabulary"] = new_vocab
 
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
@@ -849,6 +870,20 @@ class Framework(Utility):
                 index += 1
         return converted_vocab_file
 
+    def _build_data(self, config):
+        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
+            self._generate_training_data(config))
+        if num_samples == 0:
+            raise RuntimeError('data sampling generated 0 sentences')
+        if samples_metadata is not None:
+            tokens_to_add = samples_metadata.get("tokens_to_add")
+        else:
+            tokens_to_add = None
+        if not self._support_multi_training_files:
+            data_dir = self._merge_multi_training_files(
+                data_dir, train_dir, config['source'], config['target'])
+        return data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add
+
     def _generate_training_data(self, config):
         return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
 
@@ -903,6 +938,8 @@ def map_config_fn(config, fn):
 
 def bundle_dependencies(objects, config, local_config):
     """Bundles additional resources in the model package."""
+    if local_config is None:
+        return config
     if isinstance(config, list):
         for i, _ in enumerate(config):
             config[i] = bundle_dependencies(objects, config[i], local_config[i])
@@ -911,15 +948,21 @@ def bundle_dependencies(objects, config, local_config):
         for k, v in six.iteritems(config):
             if k in ('sample_dist',):
                 continue
-            local_v = local_config.get(k) if local_config is not None else None
-            config[k] = bundle_dependencies(objects, v, local_v)
+            config[k] = bundle_dependencies(objects, v, local_config.get(k))
         return config
     else:
         if isinstance(config, six.string_types):
-            m = ENVVAR_ABS_RE.match(config)
-            if m and "TRAIN" not in m.group(1):
-                objects[m.group(2)] = local_config
-                return '${MODEL_DIR}/%s' % m.group(2)
+            if os.path.isabs(config) and os.path.exists(config):
+                filename = os.path.basename(config)
+            else:
+                match = ENVVAR_ABS_RE.match(config)
+                if match and "TRAIN" not in match.group(1):
+                    filename = match.group(2)
+                else:
+                    filename = None
+            if filename is not None:
+                objects[filename] = local_config
+                return '${MODEL_DIR}/%s' % filename
         return config
 
 def should_check_integrity(f):
@@ -962,3 +1005,13 @@ def post_add_bt_tag(path_input):
     with open(path_input_new, 'r') as f_in, open(path_input, 'w') as f_out:
         for line in f_in:
             f_out.write('%s %s' % (const_bt_tag, line))
+
+def next_filename_version(filename):
+    regexp = re.compile(r'^(.+)\.v([0-9]+)$')
+    match = regexp.match(filename)
+    if match:
+        filename = match.group(1)
+        version = int(match.group(2)) + 1
+    else:
+        version = 2
+    return '%s.v%d' % (filename, version)
