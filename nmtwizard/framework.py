@@ -378,8 +378,18 @@ class Framework(Utility):
         start_time = time.time()
 
         parent_model_type = config.get('modelType') if model_path is not None else None
-
         local_config = self._finalize_config(config)
+        if parent_model_type == 'preprocess':
+            train_dir = 'data'
+            data_dir = os.path.join(model_path, train_dir)
+            num_samples = config['sampling']['numSamples']
+            samples_metadata = config['sampling']['samplesMetadata']
+            del config['sampling']
+            logger.info('Using preprocessed data from %s' % data_dir)
+        else:
+            data_dir, num_samples, distribution_summary, samples_metadata = (
+                self._build_data(local_config))
+
         local_model_config = (
             self._finalize_config(model_config)
             if model_config is not None else None)
@@ -396,17 +406,6 @@ class Framework(Utility):
             local_config,
             model_config=model_config,
             local_model_config=local_model_config)
-
-        if parent_model_type == 'preprocess':
-            train_dir = 'data'
-            data_dir = os.path.join(model_path, train_dir)
-            num_samples = config['sampling']['numSamples']
-            samples_metadata = config['sampling']['samplesMetadata']
-            del config['sampling']
-            logger.info('Using preprocessed data from %s' % data_dir)
-        else:
-            data_dir, num_samples, distribution_summary, samples_metadata = (
-                self._build_data(local_config))
 
         if parent_model_type in ('base',):
             model_path = None
@@ -661,6 +660,12 @@ class Framework(Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
+        data_dir, num_samples, distribution_summary, samples_metadata = (
+            self._build_data(local_config))
+
+        end_time = time.time()
+        logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
+
         parent_dependencies = {}
         if model_config is not None:
             local_model_config = self._finalize_config(model_config)
@@ -685,12 +690,6 @@ class Framework(Utility):
             model_config=model_config,
             local_model_config=local_model_config,
             keep_previous=True)
-
-        data_dir, num_samples, distribution_summary, samples_metadata = (
-            self._build_data(local_config))
-
-        end_time = time.time()
-        logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
 
         # Fill training details.
         if parent_model:
