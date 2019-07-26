@@ -2,8 +2,6 @@
 
 import jsonschema
 
-from nmtwizard import utils
-
 
 def index_config(config, path, index_structure=True):
     """Index a configuration with a path-like string."""

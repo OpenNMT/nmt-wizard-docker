@@ -2,7 +2,6 @@ import json
 import logging
 import signal
 import threading
-import collections
 import copy
 import socket
 import time

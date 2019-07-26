@@ -5,7 +5,6 @@ import os
 import abc
 import copy
 import json
-import argparse
 import time
 import filecmp
 import re
@@ -15,11 +14,10 @@ import shutil
 import collections
 
 from nmtwizard.logger import get_logger
-from nmtwizard.sampler import sample
 from nmtwizard.utility import Utility, merge_config
 from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
 from nmtwizard.utility import build_model_dir, fetch_model
-from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
+from nmtwizard.utility import ENVVAR_ABS_RE
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
 from nmtwizard import serving

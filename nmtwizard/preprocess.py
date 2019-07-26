@@ -1,7 +1,6 @@
 """Functions for corpus preprocessing."""
 
 import os
-import math
 
 from nmtwizard.logger import get_logger
 from nmtwizard.sampler import sample

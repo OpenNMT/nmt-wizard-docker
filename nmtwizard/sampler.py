@@ -1,11 +1,8 @@
 import os
 import re
-import shutil
 import random
-import collections
 import gzip
 import six
-import errno
 
 from nmtwizard.logger import get_logger
 
