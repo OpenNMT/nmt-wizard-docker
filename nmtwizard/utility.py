@@ -148,7 +148,7 @@ class Utility(object):
                             help=('Endpoint that listens to statistics summaries generated '
                                   'at the end of the execution'))
 
-        parser.add_argument('-ms', '--model_storage', default=None,
+        parser.add_argument('-ms', '--model_storage', default=os.environ["MODELS_DIR"],
                             help='Model storage in the form <storage_id>:[<path>].')
         parser.add_argument('-msr', '--model_storage_read', default=None,
                             help=('Model storage to read from, in the form <storage_id>:[<path>] '
