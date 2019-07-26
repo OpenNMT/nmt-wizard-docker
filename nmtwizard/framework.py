@@ -924,18 +924,6 @@ class Framework(Utility):
         return config
 
 
-def map_config_fn(config, fn):
-    if isinstance(config, list):
-        for i, _ in enumerate(config):
-            config[i] = map_config_fn(config[i], fn)
-        return config
-    elif isinstance(config, dict):
-        for k, v in six.iteritems(config):
-            config[k] = map_config_fn(v, fn)
-        return config
-    else:
-        return fn(config)
-
 def bundle_dependencies(objects, config, local_config):
     """Bundles additional resources in the model package."""
     if local_config is None:
