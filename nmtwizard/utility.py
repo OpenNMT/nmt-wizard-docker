@@ -17,7 +17,6 @@ import tempfile
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.storage import StorageClient
 from nmtwizard.utils import md5files
-from nmtwizard.utils import merge_dict
 from nmtwizard.logger import get_logger
 
 ENVVAR_RE = re.compile(r'\${(.*?)}')
@@ -87,10 +86,6 @@ def load_config(config_arg):
     else:
         with open(config_arg) as config_file:
             return json.load(config_file)
-
-def merge_config(a, b):
-    """Merges config b in a."""
-    return merge_dict(a, b)
 
 @six.add_metaclass(abc.ABCMeta)
 class Utility(object):

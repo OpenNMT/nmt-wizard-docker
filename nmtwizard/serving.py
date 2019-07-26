@@ -12,7 +12,6 @@ from six.moves import socketserver
 
 from nmtwizard import config as config_util
 from nmtwizard.logger import get_logger
-from nmtwizard.utils import merge_dict
 
 logger = get_logger(__name__)
 
@@ -140,7 +139,8 @@ def start_server(host,
                 timeout = request_options.get('timeout', timeout)
                 max_batch_size = request_options.get('max_batch_size', max_batch_size)
                 if 'config' in request_options:
-                    batch_config = merge_dict(copy.deepcopy(config), request['options']['config'])
+                    batch_config = config_util.merge_config(
+                        copy.deepcopy(config), request['options']['config'])
             extra_config = []
             batch_metadata = []
             batch_offsets = []
@@ -151,7 +151,7 @@ def start_server(host,
                 if 'config' in src or 'options' in src:
                     local_config = copy.deepcopy(local_config)
                     if 'config' in src:
-                        local_config = merge_dict(local_config, src['config'])
+                        local_config = config_util.merge_config(local_config, src['config'])
                     if 'options' in src:
                         try:
                             config_util.update_config_with_options(local_config, src['options'])

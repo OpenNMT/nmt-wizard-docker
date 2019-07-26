@@ -1,7 +1,17 @@
 """Functions to manipulate and validate configurations."""
 
 import jsonschema
+import six
 
+
+def merge_config(a, b):
+    """Merges config b in a."""
+    for k, v in six.iteritems(b):
+        if k in a and isinstance(v, dict) and type(a[k]) == type(v):
+            merge_config(a[k], v)
+        else:
+            a[k] = v
+    return a
 
 def index_config(config, path, index_structure=True):
     """Index a configuration with a path-like string."""

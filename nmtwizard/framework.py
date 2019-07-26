@@ -14,7 +14,7 @@ import shutil
 import collections
 
 from nmtwizard.logger import get_logger
-from nmtwizard.utility import Utility, merge_config
+from nmtwizard.utility import Utility
 from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
 from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_ABS_RE
@@ -274,7 +274,7 @@ class Framework(Utility):
                     model_config['modelType'] = 'release'
                 else:
                     model_config['modelType'] = 'checkpoint'
-            config = merge_config(copy.deepcopy(model_config), config)
+            config = config_util.merge_config(copy.deepcopy(model_config), config)
         else:
             model_path = None
             model_config = None
