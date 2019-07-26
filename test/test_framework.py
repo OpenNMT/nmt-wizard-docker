@@ -120,7 +120,7 @@ def _get_lines(path):
             lines.append(line.strip())
         return lines
 
-def _check_vocab(current, previous, changed=False, added_tokens=None):
+def _check_vocab(current, previous, changed=False, added_tokens=None, vocab_size=None):
     assert os.path.exists(current)
     if changed or added_tokens:
         assert previous is not None
@@ -128,10 +128,13 @@ def _check_vocab(current, previous, changed=False, added_tokens=None):
         assert not filecmp.cmp(current, previous, shallow=False)
     else:
         assert previous is None
+    curr_tokens = _get_lines(current)
+    if vocab_size is not None:
+        assert len(curr_tokens) == vocab_size
     if added_tokens:
-        prev_tokens = _get_lines(previous)
-        curr_tokens = _get_lines(current)
-        assert len(curr_tokens) == len(prev_tokens) + len(added_tokens)
+        if vocab_size is None:
+            prev_tokens = _get_lines(previous)
+            assert len(curr_tokens) == len(prev_tokens) + len(added_tokens)
         curr_vocab = set(curr_tokens)
         for token in added_tokens:
             assert token in curr_vocab
@@ -142,12 +145,16 @@ class ReplaceVocabChecker(_TestFramework):
                  src_changed=False,
                  tgt_changed=False,
                  src_tokens_to_add=None,
-                 tgt_tokens_to_add=None):
+                 tgt_tokens_to_add=None,
+                 src_vocab_size=None,
+                 tgt_vocab_size=None):
         super(ReplaceVocabChecker, self).__init__()
         self.src_changed = src_changed
         self.tgt_changed = tgt_changed
         self.src_tokens_to_add = src_tokens_to_add
         self.tgt_tokens_to_add = tgt_tokens_to_add
+        self.src_vocab_size = src_vocab_size
+        self.tgt_vocab_size = tgt_vocab_size
 
     def train(self,
               config,
@@ -159,9 +166,9 @@ class ReplaceVocabChecker(_TestFramework):
               model_path=None,
               gpuid=0):
         _check_vocab(src_vocab_info.current, src_vocab_info.previous,
-                     self.src_changed, self.src_tokens_to_add)
+                     self.src_changed, self.src_tokens_to_add, self.src_vocab_size)
         _check_vocab(tgt_vocab_info.current, tgt_vocab_info.previous,
-                     self.tgt_changed, self.tgt_tokens_to_add)
+                     self.tgt_changed, self.tgt_tokens_to_add, self.tgt_vocab_size)
         model_dir = os.path.join(self._output_dir, "model")
         os.makedirs(model_dir)
         checkpoint_path = os.path.join(model_dir, "checkpoint.txt")
@@ -560,7 +567,6 @@ def test_replace_vocab_in_preprocess(tmpdir):
         config=config,
         env={"TMP_DIR": str(tmpdir)},
         framework_fn=framework_fn)
-    print(os.listdir(model_dir))
     _check_dir(model_dir, [
         new_src_vocab, new_tgt_vocab, "config.json", "data", "checkpoint.txt", "checksum.md5",
         "previous-source-vocab.txt", "previous-target-vocab.txt"])
@@ -693,6 +699,40 @@ def test_add_new_tokens_in_preprocess(tmpdir):
     config = _read_config(model_dir)
     assert "previous_vocabulary" not in config["tokenization"]["source"]
     assert "previous_vocabulary" not in config["tokenization"]["target"]
+
+def test_replace_vocab_and_add_new_tokens(tmpdir):
+    _run_framework(
+        tmpdir,
+        "model0",
+        "train",
+        config=config_base,
+        framework_fn=ReplaceVocabChecker)
+    new_src_vocab = "new_src_vocab.txt"
+    new_tgt_vocab = "new_tgt_vocab.txt"
+    tmpdir.join(new_src_vocab).write("hello\n")
+    tmpdir.join(new_tgt_vocab).write("hallo\nwie\n")
+    config = {"tokenization": {
+        "source": {"vocabulary": "${TMP_DIR}/%s" % new_src_vocab, "replace_vocab": True},
+        "target": {"vocabulary": "${TMP_DIR}/%s" % new_tgt_vocab, "replace_vocab": True}}
+    }
+    new_src_tokens = ["token0"]
+    new_tgt_tokens = ["token1", "token2"]
+    framework_fn = lambda: ReplaceVocabChecker(
+        src_tokens_to_add=new_src_tokens,
+        tgt_tokens_to_add=new_tgt_tokens,
+        src_vocab_size=2,
+        tgt_vocab_size=4)
+    model_dir = _run_framework(
+        tmpdir,
+        "model1",
+        "train",
+        parent="model0",
+        config=config,
+        env={"TMP_DIR": str(tmpdir)},
+        framework_fn=framework_fn)
+    _check_dir(model_dir, [
+        "%s.v2" % new_src_vocab, "%s.v2" % new_tgt_vocab,
+        "config.json", "checkpoint.txt", "checksum.md5"])
 
 def _test_translation(tmpdir, text, args=None, filename="test"):
     output_dir = tmpdir.join("output")
