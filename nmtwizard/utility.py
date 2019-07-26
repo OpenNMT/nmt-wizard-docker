@@ -19,7 +19,6 @@ from nmtwizard.storage import StorageClient
 from nmtwizard.utils import md5files
 from nmtwizard.utils import merge_dict
 from nmtwizard.logger import get_logger
-from nmtwizard import data
 
 ENVVAR_RE = re.compile(r'\${(.*?)}')
 ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
@@ -217,16 +216,6 @@ class Utility(object):
                 'end_time': end_time,
                 'statistics': stats or {}
             })
-
-    def _merge_multi_training_files(self, data_path, train_dir, source, target):
-        merged_dir = os.path.join(self._data_dir, 'merged')
-        if not os.path.exists(merged_dir):
-            os.mkdir(merged_dir)
-        merged_path = os.path.join(merged_dir, train_dir)
-        logger.info('Merging training data to %s/train.{%s,%s}',
-                    merged_path, source, target)
-        data.merge_files_in_directory(data_path, merged_path, source, target)
-        return merged_path
 
     def convert_to_local_file(self, nextval):
         new_val = []

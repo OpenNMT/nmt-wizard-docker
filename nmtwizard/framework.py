@@ -21,6 +21,7 @@ from nmtwizard.utility import resolve_environment_variables, resolve_remote_file
 from nmtwizard.utility import build_model_dir, fetch_model
 from nmtwizard.utility import ENVVAR_RE, ENVVAR_ABS_RE
 from nmtwizard import config as config_util
+from nmtwizard import data as data_util
 from nmtwizard import serving
 from nmtwizard import tokenizer
 from nmtwizard import preprocess
@@ -875,6 +876,16 @@ class Framework(Utility):
             data_dir = self._merge_multi_training_files(
                 data_dir, train_dir, config['source'], config['target'])
         return data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add
+
+    def _merge_multi_training_files(self, data_path, train_dir, source, target):
+        merged_dir = os.path.join(self._data_dir, 'merged')
+        if not os.path.exists(merged_dir):
+            os.mkdir(merged_dir)
+        merged_path = os.path.join(merged_dir, train_dir)
+        logger.info('Merging training data to %s/train.{%s,%s}',
+                    merged_path, source, target)
+        data_util.merge_files_in_directory(data_path, merged_path, source, target)
+        return merged_path
 
     def _generate_training_data(self, config):
         return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
