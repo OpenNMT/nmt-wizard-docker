@@ -10,31 +10,28 @@ from nmtwizard.logger import get_logger
 logger = get_logger(__name__)
 
 
-def md5file(fp):
-    """Returns the MD5 of the file fp."""
+def md5file(path):
+    """Computes the MD5 hash."""
     m = hashlib.md5()
-    with open(fp, 'rb') as f:
-        for l in f.readlines():
-            m.update(l)
+    with open(path, 'rb') as f:
+        m.update(f.read())
     return m.hexdigest()
 
-def md5files(lfp):
-    """Returns the MD5 of a list of key:path.
-
-    The MD5 object is updated with: key1, file1, key2, file2, ..., keyN, fileN,
-    with the keys sorted alphabetically.
+def md5files(files):
+    """Computes the combined MD5 hash of multiple files, represented as a list
+    of (key, path).
     """
     m = hashlib.md5()
-    sorted_lfp = sorted(lfp, key=lambda ab: ab[0])
-    for ab in sorted_lfp:
-        if ab != "README.md":
-            m.update(six.b(ab[0]))
-            if os.path.isdir(ab[1]):
-                m.update(md5files([(os.path.join(ab[0], f), os.path.join(ab[1], f)) for f in os.listdir(ab[1])]))
-            else:
-                with open(ab[1], 'rb') as f:
-                    for l in f.readlines():
-                        m.update(l)
+    for key, path in sorted(files, key=lambda x: x[0]):
+        m.update(six.b(key))
+        if os.path.isdir(path):
+            m.update(md5files([
+                (os.path.join(key, filename), os.path.join(path, filename))
+                for filename in os.listdir(path)
+                if not filename.startswith('.')]))
+        else:
+            with open(path, 'rb') as f:
+                m.update(f.read())
     return m.hexdigest()
 
 def run_cmd(cmd, cwd=None, background=False):
