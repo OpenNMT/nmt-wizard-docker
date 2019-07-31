@@ -935,7 +935,7 @@ def bundle_dependencies(objects, config, local_config):
         return config
     elif isinstance(config, dict):
         for k, v in six.iteritems(config):
-            if k in ('sample_dist',):
+            if k in ('sample_dist', 'build'):
                 continue
             config[k] = bundle_dependencies(objects, v, local_config.get(k))
         return config

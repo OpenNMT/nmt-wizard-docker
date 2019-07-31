@@ -639,7 +639,7 @@ def test_add_new_tokens(tmpdir):
     assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/en-vocab.txt.v2"
     assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/de-vocab.txt.v2"
     framework_fn = lambda: ReplaceVocabChecker(
-        src_tokens_to_add=["token3"])
+        src_tokens_to_add=["token3", "token4"])
     model_dir = _run_framework(
         tmpdir,
         "model2",
