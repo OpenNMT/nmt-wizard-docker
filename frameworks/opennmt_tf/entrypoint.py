@@ -38,7 +38,7 @@ class OpenNMTTFFramework(Framework):
               align_file=None,
               model_path=None,
               gpuid=0):
-        if src_vocab_info.previous or tgt_vocab_info.previous:
+        if model_path is not None and (src_vocab_info.previous or tgt_vocab_info.previous):
             model_path = checkpoint.update_vocab(
                 model_path,
                 os.path.join(self._output_dir, 'new_vocab_checkpoint'),
