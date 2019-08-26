@@ -4,6 +4,9 @@ import time
 from google.cloud import translate
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
+from nmtwizard.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class GoogleTranslateFramework(CloudTranslationFramework):
@@ -20,7 +23,6 @@ class GoogleTranslateFramework(CloudTranslationFramework):
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
         self._client = translate.Client()
         self.max_retry = 5
-        self._GOOGLE_LIMIT_SIZE = 100000
         self._GOOGLE_LIMIT_TIME = 100
 
     def translate_batch(self, batch, source_lang, target_lang):
@@ -35,13 +37,12 @@ class GoogleTranslateFramework(CloudTranslationFramework):
                     format_='text')
             except Exception as e:
                 if e.code == 403 and "User Rate Limit Exceeded" in e.message:
-                    print("Exceeding the Google API limit %d, sleep %d seconds ..." % (self._GOOGLE_LIMIT_SIZE, self._GOOGLE_LIMIT_TIME))
+                    logger.warning("Exceeding the Google API limit, retrying in %d seconds ..." % self._GOOGLE_LIMIT_TIME)
                     time.sleep(self._GOOGLE_LIMIT_TIME)
-                    time.sleep(1)
                     retry += 1
                     continue
                 else:
-                    raise RuntimeError('Error code %d: %s' % (e.code, e.message))
+                    raise
             break
 
         for trans in translation:
