@@ -91,7 +91,6 @@ class SwiftStorage(Storage):
             if not has_results:
                 raise RuntimeError("Cannot download file [%s]: NO RESULTS", (remote_path))
 
-            """generator function to stream local file"""
             with open(os.path.join(tmpdir, remote_path), "rb") as f:
                 for chunk in iter(lambda: f.read(buffer_size), b''):
                     yield chunk
