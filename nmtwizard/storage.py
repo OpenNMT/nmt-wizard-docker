@@ -7,6 +7,7 @@ from nmtwizard.logger import get_logger
 from nmtwizard.storages.local import LocalStorage
 from nmtwizard.storages.ssh import RemoteStorage
 from nmtwizard.storages.s3 import S3Storage
+from nmtwizard.storages.swift import SwiftStorage
 from nmtwizard.storages.http import HTTPStorage
 
 LOGGER = get_logger(__name__)
@@ -62,6 +63,16 @@ class StorageClient(object):
                                        region_name=credentials.get('region_name'),
                                        assume_role=credentials.get('assume_role'),
                                        transfer_config=credentials.get('transfer_config'))
+                elif config['type'] == 'swift':
+                    credentials = config.get('os_credentials', {})
+                    client = SwiftStorage(storage_id,
+                                          config['container'],
+                                          os_username=credentials.get('os_username'),
+                                          os_password=credentials.get('os_password'),
+                                          os_tenant_name=credentials.get('os_tenant_name'),
+                                          os_auth_url=credentials.get('os_auth_url'),
+                                          transfer_config=credentials.get('transfer_config')
+                                          )
                 elif config['type'] == 'ssh':
                     client = RemoteStorage(storage_id,
                                            config['server'],

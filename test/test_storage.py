@@ -89,9 +89,9 @@ def test_storage_manager(tmpdir):
         storages._get_storage("unknown:/hereget/mysupermodel")
 
 
-def test_local_storage(tmpdir):
+def test_local_storage(request, tmpdir):
     storages = storage.StorageClient()
-    corpus_dir = str(pytest.config.rootdir / "corpus")
+    corpus_dir = str(request.config.rootdir / "corpus")
     storages.get(os.path.join(corpus_dir, "train", "europarl-v7.de-en.10K.tok.de"), str(tmpdir.join("localcopy")))
     assert os.path.isfile(str(tmpdir.join("localcopy")))
 
@@ -115,22 +115,22 @@ def test_local_storage(tmpdir):
     assert not os.path.exists(str(tmpdir.join("localdir")))
 
 
-def test_local_ls(tmpdir):
+def test_local_ls(request, tmpdir):
     localstorage = storage.LocalStorage()
     with pytest.raises(Exception):
-        lsdir = localstorage.listdir(str(pytest.config.rootdir / "nothinghere"))
-    lsdir = localstorage.listdir(str(pytest.config.rootdir / "corpus"))
+        lsdir = localstorage.listdir(str(request.config.rootdir / "nothinghere"))
+    lsdir = localstorage.listdir(str(request.config.rootdir / "corpus"))
     assert len(lsdir) == 3
     assert str(pytest.config.rootdir / "corpus" / "train")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "vocab")+"/" in lsdir
     assert str(pytest.config.rootdir / "corpus" / "eval")+"/" in lsdir
-    lsdirrec = localstorage.listdir(str(pytest.config.rootdir / "corpus"), True)
+    lsdirrec = localstorage.listdir(str(request.config.rootdir / "corpus"), True)
     assert len(lsdirrec) > len(lsdir)
 
-def test_storages(tmpdir, storages, storage_id):
+def test_storages(request, tmpdir, storages, storage_id):
     if storage_id.startswith('_'):
         return
-    corpus_dir = str(pytest.config.rootdir / "corpus")
+    corpus_dir = str(request.config.rootdir / "corpus")
 
     storage_client = storage.StorageClient(config=storages)
 
@@ -139,11 +139,14 @@ def test_storages(tmpdir, storages, storage_id):
 
     stor_tmp_dir = str(tmpdir.join("test_storages", storage_id))
     os.makedirs(stor_tmp_dir)
+    # checking if the root is here
+    assert storage_client.exists("/", storage_id=storage_id)
     # checking the main directory is here
     maindir_exists = storage_client.exists(os.path.join("myremotedirectory"),
                                            storage_id=storage_id)
     # first deleting directory - if it exists
     try:
+        print("==> delete myremotedirectory")
         storage_client.delete(os.path.join("myremotedirectory"),
                               recursive=True,
                               storage_id=storage_id)
@@ -242,13 +245,13 @@ def test_storages(tmpdir, storages, storage_id):
     assert not storage_client.exists(os.path.join("myremotedirectory", "vocab-2", "en-vocab.txt"),
                                      storage_id=storage_id)
     # checking ls
-    lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
+    lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory/"),
                                           storage_id=storage_id))
     assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
                      'myremotedirectory/test/',
                      'myremotedirectory/vocab-2/']
     # checking ls
-    lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory"),
+    lsdir = sorted(storage_client.listdir(os.path.join("myremotedirectory/"),
                                           recursive=True,
                                           storage_id=storage_id))
     assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',

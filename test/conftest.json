@@ -30,6 +30,19 @@
       "server": "[[SERVER]]",
       "user": "[[LOGIN]]",
       "pkey": "[[PRIVATEKEY]]"
+    },
+    "_openstack": {
+      "type": "swift",
+      "container": "pn9-catalog",
+      "os_credentials": {
+        "os_username": "[[USERNAME]]",
+        "os_password": "[[PASSWORD]]",
+        "os_tenant_id": "[[TENANT_ID]]",
+        "os_auth_url": "[[OS_URL]]"
+      },
+      "transfer_config": {
+        "object_uu_threads": 5
+      }
     }
   }
 }
