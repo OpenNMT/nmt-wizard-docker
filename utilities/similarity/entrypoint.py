@@ -3,6 +3,7 @@ import six
 import re
 import time
 import random
+import tempfile
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
@@ -87,7 +88,8 @@ class SimilarityUtility(Utility):
         parser_apply = subparsers_similarity.add_parser('simapply', parents=[parser_similarity],
                             add_help=False,
                             help='similarity module apply mode')
-        parser_apply.add_argument('-tst', required=True, help='testing data')
+        parser_apply.add_argument('-tst_src', required=True, help='testing data, source')
+        parser_apply.add_argument('-tst_tgt', required=True, help='testing data, target')
         parser_apply.add_argument('-epoch', required=False, type=int,
                             help='epoch to use ([mdir]/epoch[epoch] must exist, by default the latest one in mdir)')
         parser_apply.add_argument('-output', required=False, default='-',
@@ -110,7 +112,8 @@ class SimilarityUtility(Utility):
         local_output = None
 
         new_args.append('-mdir')
-        new_args.append(self.convert_to_local_file([args.mdir], is_dir=True)[0])
+        local_model_dir = self.convert_to_local_file([args.mdir], is_dir=True)[0]
+        new_args.append(local_model_dir)
         new_args.append('-batch_size')
         new_args.append(str(args.batch_size))
         new_args.append('-seed')
@@ -163,17 +166,19 @@ class SimilarityUtility(Utility):
             new_args.append('-report_every')
             new_args.append(str(args.report_every))
         if args.cmd == 'simapply':
+            local_src_file = self.convert_to_local_file([args.tst_src])[0]
+            local_tgt_file = self.convert_to_local_file([args.tst_tgt])[0]
             new_args.append('-tst')
-            new_args.append(self.convert_to_local_file([args.tst])[0])
+            new_args.append(local_src_file + ',' + local_tgt_file)
             if args.epoch:
                 new_args.append('-epoch')
                 new_args.append(str(args.epoch))
             new_args.append('-output')
             if args.output == '-':
-                new_args.append('-')
+                new_args.append(args.output)
             else:
-                local_output = self.convert_to_local_file([args.output])[0]
-                new_args.append(local_output)
+                local_output = tempfile.NamedTemporaryFile(delete=False)
+                new_args.append(local_output.name)
             if args.q:
                 new_args.append('-q')
             if args.show_matrix:
@@ -191,7 +196,7 @@ class SimilarityUtility(Utility):
         main(['similarity.py'] + new_args)
 
         if local_output is not None:
-            self._storage.push(local_output, args.output)
+            self._storage.push(local_output.name, args.output)
 
 
 if __name__ == '__main__':
