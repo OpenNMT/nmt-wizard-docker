@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
+RUN pip install --upgrade pip
 ADD utilities/similarity/requirements.txt /root
 RUN pip --no-cache-dir install -r /root/requirements.txt
 
