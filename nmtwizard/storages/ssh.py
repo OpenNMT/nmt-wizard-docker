@@ -8,9 +8,11 @@ import paramiko
 import scp
 import tempfile
 import shutil
+import logging
 
 from nmtwizard.storages.generic import Storage
 
+LOGGER = logging.getLogger(__name__)
 
 class RemoteStorage(Storage):
     """Storage on a remote SSH server.

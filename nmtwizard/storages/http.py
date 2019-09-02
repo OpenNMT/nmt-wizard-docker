@@ -4,8 +4,11 @@ import os
 import requests
 import tempfile
 import shutil
+import logging
 
 from nmtwizard.storages.generic import Storage
+
+LOGGER = logging.getLogger(__name__)
 
 class HTTPStorage(Storage):
     """Simple http file-only storage."""

@@ -4,12 +4,11 @@ import os
 import boto3
 import tempfile
 import shutil
+import logging
 
 from nmtwizard.storages.generic import Storage
 
-from nmtwizard.logger import get_logger
-
-LOGGER = get_logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 class S3Storage(Storage):
     """Storage on Amazon S3."""

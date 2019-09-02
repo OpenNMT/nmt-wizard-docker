@@ -4,10 +4,9 @@ import six
 import fcntl
 import contextlib
 import shutil
+import logging
 
-from nmtwizard.logger import get_logger
-
-LOGGER = get_logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 _META_SUBDIR = '.snw'
 

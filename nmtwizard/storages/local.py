@@ -3,12 +3,11 @@
 import shutil
 import os
 import tempfile
+import logging
 
 from nmtwizard.storages.generic import Storage
 
-from nmtwizard.logger import get_logger
-
-LOGGER = get_logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 class LocalStorage(Storage):
     """Storage using the local filesystem."""

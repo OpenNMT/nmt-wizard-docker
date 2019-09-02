@@ -1,8 +1,7 @@
 """Client to abstract storage location: local, S3, SSH, etc."""
 
 import os
-
-from nmtwizard.logger import get_logger
+import logging
 
 from nmtwizard.storages.local import LocalStorage
 from nmtwizard.storages.ssh import RemoteStorage
@@ -10,7 +9,7 @@ from nmtwizard.storages.s3 import S3Storage
 from nmtwizard.storages.swift import SwiftStorage
 from nmtwizard.storages.http import HTTPStorage
 
-LOGGER = get_logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 class StorageClient(object):
     """Client to get and push files to a storage."""

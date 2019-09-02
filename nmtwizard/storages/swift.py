@@ -1,7 +1,6 @@
 """Definition of `s3` storage class"""
 
 import os
-import boto3
 import tempfile
 import shutil
 import logging
@@ -12,9 +11,7 @@ from swiftclient.service import SwiftService, SwiftError, SwiftUploadObject, Swi
 logging.getLogger("requests").setLevel(logging.CRITICAL)
 logging.getLogger("swiftclient").setLevel(logging.CRITICAL)
 
-from nmtwizard.logger import get_logger
-
-LOGGER = get_logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class SwiftStorage(Storage):
