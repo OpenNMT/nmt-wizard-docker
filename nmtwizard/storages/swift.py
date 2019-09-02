@@ -43,6 +43,8 @@ class SwiftStorage(Storage):
             has_results = True
             if not r["success"]:
                 raise RuntimeError("Cannot download [%s]: %s" % (remote_path, r["error"]))
+            timestamp = float(r["response_dict"]["headers"]["x-timestamp"])
+            os.utime(os.path.join(tmpdir, remote_path), (timestamp, timestamp))
         if not has_results:
             raise RuntimeError("Cannot copy download [%s]" % (remote_path, "NO RESULT"))
         shutil.move(os.path.join(tmpdir, remote_path), local_path)
@@ -50,14 +52,16 @@ class SwiftStorage(Storage):
 
     def _check_existing_file(self, remote_path, local_path):
         (local_dir, basename) = os.path.split(local_path)
-        md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
-        if os.path.exists(local_path) and os.path.exists(md5_path):
-            with open(md5_path) as f:
-                md5 = f.read()
-            obj = self._bucket.Object(remote_path)
-            if obj.e_tag == md5:
-                return True
-            LOGGER.debug('checksum has changed for file %s (%s/%s)', local_path, md5, obj.e_tag)
+        if os.path.exists(local_path):
+            results = self._client.stat(self._container, objects=[remote_path])
+            local_stat = os.stat(local_path)
+            for r in results:
+                if r['success']:
+                    if int(r['headers']['content-length']) != local_stat.st_size:
+                        return False
+                    timestamp = float(r["headers"]["x-timestamp"])
+                    if int(local_stat.st_mtime) == int(timestamp):
+                        return True
         else:
             LOGGER.debug('Cannot find %s or %s', local_path, md5_path)
         return False
