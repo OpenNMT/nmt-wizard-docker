@@ -21,8 +21,34 @@ export PYTHONPATH=$PWD:$PYTHONPATH
 
 3\. Run:
 
-### Training
+### Local run
+
+If you run this utility locally, you need [similarity project](https://github.com/SYSTRAN/similarity):
+```bash
+git clone https://github.com/SYSTRAN/similarity utilities/similarity/similarity
+pip install -r utilities/similarity/similarity/requirements.txt
+```
 
 ```bash
-python utilities/similarity/entrypoint.py apply -mdir MODELPATH -tst ${CORPUS_DIR}/train/europarl-v7.de-en.10K.tok.de,${CORPUS_DIR}/train/europarl-v7.de-en.10K.tok.en -output -
+python utilities/similarity/entrypoint.py \
+  simapply \
+  -mdir ${MODELS_DIR} \
+  -tst_src ${CORPUS_DIR}/test.en \
+  -tst_tgt ${CORPUS_DIR}/test.fr \
+  -output $PWD/output
 ```
+
+### Docker run
+
+```bash
+docker run -i --rm \
+  -v ${MODELS_DIR}:/modelpath \
+  -v ${CORPUS_DIR}:/data \
+  nmtwizard/similarity:latest \
+  simapply \
+  -mdir /modelpath \
+  -tst_src /data/test.en \
+  -tst_tgt /data/test.fr \
+  -output /modelpath/output
+```
+
