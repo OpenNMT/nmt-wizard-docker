@@ -212,14 +212,17 @@ class Utility(object):
                 'statistics': stats or {}
             })
 
-    def convert_to_local_file(self, nextval):
+    def convert_to_local_file(self, nextval, is_dir = False):
         new_val = []
         for val in nextval:
             inputs = val.split(',')
             local_inputs = []
             for remote_input in inputs:
                 local_input = os.path.join(self._data_dir, self._storage.split(remote_input)[-1])
-                self._storage.get_file(remote_input, local_input)
+                if is_dir:
+                    self._storage.get_directory(remote_input, local_input)
+                else:
+                    self._storage.get_file(remote_input, local_input)
                 local_inputs.append(local_input)
             new_val.append(','.join(local_inputs))
         return new_val
