@@ -1,6 +1,0 @@
-boto3
-paramiko
-pyonmttok==1.*
-requests
-scp
-tensorflow-gpu==1.11.0

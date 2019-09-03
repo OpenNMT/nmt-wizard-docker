@@ -7,7 +7,7 @@
 ```bash
 virtualenv utilities/similarity/env
 source utilities/similarity/env/bin/activate
-pip install -r utilities/similarity/requirements.txt
+pip install -r requirements.txt
 ```
 
 2\. Define local environment:

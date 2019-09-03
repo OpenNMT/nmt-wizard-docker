@@ -111,60 +111,38 @@ class SimilarityUtility(Utility):
         new_args = []
         local_output = None
 
-        new_args.append('-mdir')
-        local_model_dir = self.convert_to_local_file([args.mdir], is_dir=True)[0]
-        new_args.append(local_model_dir)
-        new_args.append('-batch_size')
-        new_args.append(str(args.batch_size))
-        new_args.append('-seed')
-        new_args.append(str(args.seed))
+        new_args.extend([
+            '-mdir',        self.convert_to_local_file([args.mdir], is_dir=True)[0],
+            '-batch_size',  str(args.batch_size),
+            '-seed',        str(args.seed)
+            ])
         if args.debug:
             new_args.append('-debug')
         if args.cmd == 'simtrain':
-            new_args.append('-trn')
-            new_args.append(self.convert_to_local_file([args.trn])[0])
-            new_args.append('-dev')
-            new_args.append(self.convert_to_local_file([args.dev])[0])
-            new_args.append('-src_tok')
-            new_args.append(self.convert_to_local_file([args.src_tok])[0])
-            new_args.append('-src_voc')
-            new_args.append(self.convert_to_local_file([args.src_voc])[0])
-            new_args.append('-tgt_tok')
-            new_args.append(self.convert_to_local_file([args.tgt_tok])[0])
-            new_args.append('-tgt_voc')
-            new_args.append(self.convert_to_local_file([args.tgt_voc])[0])
-            new_args.append('-src_emb')
-            new_args.append(self.convert_to_local_file([args.src_emb])[0])
-            new_args.append('-tgt_emb')
-            new_args.append(self.convert_to_local_file([args.tgt_emb])[0])
-            new_args.append('-src_emb_size')
-            new_args.append(str(args.src_emb_size))
-            new_args.append('-tgt_emb_size')
-            new_args.append(str(args.tgt_emb_size))
-            new_args.append('-src_lstm_size')
-            new_args.append(str(args.src_lstm_size))
-            new_args.append('-tgt_lstm_size')
-            new_args.append(str(args.tgt_lstm_size))
-            new_args.append('-lr')
-            new_args.append(str(args.lr))
-            new_args.append('-lr_decay')
-            new_args.append(str(args.lr_decay))
-            new_args.append('-lr_method')
-            new_args.append(args.lr_method)
-            new_args.append('-aggr')
-            new_args.append(args.aggr)
-            new_args.append('-r')
-            new_args.append(str(args.r))
-            new_args.append('-dropout')
-            new_args.append(str(args.dropout))
-            new_args.append('-mode')
-            new_args.append(args.mode)
-            new_args.append('-max_sents')
-            new_args.append(str(args.max_sents))
-            new_args.append('-n_epochs')
-            new_args.append(str(args.n_epochs))
-            new_args.append('-report_every')
-            new_args.append(str(args.report_every))
+            new_args.extend([
+                '-trn',     self.convert_to_local_file([args.trn])[0],
+                '-dev',     self.convert_to_local_file([args.dev])[0],
+                '-src_tok', self.convert_to_local_file([args.src_tok])[0],
+                '-src_voc', self.convert_to_local_file([args.src_voc])[0],
+                '-tgt_tok', self.convert_to_local_file([args.tgt_tok])[0],
+                '-tgt_voc', self.convert_to_local_file([args.tgt_voc])[0],
+                '-src_emb', self.convert_to_local_file([args.src_emb])[0],
+                '-tgt_emb', self.convert_to_local_file([args.tgt_emb])[0],
+                '-src_emb_size',    str(args.src_emb_size),
+                '-tgt_emb_size',    str(args.tgt_emb_size),
+                '-src_lstm_size',   str(args.src_lstm_size),
+                '-tgt_lstm_size',   str(args.tgt_lstm_size),
+                '-lr',              str(args.lr),
+                '-lr_decay',        str(args.lr_decay),
+                '-lr_method',       args.lr_method,
+                '-aggr',            args.aggr,
+                '-r',               str(args.r),
+                '-dropout',         str(args.dropout),
+                '-mode',            args.mode,
+                '-max_sents',       str(args.max_sents),
+                '-n_epochs',        str(args.n_epochs),
+                '-report_every',    str(args.report_every)
+                ])
         if args.cmd == 'simapply':
             local_src_file = self.convert_to_local_file([args.tst_src])[0]
             local_tgt_file = self.convert_to_local_file([args.tst_tgt])[0]
