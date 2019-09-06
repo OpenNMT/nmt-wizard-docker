@@ -173,3 +173,7 @@ class StorageClient(object):
         """Checks if file or directory exists on storage."""
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         return client.exists(remote_path)
+
+    def get_cfg(self, storage_id):
+        config = self._config.get(storage_id)
+        return config
