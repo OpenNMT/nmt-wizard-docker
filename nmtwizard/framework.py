@@ -381,15 +381,10 @@ class Framework(Utility):
             data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add = (
                 self._build_data(local_config))
 
-        local_model_config = (
-            self._finalize_config(model_config)
-            if model_config is not None else None)
-
-        src_vocab_info, tgt_vocab_info = self._get_vocabs_info(
+        src_vocab_info, tgt_vocab_info, _ = self._get_vocabs_info(
             config,
             local_config,
             model_config=model_config,
-            local_model_config=local_model_config,
             tokens_to_add=tokens_to_add)
 
         if parent_model_type in ('base',):
@@ -651,21 +646,10 @@ class Framework(Utility):
         end_time = time.time()
         logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
 
-        parent_dependencies = {}
-        if model_config is not None:
-            local_model_config = self._finalize_config(model_config)
-            bundle_dependencies(
-                parent_dependencies,
-                copy.deepcopy(model_config),
-                copy.deepcopy(local_model_config))
-        else:
-            local_model_config = None
-
-        self._get_vocabs_info(
+        _, _, parent_dependencies = self._get_vocabs_info(
             config,
             local_config,
             model_config=model_config,
-            local_model_config=local_model_config,
             tokens_to_add=tokens_to_add,
             keep_previous=True)
 
@@ -709,28 +693,41 @@ class Framework(Utility):
                          config,
                          local_config,
                          model_config=None,
-                         local_model_config=None,
                          tokens_to_add=None,
                          keep_previous=False):
         if tokens_to_add is None:
             tokens_to_add = {}
+        tok_config = config.get('tokenization', {})
+        tok_local_config = local_config.get('tokenization', {})
+        parent_dependencies = {}
+        if model_config:
+            model_tok_config = model_config.get('tokenization', {})
+            model_tok_local_config = self._finalize_config(model_tok_config)
+            if keep_previous:
+                bundle_dependencies(
+                    parent_dependencies,
+                    copy.deepcopy(model_tok_config),
+                    copy.deepcopy(model_tok_local_config))
+        else:
+            model_tok_config = None
+            model_tok_local_config = None
         src_info = self._get_vocab_info(
             'source',
-            config,
-            local_config,
-            model_config=model_config,
-            local_model_config=local_model_config,
+            tok_config,
+            tok_local_config,
+            model_config=model_tok_config,
+            local_model_config=model_tok_local_config,
             tokens_to_add=tokens_to_add.get('source'),
             keep_previous=keep_previous)
         tgt_info = self._get_vocab_info(
             'target',
-            config,
-            local_config,
-            model_config=model_config,
-            local_model_config=local_model_config,
+            tok_config,
+            tok_local_config,
+            model_config=model_tok_config,
+            local_model_config=model_tok_local_config,
             tokens_to_add=tokens_to_add.get('target'),
             keep_previous=keep_previous)
-        return src_info, tgt_info
+        return src_info, tgt_info, parent_dependencies
 
     def _get_vocab_info(self,
                         side,
@@ -740,10 +737,12 @@ class Framework(Utility):
                         local_model_config=None,
                         tokens_to_add=None,
                         keep_previous=False):
-        opt = config.get('tokenization', {}).get(side)
+        if not config:
+            return None
+        opt = config.get(side)
         if opt is None or 'vocabulary' not in opt:
             return None
-        local_opt = local_config['tokenization'][side]
+        local_opt = local_config[side]
 
         current_basename = '%s-vocab.txt' % side
         current_vocab = self._convert_vocab(
@@ -759,8 +758,8 @@ class Framework(Utility):
             del local_opt['previous_vocabulary']
         # Otherwise check if the vocabulary is different than the parent model.
         elif model_config is not None:
-            model_opt = model_config['tokenization'][side]
-            local_model_opt = local_model_config['tokenization'][side]
+            model_opt = model_config[side]
+            local_model_opt = local_model_config[side]
             previous_vocab = self._convert_vocab(
                 local_model_opt['vocabulary'], basename=previous_basename)
             vocab_changed = not filecmp.cmp(previous_vocab, current_vocab)
