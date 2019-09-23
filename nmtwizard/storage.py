@@ -146,6 +146,22 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
 
+    def create_directory(self, local_path, remote_path, storage_id=None):
+        """Pushes a local_path file or directory to storage."""
+        LOGGER.info('Uploading %s to %s', local_path, remote_path)
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        # Remove antislash from first and last character
+        if local_path.startswith("/"):
+            local_path = local_path[1:]
+        if local_path.endswith("/"):
+            local_path = local_path[:-1]
+        if remote_path.endswith("/"):
+            remote_path = remote_path[:-1]
+
+        reponse =  client.create_directory(remote_path + "/" + local_path + "/")
+
+        return reponse
+
     def listdir(self, remote_path, recursive=False, storage_id=None):
         """Lists of the files on a storage:
         * if `recursive` returns all of the files present recursively in the directory

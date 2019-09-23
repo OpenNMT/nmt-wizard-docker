@@ -74,6 +74,15 @@ class S3Storage(Storage):
         """
         (local_dir, basename) = os.path.split(local_path)
         return os.path.join(local_dir, ".5dm#"+basename+"#md5")
+    def create_directory(self, folder):
+        s3_client = boto3.client('s3')
+
+        response = s3_client.put_object(
+            Bucket=self._bucket_name,
+            Body='',
+            Key=folder
+        )
+        return response
 
     def push_file(self, local_path, remote_path):
         (local_dir, basename) = os.path.split(local_path)
