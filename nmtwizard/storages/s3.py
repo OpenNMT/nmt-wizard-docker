@@ -74,9 +74,12 @@ class S3Storage(Storage):
         """
         (local_dir, basename) = os.path.split(local_path)
         return os.path.join(local_dir, ".5dm#"+basename+"#md5")
-    def create_directory(self, folder):
-        s3_client = boto3.client('s3')
 
+    def create_directory(self, folder):
+        folder = folder.strip()
+        if not folder.endswith("/"): # to simulate a directory in S3
+            folder += "/"
+        s3_client = boto3.client('s3')
         response = s3_client.put_object(
             Bucket=self._bucket_name,
             Body='',
@@ -124,6 +127,7 @@ class S3Storage(Storage):
             self._s3.meta.client.delete_object(Bucket=self._bucket_name, Key=remote_path)
 
     def rename(self, old_remote_path, new_remote_path):
+        is_dir = self.isdir(old_remote_path)
         for obj in self._bucket.objects.filter(Prefix=old_remote_path):
             src_key = obj.key
             if not src_key.endswith('/'):
@@ -136,6 +140,12 @@ class S3Storage(Storage):
                     dest_file_key = new_remote_path + '/' + filename
                 self._s3.Object(self._bucket_name, dest_file_key).copy_from(CopySource=copy_source)
             self._s3.Object(self._bucket_name, src_key).delete()
+
+        # Warning: create the new virtual directory. if not, an empty directory will be deleted instead of being renamed
+        #important to do it at last because filter by prefix could delete the new directory
+        if is_dir:
+            self.create_directory(new_remote_path)
+        return True
 
     def exists(self, remote_path):
         result = self._bucket.objects.filter(Prefix=remote_path)
