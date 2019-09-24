@@ -145,7 +145,9 @@ class S3Storage(Storage):
         #important to do it at last because filter by prefix could delete the new directory
         if is_dir:
             self.create_directory(new_remote_path)
-        return True
+
+        result = self.exists(new_remote_path)
+        return result
 
     def exists(self, remote_path):
         result = self._bucket.objects.filter(Prefix=remote_path)
