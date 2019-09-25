@@ -229,9 +229,3 @@ class Storage(object):
         """convert the internal path to the external user path
         """
         return path
-
-    @abc.abstractmethod
-    def create_directory(self, folder):
-        """create the directory
-        """
-        raise NotImplementedError()

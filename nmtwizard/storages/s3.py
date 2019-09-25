@@ -75,18 +75,6 @@ class S3Storage(Storage):
         (local_dir, basename) = os.path.split(local_path)
         return os.path.join(local_dir, ".5dm#"+basename+"#md5")
 
-    def create_directory(self, folder):
-        folder = folder.strip()
-        if not folder.endswith("/"): # to simulate a directory in S3
-            folder += "/"
-        s3_client = boto3.client('s3')
-        response = s3_client.put_object(
-            Bucket=self._bucket_name,
-            Body='',
-            Key=folder
-        )
-        return response
-
     def push_file(self, local_path, remote_path):
         (local_dir, basename) = os.path.split(local_path)
         md5_path = os.path.join(local_dir, ".5dm#"+basename+"#md5")
@@ -120,7 +108,22 @@ class S3Storage(Storage):
         return lsdir.keys()
 
     def mkdir(self, remote_path):
-        pass
+        remote_path = remote_path.strip()
+        result = self.exists(remote_path)
+        if result:
+            return
+
+        if not remote_path.endswith("/"):  # to simulate a directory in S3
+            remote_path += "/"
+        s3_client = boto3.client('s3')
+        s3_client.put_object(
+            Bucket=self._bucket_name,
+            Body='',
+            Key=remote_path
+        )
+
+        result = self.exists(remote_path)
+        return result
 
     def _delete_single(self, remote_path, isdir):
         if not isdir:
@@ -144,7 +147,7 @@ class S3Storage(Storage):
         # Warning: create the new virtual directory. if not, an empty directory will be deleted instead of being renamed
         #important to do it at last because filter by prefix could delete the new directory
         if is_dir:
-            self.create_directory(new_remote_path)
+            self.mkdir(new_remote_path)
 
         result = self.exists(new_remote_path)
         return result

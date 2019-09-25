@@ -146,9 +146,9 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
 
-    def create_directory(self, local_path, remote_path, storage_id=None):
+    def mkdir(self, local_path, remote_path, storage_id=None):
         """Pushes a local_path file or directory to storage."""
-        LOGGER.info('create_directory %s to %s', local_path, remote_path)
+        LOGGER.info('mkdir %s to %s', local_path, remote_path)
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         # Remove antislash from first and last character
         if local_path.startswith("/"):
@@ -162,8 +162,7 @@ class StorageClient(object):
         if self.exists(full_path, storage_id) :
             raise ValueError("the folder '%s' already exists in the storage '%s'." % (full_path,storage_id))
 
-        client.create_directory(full_path)
-        result = self.exists(full_path, storage_id)
+        result = client.mkdir(full_path)
         return result
 
     def listdir(self, remote_path, recursive=False, storage_id=None):
