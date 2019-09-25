@@ -187,10 +187,10 @@ class StorageClient(object):
             raise ValueError('rename on different storages')
 
         result = client_old.rename(old_remote_path, new_remote_path)
-        if result == None: # some storages return nothing when ok and raise exception when error
+        if result is None:  # some storages return nothing when ok and raise exception when error
             return True
-        else:
-            return result
+
+        return result
 
     def exists(self, remote_path, storage_id=None):
         """Checks if file or directory exists on storage."""
