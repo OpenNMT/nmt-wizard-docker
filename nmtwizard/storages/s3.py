@@ -38,6 +38,7 @@ class S3Storage(Storage):
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_access_key)
         self._s3 = session.resource('s3')
+        self._client = session.client('s3')
         self._bucket_name = bucket_name
         self._bucket = self._s3.Bucket(bucket_name)
         if transfer_config is not None:
@@ -113,10 +114,12 @@ class S3Storage(Storage):
         if result:
             return
 
+        if remote_path.startswith("/"): # S3 create a empty directory if /
+            remote_path = remote_path[1:]
+
         if not remote_path.endswith("/"):  # to simulate a directory in S3
             remote_path += "/"
-        s3_client = boto3.client('s3')
-        s3_client.put_object(
+        self._client.put_object(
             Bucket=self._bucket_name,
             Body='',
             Key=remote_path
