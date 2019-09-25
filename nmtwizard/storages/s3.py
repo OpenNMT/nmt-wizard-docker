@@ -122,8 +122,9 @@ class S3Storage(Storage):
             Key=remote_path
         )
 
-        result = self.exists(remote_path)
-        return result
+        if not self.exists(remote_path):
+            raise ValueError("cannot create the directory %s" % remote_path)
+
 
     def _delete_single(self, remote_path, isdir):
         if not isdir:

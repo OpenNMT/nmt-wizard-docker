@@ -152,9 +152,6 @@ class RemoteStorage(Storage):
             if subpath != '' and not self.exists(subpath):
                 client.mkdir(subpath)
 
-        result = self.exists(remote_path)
-        return result
-
     def _ls(self, client, remote_path, recursive=False):
         listfile = []
 
@@ -187,9 +184,6 @@ class RemoteStorage(Storage):
     def rename(self, old_remote_path, new_remote_path):
         client = self._connectSFTPClient()
         client.posix_rename(old_remote_path, new_remote_path)
-
-        result = self.exists(new_remote_path)
-        return result
 
     def exists(self, remote_path):
         client = self._connectSFTPClient()
