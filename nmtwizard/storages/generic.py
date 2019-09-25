@@ -123,7 +123,10 @@ class Storage(object):
                 for f in allfiles:
                     os.remove(f)
                 if check_integrity_fn is not None and not check_integrity_fn(local_path):
-                    shutil.rmtree(local_path)
+                    try:
+                        shutil.rmtree(local_path)
+                    except:
+                        pass
                     raise RuntimeError('integrity check failed on %s' % local_path)
         else:
             self._sync_file(remote_path, local_path)
