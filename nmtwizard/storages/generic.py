@@ -87,6 +87,9 @@ class Storage(object):
             LOGGER.warning('%s does not exist on the remote but %s exists locally, continuing',
                            remote_path, local_path)
             return
+        if not self.exists(remote_path):
+            LOGGER.warning('%s does not exist on the remote', remote_path)
+            return
 
         if directory is None:
             directory = self.isdir(remote_path)
