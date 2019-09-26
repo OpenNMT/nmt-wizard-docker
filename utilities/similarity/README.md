@@ -28,6 +28,24 @@ If you run this utility locally, you need [similarity project](https://github.co
 git clone https://github.com/SYSTRAN/similarity utilities/similarity/similarity
 pip install -r utilities/similarity/similarity/requirements.txt
 ```
+Train
+
+```bash
+python utilities/similarity/entrypoint.py \
+  -g 1 \
+  simtrain \
+  -mdir ${MODELS_DIR} \
+  -trn_src ${TESTSRC} \
+  -trn_tgt ${TESTTGT} \
+  -build_data_mode puid \
+  -src_emb_size 64 \
+  -tgt_emb_size 64 \
+  -max_sents 1000000 \
+  -lr_method adam -lr 0.001 \
+  -n_epochs 1
+```
+
+Inference
 
 ```bash
 python utilities/similarity/entrypoint.py \
@@ -40,6 +58,27 @@ python utilities/similarity/entrypoint.py \
 
 ### Docker run
 
+Train
+
+```bash
+nvidia-docker run -i --rm \
+  -v ${MODELS_DIR}:/modelpath \
+  -v ${CORPUS_DIR}:/data \
+  nmtwizard/similarity:latest \
+  -g 1 \
+  simtrain \
+  -mdir /modelpath \
+  -trn_src /data/train.en \
+  -trn_tgt /data/train.fr \
+  -build_data_mode puid \
+  -src_emb_size 64 \
+  -tgt_emb_size 64 \
+  -max_sents 1000000 \
+  -lr_method adam -lr 0.001 \
+  -n_epochs 1
+```
+
+Inference
 ```bash
 docker run -i --rm \
   -v ${MODELS_DIR}:/modelpath \
