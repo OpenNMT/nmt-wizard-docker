@@ -92,6 +92,8 @@ class Storage(object):
             directory = self.isdir(remote_path)
 
         if directory:
+            if not os.path.isdir(local_path):
+                os.makedirs(local_path)
             with lock(local_path):
                 allfiles = {}
                 for root, dirs, files in os.walk(local_path):
