@@ -32,21 +32,13 @@ def setCUDA_VISIBLE_DEVICES(gpuid):
         logger.debug(' - set CUDA_VISIBLE_DEVICES= %s' % os.environ['CUDA_VISIBLE_DEVICES'])
 
 def train_joint_tok_model(file_src, file_tgt):
-    filenames = [file_src, file_tgt]
-    temp_train_file = tempfile.NamedTemporaryFile(delete=False)
-    with open(temp_train_file.name, 'w') as outfile:
-        for fname in filenames:
-            with open(fname) as infile:
-                for line in infile:
-                    outfile.write(line)
-
     learner = pyonmttok.SentencePieceLearner(vocab_size=50000, character_coverage=1.0)
-    learner.ingest_file(temp_train_file.name)
+    learner.ingest_file(file_src)
+    learner.ingest_file(file_tgt)
 
     temp_model_file = tempfile.NamedTemporaryFile(delete=False)
     tokenizer = learner.learn(temp_model_file.name)
 
-    os.remove(temp_train_file.name)
     return tokenizer, temp_model_file.name
 
 def train_fast_align(file_src, file_tgt):
