@@ -5,6 +5,7 @@ import time
 import random
 import tempfile
 import subprocess
+import shutil
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
@@ -244,7 +245,12 @@ class SimilarityUtility(Utility):
         new_args = []
         local_output = None
         train_data = None
-        local_model_dir = self.convert_to_local_file([args.mdir], is_dir=True)[0]
+        local_model_dir = None
+
+        if args.cmd == 'simtrain':
+            local_model_dir = tempfile.mkdtemp()
+        if args.cmd == 'simapply':
+            local_model_dir = self.convert_to_local_file([args.mdir], is_dir=True)[0]
 
         new_args.extend([
             '-mdir',        local_model_dir,
@@ -326,6 +332,7 @@ class SimilarityUtility(Utility):
             os.remove(train_data['tgt_voc'])
 
             self._storage.push(local_model_dir, args.mdir)
+            shutil.rmtree(local_model_dir)
 
         if args.cmd == 'simapply' and local_output is not None:
             self._storage.push(local_output.name, args.output)
