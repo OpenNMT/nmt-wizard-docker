@@ -146,6 +146,25 @@ class StorageClient(object):
         client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
         client.push(local_path, remote_path)
 
+    def mkdir(self, local_path, remote_path, storage_id=None):
+        """Pushes a local_path file or directory to storage."""
+        LOGGER.info('mkdir %s to %s', local_path, remote_path)
+        client, remote_path = self._get_storage(remote_path, storage_id=storage_id)
+        # Remove antislash from first and last character
+        if local_path.startswith("/"):
+            local_path = local_path[1:]
+        if local_path.endswith("/"):
+            local_path = local_path[:-1]
+        if remote_path.endswith("/"):
+            remote_path = remote_path[:-1]
+
+        full_path = remote_path + "/" + local_path + "/"
+        if self.exists(full_path, storage_id) :
+            raise ValueError("the folder '%s' already exists in the storage '%s'." % (full_path,storage_id))
+
+        client.mkdir(full_path)
+
+
     def listdir(self, remote_path, recursive=False, storage_id=None):
         """Lists of the files on a storage:
         * if `recursive` returns all of the files present recursively in the directory
@@ -167,7 +186,11 @@ class StorageClient(object):
         if client_old._storage_id != client_new._storage_id:
             raise ValueError('rename on different storages')
 
-        return client_old.rename(old_remote_path, new_remote_path)
+        result = client_old.rename(old_remote_path, new_remote_path)
+        if result is None:  # some storages return nothing when ok and raise exception when error
+            return True
+
+        return result
 
     def exists(self, remote_path, storage_id=None):
         """Checks if file or directory exists on storage."""

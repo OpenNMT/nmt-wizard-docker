@@ -201,7 +201,7 @@ class Storage(object):
                 files = self.listdir(remote_path=path)
                 for f in files:
                     internal_path = self._internal_path(f)
-                    if internal_path.endswith('/'):
+                    if internal_path.endswith('/') and internal_path != path:
                         rm_rec(internal_path)
                     else:
                         self._delete_single(internal_path, False)
