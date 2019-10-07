@@ -6,6 +6,7 @@ import random
 import tempfile
 import subprocess
 import shutil
+import json
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
@@ -32,10 +33,10 @@ def setCUDA_VISIBLE_DEVICES(gpuid):
             os.environ['CUDA_VISIBLE_DEVICES'] = str(gpuid - 1)
         logger.debug(' - set CUDA_VISIBLE_DEVICES= %s' % os.environ['CUDA_VISIBLE_DEVICES'])
 
-def train_joint_tok_model(file_src, file_tgt):
+def train_tok_model(file_list):
     learner = pyonmttok.SentencePieceLearner(vocab_size=50000, character_coverage=1.0)
-    learner.ingest_file(file_src)
-    learner.ingest_file(file_tgt)
+    for file in file_list:
+        learner.ingest_file(file)
 
     temp_model_file = tempfile.NamedTemporaryFile(delete=False)
     tokenizer = learner.learn(temp_model_file.name)
@@ -93,16 +94,55 @@ def build_train_dev_data(file_src, file_tgt, file_align, mode):
     os.remove(temp_dev_file.name)
     return temp_train_data_file.name, temp_dev_data_file.name
 
-def generate_default_tok_config(filename, sp_model_filename, source):
-    with open(filename, 'w') as outfile:
+def generate_tok_config_default(sp_model_filename):
+    new_config_file = tempfile.NamedTemporaryFile(delete=False)
+    with open(new_config_file.name, 'w') as outfile:
         outfile.write("{\n")
         outfile.write("  \"mode\": \"none\",\n")
-        if source:
-            outfile.write("  \"vocabulary\": \"vocab_src\",\n")
-        else:
-            outfile.write("  \"vocabulary\": \"vocab_tgt\",\n")
         outfile.write("  \"sp_model_path\": \"%s\"\n" % sp_model_filename)
         outfile.write("}\n")
+
+    return new_config_file.name
+
+def tokenize_files(input_file, tokenizer=None, config_file=None):
+    if config_file:
+        config = None
+        with open(config_file) as _config_file:
+            config = json.load(_config_file)
+        mode = config['mode']
+        del config['mode']
+        tokenizer = pyonmttok.Tokenizer(mode, **config)
+
+    assert tokenizer is not None
+    local_tok_file = tempfile.NamedTemporaryFile(delete=False)
+    tokenizer.tokenize_file(input_file, local_tok_file.name)
+
+    return local_tok_file.name
+
+def copy_model_and_update_config(local_model_dir, config_file, source):
+    config = None
+    with open(config_file) as _config_file:
+        config = json.load(_config_file)
+
+    if 'bpe_model_path' in config:
+        filename = 'bpe_sim_' + os.path.basename(config['bpe_model_path'])
+        shutil.copyfile(config['bpe_model_path'], os.path.join(local_model_dir, filename))
+        config['bpe_model_path'] = filename
+    if 'sp_model_path' in config:
+        filename = 'sp_sim_' + os.path.basename(config['sp_model_path'])
+        shutil.copyfile(config['sp_model_path'], os.path.join(local_model_dir, filename))
+        config['sp_model_path'] = filename
+
+    config_filename = None
+    if source:
+        config['vocabulary'] = 'vocab_src'
+        config_filename = 'tokenization_src.json'
+    else:
+        config['vocabulary'] = 'vocab_tgt'
+        config_filename = 'tokenization_tgt.json'
+
+    with open(os.path.join(local_model_dir, config_filename), 'w') as outfile:
+        json.dump(config, outfile, indent=4)
 
 class SimilarityUtility(Utility):
 
@@ -138,11 +178,15 @@ class SimilarityUtility(Utility):
         parser_train.add_argument('-dev', required=False,
                             help='validation data')
         parser_train.add_argument('-src_tok', required=False,
-                            help='if provided, json tokenization options for onmt tokenization, points to vocabulary file')
+                            help='if provided, json tokenization options for onmt tokenization source')
+        parser_train.add_argument('-tgt_tok', required=False,
+                            help='if provided, json tokenization options for onmt tokenization target')
+        parser_train.add_argument('-src_tok_sub_model', required=False,
+                            help='bpe or SP model for source in src_tok config')
+        parser_train.add_argument('-tgt_tok_sub_model', required=False,
+                            help='bpe or SP model for target in tgt_tok config')
         parser_train.add_argument('-src_voc', required=False,
                             help='vocabulary of src words (needed to initialize learning)')
-        parser_train.add_argument('-tgt_tok', required=False,
-                            help='if provided, json tokenization options for onmt tokenization, points to vocabulary file')
         parser_train.add_argument('-tgt_voc', required=False,
                             help='vocabulary of tgt words (needed to initialize learning)')
         parser_train.add_argument('-src_emb', required=False,
@@ -200,37 +244,101 @@ class SimilarityUtility(Utility):
         parser_apply.add_argument('-show_aggr', required=False, action='store_true',
                             help='output source/target aggr vectors')
 
+    def generate_tok_config(self, config_file, sub_tok_model_file):
+        local_config_file = self.convert_to_local_file([config_file])[0]
+        config = None
+        with open(local_config_file) as _config_file:
+            config = json.load(_config_file)
+
+        if 'bpe_model' in config:
+            config['bpe_model_path'] = config['bpe_model']
+            del config['bpe_model']
+        if 'bpe_model_path' in config:
+            if not sub_tok_model_file:
+                raise RuntimeError('find bpe model in config %s, but -[src_tok_sub_model|tgt_tok_sub_model] is not set' % config_file)
+            else:
+                local_sub_model_file = self.convert_to_local_file([sub_tok_model_file])[0]
+                config['bpe_model_path'] = local_sub_model_file
+
+        if 'sp_model' in config:
+            config['sp_model_path'] = config['sp_model']
+            del config['sp_model']
+        if 'sp_model_path' in config:
+            if not sub_tok_model_file:
+                raise RuntimeError('find SP model in config %s, but -[src_tok_sub_model|tgt_tok_sub_model] is not set' % config_file)
+            else:
+                local_sub_model_file = self.convert_to_local_file([sub_tok_model_file])[0]
+                config['sp_model_path'] = local_sub_model_file
+
+        if 'vocabulary' in config:
+            del config['vocabulary']
+
+        new_config_file = tempfile.NamedTemporaryFile(delete=False)
+        with open(new_config_file.name, 'w') as outfile:
+            json.dump(config, outfile)
+
+        return new_config_file.name
+
     def prepare_train_data(self, args):
         local_train_src = self.convert_to_local_file([args.trn_src])[0]
         local_train_tgt = self.convert_to_local_file([args.trn_tgt])[0]
 
-        logger.info('Start to train joint tokenization model ...')
-        tokenizer, local_tok_model = train_joint_tok_model(local_train_src, local_train_tgt)
+        local_train_src_tok = None
+        local_train_tgt_tok = None
+        local_train_src_config = None
+        local_train_tgt_config = None
 
-        logger.info('Start to tokenize source txt ...')
-        local_train_src_tok = tempfile.NamedTemporaryFile(delete=False)
-        tokenizer.tokenize_file(local_train_src, local_train_src_tok.name)
+        if not args.src_tok and not args.tgt_tok:
+            logger.info('Start to train joint tokenization model ...')
+            tokenizer, local_tok_model = train_tok_model([local_train_src, local_train_tgt])
 
-        logger.info('Start to tokenize target txt ...')
-        local_train_tgt_tok = tempfile.NamedTemporaryFile(delete=False)
-        tokenizer.tokenize_file(local_train_tgt, local_train_tgt_tok.name)
+            local_train_src_config = generate_tok_config_default(local_tok_model)
+            logger.info('Start to tokenize source txt ...')
+            local_train_src_tok = tokenize_files(local_train_src, tokenizer=tokenizer)
+
+            local_train_tgt_config = generate_tok_config_default(local_tok_model)
+            logger.info('Start to tokenize target txt ...')
+            local_train_tgt_tok = tokenize_files(local_train_tgt, tokenizer=tokenizer)
+        else:
+            if args.src_tok:
+                local_train_src_config = self.generate_tok_config(args.src_tok, args.src_tok_sub_model)
+                logger.info('Start to tokenize source txt ...')
+                local_train_src_tok = tokenize_files(local_train_src, config_file=local_train_src_config)
+            else:
+                logger.info('Start to train source tokenization model ...')
+                tokenizer, local_tok_model = train_tok_model([local_train_src])
+
+                local_train_src_config = generate_tok_config_default(local_tok_model)
+                logger.info('Start to tokenize source txt ...')
+                local_train_src_tok = tokenize_files(local_train_src, tokenizer=tokenizer)
+            if args.tgt_tok:
+                local_train_tgt_config = self.generate_tok_config(args.tgt_tok, args.tgt_tok_sub_model)
+                logger.info('Start to tokenize target txt ...')
+                local_train_tgt_tok = tokenize_files(local_train_tgt, config_file=local_train_tgt_config)
+            else:
+                logger.info('Start to train target tokenization model ...')
+                tokenizer, local_tok_model = train_tok_model([local_train_tgt])
+
+                local_train_tgt_config = generate_tok_config_default(local_tok_model)
+                logger.info('Start to tokenize target txt ...')
+                local_train_tgt_tok = tokenize_files(local_train_tgt, tokenizer=tokenizer)
 
         logger.info('Start to build source vocab ...')
-        local_train_src_vocab = local_train_src_tok.name + ".vocab"
-        build_vocab(['', local_train_src_tok.name, local_train_src_vocab, 50000])
+        local_train_src_vocab = local_train_src_tok + ".vocab"
+        build_vocab(['', local_train_src_tok, local_train_src_vocab, 50000])
 
         logger.info('Start to build target vocab ...')
-        local_train_tgt_vocab = local_train_tgt_tok.name + ".vocab"
-        build_vocab(['', local_train_tgt_tok.name, local_train_tgt_vocab, 50000])
+        local_train_tgt_vocab = local_train_tgt_tok + ".vocab"
+        build_vocab(['', local_train_tgt_tok, local_train_tgt_vocab, 50000])
 
         logger.info('Start to apply fast_align ...')
-        local_train_align = train_fast_align(local_train_src_tok.name, local_train_tgt_tok.name)
+        local_train_align = train_fast_align(local_train_src_tok, local_train_tgt_tok)
 
         logger.info('Start to binarize data ...')
-        local_train_data, local_dev_data = build_train_dev_data(local_train_src_tok.name, local_train_tgt_tok.name, local_train_align, args.build_data_mode)
+        local_train_data, local_dev_data = build_train_dev_data(local_train_src_tok, local_train_tgt_tok, local_train_align, args.build_data_mode)
 
-        os.remove(local_train_src_tok.name)
-        os.remove(local_train_tgt_tok.name)
+        os.remove(local_train_src_tok)
+        os.remove(local_train_tgt_tok)
         os.remove(local_train_align)
 
         return {
@@ -238,7 +346,8 @@ class SimilarityUtility(Utility):
                 'dev': local_dev_data,
                 'src_voc': local_train_src_vocab,
                 'tgt_voc': local_train_tgt_vocab,
-                'sp_model': local_tok_model
+                'src_config': local_train_src_config,
+                'tgt_config': local_train_tgt_config
                }
 
     def exec_function(self, args):
@@ -262,9 +371,6 @@ class SimilarityUtility(Utility):
         if args.cmd == 'simtrain':
             setCUDA_VISIBLE_DEVICES(args.gpuid)
             train_data = self.prepare_train_data(args)
-            # TODO: if user provides tokenization config file
-            # '-src_tok', self.convert_to_local_file([args.src_tok])[0],
-            # '-tgt_tok', self.convert_to_local_file([args.tgt_tok])[0],
             new_args.extend([
                 '-trn',     train_data['train'],
                 '-dev',     train_data['dev'],
@@ -321,10 +427,8 @@ class SimilarityUtility(Utility):
         main(['similarity.py'] + new_args)
 
         if args.cmd == 'simtrain':
-            default_sp_model_name = 'joint_spm_50k.model'
-            generate_default_tok_config(os.path.join(local_model_dir, 'tokenization_src.json'), default_sp_model_name, source=True)
-            generate_default_tok_config(os.path.join(local_model_dir, 'tokenization_tgt.json'), default_sp_model_name, source=False)
-            os.rename(train_data['sp_model'], os.path.join(local_model_dir, default_sp_model_name))
+            copy_model_and_update_config(local_model_dir, train_data['src_config'], source=True)
+            copy_model_and_update_config(local_model_dir, train_data['tgt_config'], source=False)
 
             os.remove(train_data['train'])
             os.remove(train_data['dev'])
