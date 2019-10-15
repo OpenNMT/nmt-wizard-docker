@@ -93,8 +93,14 @@ class DummyFramework(_TestFramework):
         # Verify that input files exist.
         assert os.path.exists(src_file)
         assert os.path.exists(tgt_file)
-        assert os.path.exists(config["tokenization"]["source"]["vocabulary"])
-        assert os.path.exists(config["tokenization"]["target"]["vocabulary"])
+        assert "source" in config["tokenization"] and \
+            os.path.exists(config["tokenization"]["source"]["vocabulary"]) or \
+            os.path.exists(config["tokenization"]["multi"]["vocabulary"])
+
+        assert "target" in config["tokenization"] and \
+            os.path.exists(config["tokenization"]["target"]["vocabulary"]) or \
+            os.path.exists(config["tokenization"]["multi"]["vocabulary"])
+
         # Generate some checkpoint files.
         index = 0
         if model_path is not None:
@@ -494,6 +500,74 @@ def test_preprocess_train_chain(tmpdir):
     assert config["modelType"] == "checkpoint"
     assert not os.path.isdir(os.path.join(model_dir, "data"))
     assert DummyCheckpoint(model_dir).index() == 1
+
+def _test_buildvocab(tmpdir, run_num, multi=False):
+
+    sides = {}
+    if multi:
+        sides['multi'] = 'en_de'
+    else:
+        sides['source'] = 'en'
+        sides['target'] = 'de'
+
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 1000,
+            "sample_dist": [{
+                "path": "${DATA_DIR}/train",
+                "distribution": [
+                    ["europarl", 1]
+                ]
+            }]
+        },
+        "tokenization": {},
+        "options": {}
+
+    }
+
+    for side, ext in sides.items():
+        config['tokenization'][side] = {
+            "mode": "aggressive",
+            "joiner_annotate": True,
+            "vocabulary": {
+                "name": "test",
+                "size": 50,
+                "min-frequency": 5
+            }
+        }
+
+    os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
+    model_dir = _run_framework(tmpdir, "buildvocab%d" % run_num, "buildvocab", config)
+    config_buildvocab = _read_config(model_dir)
+    assert "parent_model" not in config_buildvocab
+    assert config_buildvocab["model"] == "buildvocab%d" % run_num
+    assert config_buildvocab["modelType"] == "base"
+    assert not os.path.isdir(os.path.join(model_dir, "data"))
+
+    model_dir = _run_framework(tmpdir, "model%d" % run_num, "train", parent="buildvocab%d" % run_num)
+    config_checkpoint = _read_config(model_dir)
+    assert config_checkpoint["model"] == "model%d" % run_num
+    assert config_checkpoint["parent_model"] == "buildvocab%d" % run_num
+    assert config_checkpoint["modelType"] == "checkpoint"
+    assert not os.path.isdir(os.path.join(model_dir, "data"))
+
+    for side, ext in sides.items():
+        vocab_file_name = "${MODEL_DIR}/"
+        if multi:
+            vocab_file_name += "joint_"
+        vocab_file_name += "test-50.%s" % ext
+
+        assert config_buildvocab["tokenization"][side]["vocabulary"] == vocab_file_name
+        assert config_checkpoint["tokenization"][side]["vocabulary"] == vocab_file_name
+
+    del os.environ["DATA_DIR"]
+
+def test_buildvocab(tmpdir):
+    _test_buildvocab(tmpdir, 0)
+    _test_buildvocab(tmpdir, 1, True)
+
 
 def test_replace_vocab(tmpdir):
     _run_framework(

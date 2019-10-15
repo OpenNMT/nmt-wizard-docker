@@ -29,11 +29,12 @@ class PreprocessingPipeline(Operator):
             tu_batch = op(tu_batch)
         return tu_batch
 
+
 class FileLoader(object):
 
     def __init__(self, f, batch_size = 0):
 
-        # TODO : multiple src and tgt
+        # TODO V2: multiple src and tgt
         self._file = f
 
         self._batch_size = batch_size
@@ -43,7 +44,7 @@ class FileLoader(object):
 
         tu_batch = []
         while True:
-            del tu_batch[:] # TODO: Check memory usage on a big corpus
+            del tu_batch[:] # TODO V2: Check memory usage on a big corpus
             # Read sampled lines from all files and build TUs.
             batch_line = 0
             while (batch_line < self._batch_size and self._current_line < self._file.lines_count):
@@ -62,24 +63,201 @@ class FileLoader(object):
             yield tu_batch
 
 
-class FileWriter(object):
+@six.add_metaclass(abc.ABCMeta)
+class Consumer(object):
+    """Base class for using preprocess results."""
 
-    def __init__(self, f, preprocess_dir):
+    def __init__(self, result_dir):
+        self._result_dir = result_dir
 
-        self._preprocess_dir = preprocess_dir
+    @abc.abstractmethod
+    def __call__(self, tu_batch):
+        raise NotImplementedError()
 
-        # TODO : multiple files
-        # TODO : do we output ALL the files that we take as input ?
-        src = os.path.join(preprocess_dir, os.path.basename(f.files[0].name))
+    def open_files(self, f):
+        pass
+
+    def close_files(self):
+        pass
+
+    def finalize(self, config):
+        pass
+
+
+class SubwordLearner(Consumer):
+
+    def __init__(self, config, result_dir):
+
+        super(SubwordLearner, self).__init__(result_dir)
+
+        self._subword_learners = {}
+
+        opt_multi = config.get('tokenization', {}).get('multi', {}).get('subword')
+        opt_source = config.get('tokenization', {}).get('source', {}).get('subword')
+        opt_target = config.get('tokenization', {}).get('target', {}).get('subword')
+
+        if opt_multi:
+            self._subword_learners['multi'] = tokenizer.make_subword_learner(config, result_dir, 'multi')
+        if opt_source:
+            self._subword_learners['source'] = tokenizer.make_subword_learner(config, result_dir, 'source')
+        if opt_target:
+            self._subword_learners['target'] = tokenizer.make_subword_learner(config, result_dir, 'target')
+
+
+    def __call__(self, tu_batch):
+        # Feed lines to subword learners.
+        # TODO V2 : feed tokenized lines ?
+        # TODO V2 : undo all placeholder annotation for subword processing
+        for tu in tu_batch :
+            if 'source' in self._subword_learners:
+                self._subword_learners['source']['learner'].ingest(tu.src_raw)
+            if 'target' in self._subword_learners:
+                self._subword_learners['target']['learner'].ingest(tu.tgt_raw)
+            if 'multi' in self._subword_learners:
+                self._subword_learners['multi']['learner'].ingest(tu.src_raw)
+                self._subword_learners['multi']['learner'].ingest(tu.tgt_raw)
+
+
+    def finalize(self, config):
+        # Learn subword models and write them to files.
+        for side, learner in self._subword_learners.items():
+            name =  config['tokenization'][side]['subword']['name'] \
+                    if 'name' in config['tokenization'][side]['subword'] \
+                    else 'model'
+
+            subword_type = self._subword_learners[side]['subword_type']
+            size = self._subword_learners[side]['size']
+
+            if side == 'multi' :
+                out_file = os.path.join(self._result_dir, "joint_" + subword_type + \
+                                        "_" + name + "-" + str(size) + "." + \
+                                        config['source'] + "_" + config['target'])
+            else :
+                out_file = os.path.join(self._result_dir, subword_type + \
+                                        "_" + name + "-" + str(size) + "." + \
+                                        config[side])
+            self._subword_learners[side]['learner'].learn(out_file)
+
+            config['tokenization'][side][subword_type+"_model_path"] = out_file
+
+class VocabularyBuilder(Consumer):
+
+    def __init__(self, config, result_dir):
+
+        super(VocabularyBuilder, self).__init__(result_dir)
+
+        self._vocabularies = {}
+        self._sums = {}
+
+        opt_multi = config.get('tokenization', {}).get('multi')
+        opt_source = config.get('tokenization', {}).get('source')
+        opt_target = config.get('tokenization', {}).get('target')
+
+        if opt_multi:
+            self._vocabularies['multi'] = {}
+            self._sums['multi'] = 0
+        if opt_source:
+            self._vocabularies['source'] = {}
+            self._sums['source'] = 0
+        if opt_target:
+            self._vocabularies['target'] = {}
+            self._sums['target'] = 0
+
+
+    def __call__(self, tu_batch):
+
+        # TODO V2 : feed tokenized words ?
+        # TODO : remove value for placeholders
+        for tu in tu_batch :
+            if 'source' in self._vocabularies:
+                for token in tu.src_raw.split():
+                    self._vocabularies['source'][token] = \
+                        self._vocabularies['source'].get(token, 0) + 1
+                    self._sums['source'] += 1
+            if 'target' in self._vocabularies:
+                for token in tu.tgt_raw.split():
+                    self._vocabularies['target'][token] = \
+                        self._vocabularies['target'].get(token, 0) + 1
+                    self._sums['target'] += 1
+            if 'multi' in self._vocabularies:
+                for token in tu.src_raw.split():
+                    self._vocabularies['multi'][token] = \
+                        self._vocabularies['multi'].get(token, 0) + 1
+                    self._sums['multi'] += 1
+                for token in tu.tgt_raw.split():
+                    self._vocabularies['multi'][token] = \
+                        self._vocabularies['multi'].get(token, 0) + 1
+                    self._sums['multi'] += 1
+
+    def finalize(self, config):
+
+        for side, vocabulary in self._vocabularies.items():
+            name =  config['tokenization'][side]['vocabulary']['name'] \
+                    if 'name' in config['tokenization'][side]['vocabulary'] \
+                    else 'vocab'
+
+            # Size option is mandatory, already checked it.
+            size = config['tokenization'][side]['vocabulary']['size']
+
+            min_frequency = config['tokenization'][side]['vocabulary']['min-frequency'] \
+                            if 'min-frequency' in config['tokenization'][side]['vocabulary'] \
+                            else 0
+
+            # Find out the real vocabulary size.
+            sorted_tokens = sorted(vocabulary, key=vocabulary.get, reverse=True)
+            real_size = len(sorted_tokens)
+
+            if min_frequency :
+                for t in reversed(sorted_tokens):
+                    if vocabulary[t] < min_frequency :
+                        real_size -= 1
+                    else:
+                        break
+
+            real_size = min(real_size, size)
+
+            # Write to file.
+            if side == 'multi' :
+                out_file = os.path.join(self._result_dir, "joint_" + name + \
+                                        "-" + str(real_size) + "." + \
+                                        config['source'] + "_" + config['target'])
+
+            else :
+                out_file = os.path.join(self._result_dir, name + \
+                                        "-" + str(real_size) + "." + \
+                                        config[side])
+
+            with open(out_file, 'w') as vocab_file :
+                for w in sorted_tokens:
+                    if vocabulary[w] >= min_frequency and real_size > 0:
+                        vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(self._sums[side])))
+                        real_size -= 1
+                    else:
+                        break
+
+            # TODO V2 : use "path" instead
+            config['tokenization'][side]['vocabulary'] = out_file
+
+            # TODO V2 : header with configuration ?
+            # TODO V2 : deal with placeholders
+            # TODO : "merge" and "add" options
+
+
+class FileWriter(Consumer):
+
+    def open_files(self, f):
+        # TODO V2 : multiple files
+        # TODO V2 : do we output ALL the files that we take as input ?
+        src = os.path.join(self._result_dir, os.path.basename(f.files[0].name))
         self._src_file_out = open(src, 'w')
 
-        tgt = os.path.join(preprocess_dir, os.path.basename(f.files[1].name))
+        tgt = os.path.join(self._result_dir, os.path.basename(f.files[1].name))
         self._tgt_file_out = open(tgt, 'w')
 
     def __call__(self, tu_batch):
         # Write lines to files from TUs
         for tu in tu_batch :
-            # Write preprocessed instead of raw
+            # TODO V2 : Write preprocessed instead of raw
             self._src_file_out.write("%s\n" % tu.src_raw)
             self._tgt_file_out.write("%s\n" % tu.tgt_raw)
 
@@ -89,15 +267,30 @@ class FileWriter(object):
         if not self._tgt_file_out.closed:
             self._tgt_file_out.close()
 
+def make_consumer(config, result_dir, result):
+
+    if result == 'subword':
+        return SubwordLearner(config, result_dir)
+
+    if result == 'vocabulary':
+        return VocabularyBuilder(config, result_dir)
+
+    # Default is write to file.
+    return FileWriter(result_dir)
+
 
 class Tokenizer(Operator):
 
     def __init__(self, tok_config):
-        self._src_tokenizer = 'source' in tok_config and \
-                              tokenizer.build_tokenizer(tok_config['source'])
+        self._src_tokenizer = ('source' in tok_config and \
+                              tokenizer.build_tokenizer(tok_config['source'])) or \
+                              ('multi' in tok_config and \
+                               tokenizer.build_tokenizer(tok_config['multi']))
 
-        self._tgt_tokenizer = 'target' in tok_config and \
-                              tokenizer.build_tokenizer(tok_config['target'])
+        self._tgt_tokenizer = ('target' in tok_config and \
+                              tokenizer.build_tokenizer(tok_config['target'])) or \
+                              ('multi' in tok_config and \
+                               tokenizer.build_tokenizer(tok_config['multi']))
 
     def __call__(self, tu_batch):
 

@@ -2,6 +2,7 @@ import pytest
 import shutil
 
 from nmtwizard.preprocess import generate_preprocessed_data
+from nmtwizard.preprocess import generate_vocabularies
 
 def test_sampler(tmpdir):
 
@@ -94,3 +95,95 @@ def test_sampler(tmpdir):
     assert summary['corpus_specific1.']['lines_sampled'] == 0
     assert summary['corpus_specific2.']['lines_sampled'] == 0
     assert summary['IT.']['lines_sampled'] == 0
+
+
+def _test_generate_vocabularies(tmpdir, subword_config, multi=False):
+
+    sides = {}
+    if multi:
+        sides['multi'] = 'en_de'
+    else:
+        sides['source'] = 'en'
+        sides['target'] = 'de'
+
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 800,
+            "train_dir": ".",
+            "sample_dist": [
+                {
+                    "path": ".",
+                    "distribution": [
+                        ["europarl", 1]
+                    ]
+                }
+            ]
+        },
+        "tokenization": {}
+    }
+
+    for side, ext in sides.items():
+        config['tokenization'][side] = {
+            "mode": "aggressive",
+            "vocabulary": {
+                "name": "test",
+                "size": 50,
+                "min-frequency": 5
+            },
+            "subword": subword_config
+        }
+
+    subword_type = subword_config['type']
+
+    _, result_tok_config = generate_vocabularies(config, "", str(tmpdir))
+
+    for side, ext in sides.items():
+        # Check subword bpe
+        subword_file_name = "subword/"
+        if multi:
+            subword_file_name += "joint_"
+        subword_file_name += "%s_model-100.%s" % (subword_type, ext)
+        subword_file = str(tmpdir.join(subword_file_name))
+
+        if subword_type == 'bpe':
+            with open(subword_file, 'rb') as f:
+                assert len(f.readlines()) == 101
+
+        # Check vocabulary
+        vocab_file_name = "vocabulary/"
+        if multi:
+            vocab_file_name += "joint_"
+        vocab_file_name += "test-50.%s" % ext
+        vocab_file = str(tmpdir.join(vocab_file_name))
+
+        with open(vocab_file, 'rb') as f :
+            assert len(f.readlines()) == 50
+
+        # Check result tokenization configuration
+        assert result_tok_config[side]['%s_model_path' % subword_type] == subword_file
+
+        assert result_tok_config[side]['vocabulary'] == vocab_file
+
+def test_generate_vocabularies(tmpdir):
+
+    config_subword_bpe = {
+        "params": {
+            "symbols": 100
+        },
+        "type": "bpe"
+    }
+
+    _test_generate_vocabularies(tmpdir, config_subword_bpe)
+
+    config_subword_sp = {
+        "params": {
+            "vocab_size": 100
+        },
+        "type": "sp"
+    }
+
+    _test_generate_vocabularies(tmpdir, config_subword_sp)
+
+    _test_generate_vocabularies(tmpdir, config_subword_bpe, True)
