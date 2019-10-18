@@ -80,7 +80,7 @@ class RemoteStorage(Storage):
         client = self._connectSCPClient()
         with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
             try:
-                client.get(remote_path, tmpfile.name)
+                client.get(remote_path, tmpfile.name, preserve_times=True)
             except Exception as err:
                 self._closeSCPClient()
                 raise
