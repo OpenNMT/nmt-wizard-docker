@@ -2,6 +2,7 @@
 import six
 import abc
 import os
+import collections
 
 from nmtwizard import tokenizer
 from nmtwizard import tu
@@ -157,13 +158,13 @@ class VocabularyBuilder(Consumer):
         opt_target = config.get('tokenization', {}).get('target')
 
         if opt_multi:
-            self._vocabularies['multi'] = {}
+            self._vocabularies['multi'] = collections.defaultdict(int)
             self._sums['multi'] = 0
         if opt_source:
-            self._vocabularies['source'] = {}
+            self._vocabularies['source'] = collections.defaultdict(int)
             self._sums['source'] = 0
         if opt_target:
-            self._vocabularies['target'] = {}
+            self._vocabularies['target'] = collections.defaultdict(int)
             self._sums['target'] = 0
 
 
@@ -174,22 +175,18 @@ class VocabularyBuilder(Consumer):
         for tu in tu_batch :
             if 'source' in self._vocabularies:
                 for token in tu.src_raw.split():
-                    self._vocabularies['source'][token] = \
-                        self._vocabularies['source'].get(token, 0) + 1
+                    self._vocabularies['source'][token] += 1
                     self._sums['source'] += 1
             if 'target' in self._vocabularies:
                 for token in tu.tgt_raw.split():
-                    self._vocabularies['target'][token] = \
-                        self._vocabularies['target'].get(token, 0) + 1
+                    self._vocabularies['target'][token] += 1
                     self._sums['target'] += 1
             if 'multi' in self._vocabularies:
                 for token in tu.src_raw.split():
-                    self._vocabularies['multi'][token] = \
-                        self._vocabularies['multi'].get(token, 0) + 1
+                    self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
                 for token in tu.tgt_raw.split():
-                    self._vocabularies['multi'][token] = \
-                        self._vocabularies['multi'].get(token, 0) + 1
+                    self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
 
     def _prune(self, vocabulary, sorted_vocabulary, size, min_frequency):
