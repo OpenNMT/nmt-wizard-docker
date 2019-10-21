@@ -62,15 +62,15 @@ def tokenize(tokenizer, text):
     output = " ".join(words)
     return output
 
-def make_subword_learner(config, subword_dir, side):
+def make_subword_learner(subword_config, subword_dir):
 
-    if 'params' not in config['tokenization'][side]['subword']:
+    if 'params' not in subword_config:
         raise RuntimeError('Parameter field \'params\' should be specified for subword model learning.')
-    params = config['tokenization'][side]['subword']['params']
+    params = subword_config['params']
 
-    if 'type' not in config['tokenization'][side]['subword']:
+    if 'type' not in subword_config:
         raise RuntimeError('\'type\' field should be specified for subword model learning.')
-    subword_type = config['tokenization'][side]['subword']['type']
+    subword_type = subword_config['type']
 
     size = 0
     learner = None

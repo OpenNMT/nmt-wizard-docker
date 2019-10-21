@@ -100,11 +100,11 @@ class SubwordLearner(Consumer):
         opt_target = config.get('tokenization', {}).get('target', {}).get('subword')
 
         if opt_multi:
-            self._subword_learners['multi'] = tokenizer.make_subword_learner(config, result_dir, 'multi')
+            self._subword_learners['multi'] = tokenizer.make_subword_learner(opt_multi, result_dir)
         if opt_source:
-            self._subword_learners['source'] = tokenizer.make_subword_learner(config, result_dir, 'source')
+            self._subword_learners['source'] = tokenizer.make_subword_learner(opt_source, result_dir)
         if opt_target:
-            self._subword_learners['target'] = tokenizer.make_subword_learner(config, result_dir, 'target')
+            self._subword_learners['target'] = tokenizer.make_subword_learner(opt_target, result_dir)
 
 
     def __call__(self, tu_batch):
