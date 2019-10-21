@@ -78,7 +78,10 @@ class Consumer(object):
         pass
 
     def close_files(self):
-        pass
+        for _, obj in self.__dict__.items():
+            if hasattr(obj, "close") and callable(obj.close) and \
+               hasattr(obj, "closed") and not obj.closed:
+                obj.close()
 
     def finalize(self, config):
         pass
@@ -189,6 +192,19 @@ class VocabularyBuilder(Consumer):
                         self._vocabularies['multi'].get(token, 0) + 1
                     self._sums['multi'] += 1
 
+    def _prune(self, vocabulary, sorted_vocabulary, size, min_frequency):
+        real_size = len(sorted_vocabulary)
+
+        if min_frequency :
+            for t in reversed(sorted_vocabulary):
+                if vocabulary[t] < min_frequency :
+                    real_size -= 1
+                else:
+                    break
+
+        return min(real_size, size)
+
+
     def finalize(self, config):
 
         for side, vocabulary in self._vocabularies.items():
@@ -204,17 +220,9 @@ class VocabularyBuilder(Consumer):
                             else 0
 
             # Find out the real vocabulary size.
-            sorted_tokens = sorted(vocabulary, key=vocabulary.get, reverse=True)
-            real_size = len(sorted_tokens)
+            sorted_vocabulary = sorted(vocabulary, key=vocabulary.get, reverse=True)
 
-            if min_frequency :
-                for t in reversed(sorted_tokens):
-                    if vocabulary[t] < min_frequency :
-                        real_size -= 1
-                    else:
-                        break
-
-            real_size = min(real_size, size)
+            real_size = self._prune(vocabulary, sorted_vocabulary, size, min_frequency)
 
             # Write to file.
             if side == 'multi' :
@@ -228,12 +236,9 @@ class VocabularyBuilder(Consumer):
                                         config[side])
 
             with open(out_file, 'w') as vocab_file :
-                for w in sorted_tokens:
-                    if vocabulary[w] >= min_frequency and real_size > 0:
-                        vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(self._sums[side])))
-                        real_size -= 1
-                    else:
-                        break
+                for i in range(real_size):
+                    w = sorted_vocabulary[i]
+                    vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(self._sums[side])))
 
             # TODO V2 : use "path" instead
             config['tokenization'][side]['vocabulary'] = out_file
@@ -261,11 +266,6 @@ class FileWriter(Consumer):
             self._src_file_out.write("%s\n" % tu.src_raw)
             self._tgt_file_out.write("%s\n" % tu.tgt_raw)
 
-    def close_files(self):
-        if not self._src_file_out.closed:
-            self._src_file_out.close()
-        if not self._tgt_file_out.closed:
-            self._tgt_file_out.close()
 
 def make_consumer(config, result_dir, result):
 

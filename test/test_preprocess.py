@@ -97,7 +97,7 @@ def test_sampler(tmpdir):
     assert summary['IT.']['lines_sampled'] == 0
 
 
-def _test_generate_vocabularies(tmpdir, subword_config, multi=False):
+def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_config=None, multi=False):
 
     sides = {}
     if multi:
@@ -129,45 +129,59 @@ def _test_generate_vocabularies(tmpdir, subword_config, multi=False):
             "mode": "aggressive",
             "vocabulary": {
                 "name": "test",
-                "size": 50,
-                "min-frequency": 5
+                "size": size,
+                "min-frequency": min_frequency
             },
             "subword": subword_config
         }
 
-    subword_type = subword_config['type']
-
     _, result_tok_config = generate_vocabularies(config, "", str(tmpdir))
 
     for side, ext in sides.items():
-        # Check subword bpe
-        subword_file_name = "subword/"
-        if multi:
-            subword_file_name += "joint_"
-        subword_file_name += "%s_model-100.%s" % (subword_type, ext)
-        subword_file = str(tmpdir.join(subword_file_name))
 
-        if subword_type == 'bpe':
-            with open(subword_file, 'rb') as f:
-                assert len(f.readlines()) == 101
+        # Check subword
+        if subword_config:
+            subword_type = subword_config['type']
+            subword_file_name = "subword/"
+            if multi:
+                subword_file_name += "joint_"
+            subword_file_name += "%s_model-100.%s" % (subword_type, ext)
+            subword_file = str(tmpdir.join(subword_file_name))
+
+            if subword_type == 'bpe':
+                with open(subword_file, 'rb') as f:
+                    assert len(f.readlines()) == 101
+
+            assert result_tok_config[side]['%s_model_path' % subword_type] == subword_file
 
         # Check vocabulary
+        rs = real_size[side] if isinstance(real_size, dict) else real_size
+
         vocab_file_name = "vocabulary/"
         if multi:
             vocab_file_name += "joint_"
-        vocab_file_name += "test-50.%s" % ext
+        vocab_file_name += "test-%s.%s" % (rs, ext)
         vocab_file = str(tmpdir.join(vocab_file_name))
 
         with open(vocab_file, 'rb') as f :
-            assert len(f.readlines()) == 50
-
-        # Check result tokenization configuration
-        assert result_tok_config[side]['%s_model_path' % subword_type] == subword_file
+            assert len(f.readlines()) == rs
 
         assert result_tok_config[side]['vocabulary'] == vocab_file
 
 def test_generate_vocabularies(tmpdir):
 
+    # Real vocabulary is smaller than size
+    _test_generate_vocabularies(tmpdir, 2000, 0, {'source': 1428, 'target': 1700})
+
+    # Real vocabulary is greater than size
+    _test_generate_vocabularies(tmpdir, 1000, 0, 1000)
+
+    # Size is greater than filtering by frequency
+    _test_generate_vocabularies(tmpdir, 1000, 5, {'source': 632, 'target': 614})
+
+    # Size is smaller than filtering by frequency
+    _test_generate_vocabularies(tmpdir, 100, 5, 100)
+    
     config_subword_bpe = {
         "params": {
             "symbols": 100
@@ -175,7 +189,7 @@ def test_generate_vocabularies(tmpdir):
         "type": "bpe"
     }
 
-    _test_generate_vocabularies(tmpdir, config_subword_bpe)
+    _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_bpe)
 
     config_subword_sp = {
         "params": {
@@ -184,6 +198,6 @@ def test_generate_vocabularies(tmpdir):
         "type": "sp"
     }
 
-    _test_generate_vocabularies(tmpdir, config_subword_sp)
+    _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_sp)
 
-    _test_generate_vocabularies(tmpdir, config_subword_bpe, True)
+    _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_bpe, True)

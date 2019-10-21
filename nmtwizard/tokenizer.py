@@ -96,7 +96,7 @@ def make_subword_learner(config, subword_dir, side):
 
         # If no tokenizer is specified, no tokenization.
         # TODO : why the difference ?
-        learner = pyonmttok.SentencePieceLearner(pyonmttok.Tokenizer("space"), **params)
+        learner = pyonmttok.SentencePieceLearner(None, **params)
     else:
         raise RuntimeError('Invalid subword type : \'%s\'.' % subword_type)
 
