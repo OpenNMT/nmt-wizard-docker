@@ -121,19 +121,20 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
                 }
             ]
         },
-        "tokenization": {}
+        "tokenization": {
+            "source": { "mode": "aggressive" },
+            "target": { "mode": "aggressive" },
+            "multi": {}
+        }
     }
 
     for side, ext in sides.items():
-        config['tokenization'][side] = {
-            "mode": "aggressive",
-            "vocabulary": {
-                "name": "test",
-                "size": size,
-                "min-frequency": min_frequency
-            },
-            "subword": subword_config
+        config['tokenization'][side]['build_vocabulary'] = {
+            "name": "test",
+            "size": size,
+            "min-frequency": min_frequency
         }
+        config['tokenization'][side]['build_subword'] = subword_config
 
     _, result_tok_config = generate_vocabularies(config, "", str(tmpdir))
 
@@ -152,7 +153,11 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
                 with open(subword_file, 'rb') as f:
                     assert len(f.readlines()) == 101
 
-            assert result_tok_config[side]['%s_model_path' % subword_type] == subword_file
+            if side == 'multi':
+                assert result_tok_config['source']['%s_model_path' % subword_type] == subword_file
+                assert result_tok_config['target']['%s_model_path' % subword_type] == subword_file
+            else:
+                assert result_tok_config[side]['%s_model_path' % subword_type] == subword_file
 
         # Check vocabulary
         rs = real_size[side] if isinstance(real_size, dict) else real_size
@@ -166,7 +171,12 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         with open(vocab_file, 'rb') as f :
             assert len(f.readlines()) == rs
 
-        assert result_tok_config[side]['vocabulary'] == vocab_file
+        if side == 'multi':
+            assert result_tok_config['source']['vocabulary'] == vocab_file
+            assert result_tok_config['target']['vocabulary'] == vocab_file
+        else:
+            assert result_tok_config[side]['vocabulary'] == vocab_file
+
 
 def test_generate_vocabularies(tmpdir):
 

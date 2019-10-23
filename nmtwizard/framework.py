@@ -443,7 +443,6 @@ class Framework(Utility):
         start_time = time.time()
         local_config = self._finalize_config(config)
         objects, tokenization_config = self._generate_vocabularies(local_config)
-
         end_time = time.time()
 
         local_config['tokenization'] = resolve_environment_variables(tokenization_config)
@@ -803,14 +802,8 @@ class Framework(Utility):
         state = {}
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            state['src_tokenizer'] = tokenizer.build_tokenizer(tok_config['source']) \
-                                     if 'source' in tok_config \
-                                     else tokenizer.build_tokenizer(tok_config['multi'])
-
-            state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target']) \
-                                     if 'target' in tok_config \
-                                     else tokenizer.build_tokenizer(tok_config['multi'])
-
+            state['src_tokenizer'] = tokenizer.build_tokenizer(tok_config['source'])
+            state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
         return state
 
     def _preprocess_input(self, state, input, config):
@@ -836,9 +829,7 @@ class Framework(Utility):
     def _preprocess_file(self, config, input):
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            src_tokenizer = tokenizer.build_tokenizer(tok_config['source']) \
-                            if 'source' in tok_config \
-                            else tokenizer.build_tokenizer(tok_config['multi'])
+            src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
             output = "%s.tok" % input
             tokenizer.tokenize_file(src_tokenizer, input, output)
             return output
@@ -847,9 +838,7 @@ class Framework(Utility):
     def _postprocess_file(self, config, source, target):
         if 'tokenization' in config:
             tok_config = config['tokenization']
-            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target']) \
-                            if 'target' in tok_config \
-                            else tokenizer.build_tokenizer(tok_config['multi'])
+            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
             output = "%s.detok" % target
             tokenizer.detokenize_file(tgt_tokenizer, target, output)
             return output

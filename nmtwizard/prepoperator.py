@@ -96,9 +96,9 @@ class SubwordLearner(Consumer):
 
         self._subword_learners = {}
 
-        opt_multi = config.get('tokenization', {}).get('multi', {}).get('subword')
-        opt_source = config.get('tokenization', {}).get('source', {}).get('subword')
-        opt_target = config.get('tokenization', {}).get('target', {}).get('subword')
+        opt_multi = config.get('tokenization', {}).get('multi', {}).get('build_subword')
+        opt_source = config.get('tokenization', {}).get('source', {}).get('build_subword')
+        opt_target = config.get('tokenization', {}).get('target', {}).get('build_subword')
 
         if opt_multi:
             self._subword_learners['multi'] = tokenizer.make_subword_learner(opt_multi, result_dir)
@@ -125,8 +125,8 @@ class SubwordLearner(Consumer):
     def finalize(self, config):
         # Learn subword models and write them to files.
         for side, learner in self._subword_learners.items():
-            name =  config['tokenization'][side]['subword']['name'] \
-                    if 'name' in config['tokenization'][side]['subword'] \
+            name =  config['tokenization'][side]['build_subword']['name'] \
+                    if 'name' in config['tokenization'][side]['build_subword'] \
                     else 'model'
 
             subword_type = self._subword_learners[side]['subword_type']
@@ -136,13 +136,16 @@ class SubwordLearner(Consumer):
                 out_file = os.path.join(self._result_dir, "joint_" + subword_type + \
                                         "_" + name + "-" + str(size) + "." + \
                                         config['source'] + "_" + config['target'])
+                config['tokenization']['source'][subword_type+"_model_path"] = out_file
+                config['tokenization']['target'][subword_type+"_model_path"] = out_file
             else :
                 out_file = os.path.join(self._result_dir, subword_type + \
                                         "_" + name + "-" + str(size) + "." + \
                                         config[side])
+                config['tokenization'][side][subword_type+"_model_path"] = out_file
+
             self._subword_learners[side]['learner'].learn(out_file)
 
-            config['tokenization'][side][subword_type+"_model_path"] = out_file
 
 class VocabularyBuilder(Consumer):
 
@@ -153,9 +156,9 @@ class VocabularyBuilder(Consumer):
         self._vocabularies = {}
         self._sums = {}
 
-        opt_multi = config.get('tokenization', {}).get('multi')
-        opt_source = config.get('tokenization', {}).get('source')
-        opt_target = config.get('tokenization', {}).get('target')
+        opt_multi = config.get('tokenization', {}).get('multi', {}).get('build_vocabulary')
+        opt_source = config.get('tokenization', {}).get('source', {}).get('build_vocabulary')
+        opt_target = config.get('tokenization', {}).get('target', {}).get('build_vocabulary')
 
         if opt_multi:
             self._vocabularies['multi'] = collections.defaultdict(int)
@@ -205,15 +208,15 @@ class VocabularyBuilder(Consumer):
     def finalize(self, config):
 
         for side, vocabulary in self._vocabularies.items():
-            name =  config['tokenization'][side]['vocabulary']['name'] \
-                    if 'name' in config['tokenization'][side]['vocabulary'] \
+            name =  config['tokenization'][side]['build_vocabulary']['name'] \
+                    if 'name' in config['tokenization'][side]['build_vocabulary'] \
                     else 'vocab'
 
             # Size option is mandatory, already checked it.
-            size = config['tokenization'][side]['vocabulary']['size']
+            size = config['tokenization'][side]['build_vocabulary']['size']
 
-            min_frequency = config['tokenization'][side]['vocabulary']['min-frequency'] \
-                            if 'min-frequency' in config['tokenization'][side]['vocabulary'] \
+            min_frequency = config['tokenization'][side]['build_vocabulary']['min-frequency'] \
+                            if 'min-frequency' in config['tokenization'][side]['build_vocabulary'] \
                             else 0
 
             # Find out the real vocabulary size.
@@ -226,19 +229,19 @@ class VocabularyBuilder(Consumer):
                 out_file = os.path.join(self._result_dir, "joint_" + name + \
                                         "-" + str(real_size) + "." + \
                                         config['source'] + "_" + config['target'])
+                config['tokenization']['source']['vocabulary'] = out_file
+                config['tokenization']['target']['vocabulary'] = out_file
 
             else :
                 out_file = os.path.join(self._result_dir, name + \
                                         "-" + str(real_size) + "." + \
                                         config[side])
+                config['tokenization'][side]['vocabulary'] = out_file
 
             with open(out_file, 'w') as vocab_file :
                 for i in range(real_size):
                     w = sorted_vocabulary[i]
                     vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(self._sums[side])))
-
-            # TODO V2 : use "path" instead
-            config['tokenization'][side]['vocabulary'] = out_file
 
             # TODO V2 : header with configuration ?
             # TODO V2 : deal with placeholders

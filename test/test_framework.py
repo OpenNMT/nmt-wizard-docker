@@ -522,20 +522,19 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
                 ]
             }]
         },
-        "tokenization": {},
-        "options": {}
-
+        "options": {},
+        "tokenization": {
+            "source": { "mode": "aggressive" },
+            "target": { "mode": "aggressive" },
+            "multi": {}
+        }
     }
 
     for side, ext in sides.items():
-        config['tokenization'][side] = {
-            "mode": "aggressive",
-            "joiner_annotate": True,
-            "vocabulary": {
-                "name": "test",
-                "size": 50,
-                "min-frequency": 5
-            }
+        config['tokenization'][side]['build_vocabulary'] = {
+            "name": "test",
+            "size": 50,
+            "min-frequency": 5
         }
 
     os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
@@ -559,8 +558,15 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
             vocab_file_name += "joint_"
         vocab_file_name += "test-50.%s" % ext
 
-        assert config_buildvocab["tokenization"][side]["vocabulary"] == vocab_file_name
-        assert config_checkpoint["tokenization"][side]["vocabulary"] == vocab_file_name
+        if side == 'multi':
+            assert config_buildvocab["tokenization"]["source"]["vocabulary"] == vocab_file_name
+            assert config_checkpoint["tokenization"]["source"]["vocabulary"] == vocab_file_name
+
+            assert config_buildvocab["tokenization"]["target"]["vocabulary"] == vocab_file_name
+            assert config_checkpoint["tokenization"]["target"]["vocabulary"] == vocab_file_name
+        else :
+            assert config_buildvocab["tokenization"][side]["vocabulary"] == vocab_file_name
+            assert config_checkpoint["tokenization"][side]["vocabulary"] == vocab_file_name
 
     del os.environ["DATA_DIR"]
 

@@ -17,8 +17,10 @@ def build_tokenizer(args):
     del local_args['mode']
     if 'vocabulary' in local_args:
         del local_args['vocabulary']
-    if 'subword' in local_args:
-        del local_args['subword']
+    if 'build_subword' in local_args:
+        del local_args['build_subword']
+    if 'build_vocabulary' in local_args:
+        del local_args['build_vocabulary']
 
     return pyonmttok.Tokenizer(mode, **local_args)
 

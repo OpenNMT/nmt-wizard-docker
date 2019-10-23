@@ -11,17 +11,19 @@ logger = get_logger(__name__)
 
 def _generate_models(config, corpus_dir, data_dir, option):
 
-    opt_multi = config.get('tokenization', {}).get('multi', {}).get(option)
-    opt_source = config.get('tokenization', {}).get('source', {}).get(option)
-    opt_target = config.get('tokenization', {}).get('target', {}).get(option)
+    build_option = "build_" + option
+
+    opt_multi = config.get('tokenization', {}).get('multi', {}).get(build_option)
+    opt_source = config.get('tokenization', {}).get('source', {}).get(build_option)
+    opt_target = config.get('tokenization', {}).get('target', {}).get(build_option)
 
     if not opt_multi and not (opt_source and opt_target):
-        logger.warning('No \'' + option + '\' option specified, exit without preprocessing.')
+        logger.warning('No \'' + build_option + '\' option specified, exit without preprocessing.')
         return
 
     if (opt_multi and opt_source) or \
        (opt_multi and opt_target) :
-        raise RuntimeError('Cannot specify \'' + option + '\' for both \'multi\' and either \'source\' or \'target\'.')
+        raise RuntimeError('Cannot specify \'' + build_option + '\' for both \'multi\' and either \'source\' or \'target\'.')
 
     # Generate preprocessed sentences and feed them to subword learners or to vocabularies.
     generate_preprocessed_data(config, corpus_dir, data_dir, option)
@@ -43,9 +45,10 @@ def generate_vocabularies(config, corpus_dir, data_dir):
 
     # Check there isn't already a vocabulary.
     for side in config['tokenization']:
-        if config['tokenization'][side].get('vocabulary', {}).get('path'):
+        if config['tokenization'][side].get('vocabulary', {}):
             raise RuntimeError('Cannot build vocabulary if \'%s\' vocabulary path is already specified.' % side)
-        if not config['tokenization'][side].get('vocabulary', {}).get('size'):
+        build_vocab = config['tokenization'][side].get('build_vocabulary')
+        if build_vocab and not build_vocab.get('size'):
             raise RuntimeError('\'size\' option is mandatory to build vocabulary for \'%s\'.' % side)
 
     _generate_models(config, corpus_dir, data_dir, 'subword')
