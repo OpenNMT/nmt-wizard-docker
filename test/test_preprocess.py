@@ -132,7 +132,9 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         config['tokenization'][side]['build_vocabulary'] = {
             "name": "test",
             "size": size,
-            "min-frequency": min_frequency
+            "min-frequency": min_frequency,
+            "add": ['mama', 'papa'],
+            "merge": str(pytest.config.rootdir / "corpus" / "vocab" / "vocab-extra.txt")
         }
         config['tokenization'][side]['build_subword'] = subword_config
 
@@ -181,13 +183,13 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
 def test_generate_vocabularies(tmpdir):
 
     # Real vocabulary is smaller than size
-    _test_generate_vocabularies(tmpdir, 2000, 0, {'source': 1428, 'target': 1700})
+    _test_generate_vocabularies(tmpdir, 2000, 0, {'source': 1432, 'target': 1704})
 
     # Real vocabulary is greater than size
     _test_generate_vocabularies(tmpdir, 1000, 0, 1000)
 
     # Size is greater than filtering by frequency
-    _test_generate_vocabularies(tmpdir, 1000, 5, {'source': 632, 'target': 614})
+    _test_generate_vocabularies(tmpdir, 1000, 5, {'source': 636, 'target': 618})
 
     # Size is smaller than filtering by frequency
     _test_generate_vocabularies(tmpdir, 100, 5, 100)

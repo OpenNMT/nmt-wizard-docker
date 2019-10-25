@@ -219,6 +219,38 @@ class VocabularyBuilder(Consumer):
                             if 'min-frequency' in config['tokenization'][side]['build_vocabulary'] \
                             else 0
 
+            added_size = 0
+
+            # Merge previously created vocabulary.
+            vocab_to_merge = config['tokenization'][side]['build_vocabulary']['merge'] \
+                            if 'merge' in config['tokenization'][side]['build_vocabulary'] \
+                            else None
+
+            if vocab_to_merge and os.path.isfile(vocab_to_merge):
+                with open(vocab_to_merge, 'r') as f:
+                    header = True
+                    for l in f:
+                        if header and l[0] == '#':
+                            continue
+                        header = False
+                        w = l.strip().split(' ')[0]
+                        if w :
+                            # Set heaviest frequency on tokens from vocabulary to merge.
+                            vocabulary[w] = float("inf")
+                            added_size += 1
+
+            # Add extra tokens from a list.
+            vocab_to_add = config['tokenization'][side]['build_vocabulary']['add'] \
+                           if 'add' in config['tokenization'][side]['build_vocabulary'] \
+                           else []
+
+            for w in vocab_to_add:
+                vocabulary[w] = float("inf")
+                added_size += 1
+
+            if added_size > size :
+                raise RuntimeError('The size of extra tokens from \'merge\' and \'add\' (%d) cannot be bigger than than the required vocabulary size (%d)' % (added_size, size))
+
             # Find out the real vocabulary size.
             sorted_vocabulary = sorted(vocabulary, key=vocabulary.get, reverse=True)
 
@@ -245,7 +277,6 @@ class VocabularyBuilder(Consumer):
 
             # TODO V2 : header with configuration ?
             # TODO V2 : deal with placeholders
-            # TODO : "merge" and "add" options
 
 
 class FileWriter(Consumer):
