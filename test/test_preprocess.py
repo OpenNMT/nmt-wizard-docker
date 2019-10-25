@@ -196,7 +196,7 @@ def test_generate_vocabularies(tmpdir):
     
     config_subword_bpe = {
         "params": {
-            "symbols": 100
+            "vocab_size": 100
         },
         "type": "bpe"
     }

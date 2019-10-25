@@ -74,30 +74,17 @@ def make_subword_learner(subword_config, subword_dir):
         raise RuntimeError('\'type\' field should be specified for subword model learning.')
     subword_type = subword_config['type']
 
-    size = 0
+    if 'vocab_size' not in params :
+        raise RuntimeError('\'vocab_size\' should be specified for subword model learning.')
+    size = params['vocab_size']
+
     learner = None
     if (subword_type == "bpe"):
-        # TODO Should we have the same 'size' param for bpe and sp ?
-        # TODO Should it be inferred from vocabulary size instead ?
-        if 'symbols' not in params :
-            raise RuntimeError('\'symbols\' should be specified for subword model learning.')
-        size = params['symbols']
-
         min_frequency = params['min-frequency'] if 'min-frequency' in params else 0
         total_symbols = params['total_symbols'] if 'total_symbols' in params else False
         # If no tokenizer is specified, the default tokenizer is space mode.
-        # TODO : is this what we want ? or should we be able to ingest tokens directly ?
         learner = pyonmttok.BPELearner(None, size, min_frequency, total_symbols)
     elif (subword_type == "sp"):
-        # TODO Should we have the same 'size' param for bpe and sp ?
-        # TODO Should it be inferred from vocabulary size instead ?
-        # TODO : do we need it at all for SP ?
-        if 'vocab_size' not in params :
-            raise RuntimeError('\'vocab_size\' should be specified for subword model learning.')
-        size = params['vocab_size']
-
-        # If no tokenizer is specified, no tokenization.
-        # TODO : why the difference ?
         learner = pyonmttok.SentencePieceLearner(None, **params)
     else:
         raise RuntimeError('Invalid subword type : \'%s\'.' % subword_type)

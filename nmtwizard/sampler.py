@@ -44,7 +44,7 @@ def sample(config, source_dir):
         files.append(src_file)
 
         if src_file and src_lines :
-            # TODO : multiple sources and targets
+            # TODO V2 : multiple sources and targets
             tgt_file, tgt_lines = count_lines(file_path + tgt_suffix)
             files.append(tgt_file)
             if src_lines != tgt_lines:
@@ -172,7 +172,7 @@ def sample(config, source_dir):
         logger.warning('No \'sample\' size specified in configuration,'
                        'all data will be sampled.')
 
-    # TODO multiple sources and targets
+    # TODO V2 : multiple sources and targets
     src_suffix=config["source"]
     tgt_suffix=config["target"]
 
