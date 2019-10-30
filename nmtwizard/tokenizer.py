@@ -83,9 +83,9 @@ def make_subword_learner(subword_config, subword_dir):
         min_frequency = params['min-frequency'] if 'min-frequency' in params else 0
         total_symbols = params['total_symbols'] if 'total_symbols' in params else False
         # If no tokenizer is specified, the default tokenizer is space mode.
-        learner = pyonmttok.BPELearner(None, size, min_frequency, total_symbols)
+        learner = pyonmttok.BPELearner(symbols=size, min_frequency=min_frequency, total_symbols=total_symbols)
     elif (subword_type == "sp"):
-        learner = pyonmttok.SentencePieceLearner(None, **params)
+        learner = pyonmttok.SentencePieceLearner(**params)
     else:
         raise RuntimeError('Invalid subword type : \'%s\'.' % subword_type)
 
