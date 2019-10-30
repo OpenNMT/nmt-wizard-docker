@@ -240,10 +240,8 @@ def build_model_dir(model_dir, objects, config, check_integrity_fn):
             shutil.copytree(source, os.path.join(model_dir, target))
         else:
             shutil.copyfile(source, os.path.join(model_dir, target))
-    config_path = os.path.join(model_dir, 'config.json')
-    with open(config_path, 'w') as config_file:
-        json.dump(config, config_file)
-    objects['config.json'] = config_path
+    config_path = save_model_config(model_dir, config)
+    objects[os.path.basename(config_path)] = config_path
     if "description" in config:
         readme_path = os.path.join(model_dir, 'README.md')
         with io.open(readme_path, 'w', encoding='utf-8') as readme_file:
@@ -252,6 +250,22 @@ def build_model_dir(model_dir, objects, config, check_integrity_fn):
     md5 = md5files((k, v) for k, v in six.iteritems(objects) if check_integrity_fn(k))
     with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
         f.write(md5)
+
+def _get_config_path(model_dir):
+    return os.path.join(model_dir, 'config.json')
+
+def save_model_config(model_dir, config):
+    """Saves the model configuration."""
+    config_path = _get_config_path(model_dir)
+    with open(config_path, 'w') as config_file:
+        json.dump(config, config_file)
+    return config_path
+
+def load_model_config(model_dir):
+    """Loads the model configuration."""
+    config_path = _get_config_path(model_dir)
+    with open(config_path, 'r') as config_file:
+        return json.load(config_file)
 
 def check_model_dir(model_dir, check_integrity_fn):
     """Compares model package MD5."""
@@ -271,3 +285,4 @@ def fetch_model(storage, remote_model_path, model_path, check_integrity_fn):
     storage.get(remote_model_path, model_path, directory=True,
                 check_integrity_fn=lambda m: check_model_dir(m, check_integrity_fn))
     os.environ['MODEL_DIR'] = model_path
+    return load_model_config(model_path)

@@ -14,22 +14,19 @@ import shutil
 import collections
 
 from nmtwizard.logger import get_logger
-from nmtwizard.utility import Utility
-from nmtwizard.utility import resolve_environment_variables, resolve_remote_files
-from nmtwizard.utility import build_model_dir, fetch_model
-from nmtwizard.utility import ENVVAR_ABS_RE
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
 from nmtwizard import serving
 from nmtwizard import tokenizer
 from nmtwizard import preprocess
+from nmtwizard import utility
 
 
 logger = get_logger(__name__)
 
 
 @six.add_metaclass(abc.ABCMeta)
-class Framework(Utility):
+class Framework(utility.Utility):
     """Base class for frameworks."""
 
     def __init__(self, stateless=False, support_multi_training_files=False):
@@ -248,6 +245,10 @@ class Framework(Utility):
                                   help='Serving hostname.')
         parser_serve.add_argument('-p', '--port', type=int, default=4000,
                                   help='Serving port.')
+        parser_serve.add_argument('--release_optimization_level', type=int, default=1,
+                                  help=('Control the level of optimization applied to '
+                                        'released models (for compatible frameworks). '
+                                        '0 = no optimization, 1 = quantization.'))
 
         parser_preprocess = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
         parser_preprocess.add_argument('--build_model', default=False, action='store_true',
@@ -266,9 +267,11 @@ class Framework(Utility):
             # Download model locally and merge the configuration.
             remote_model_path = self._storage.join(self._model_storage_read, parent_model)
             model_path = os.path.join(self._models_dir, parent_model)
-            fetch_model(self._storage, remote_model_path, model_path, should_check_integrity)
-            with open(os.path.join(model_path, 'config.json'), 'r') as config_file:
-                model_config = json.load(config_file)
+            model_config = utility.fetch_model(
+                self._storage,
+                remote_model_path,
+                model_path,
+                should_check_integrity)
             if 'modelType' not in model_config:
                 if parent_model.endswith('_release'):
                     model_config['modelType'] = 'release'
@@ -325,15 +328,27 @@ class Framework(Utility):
             self.release_wrapper(
                 config,
                 model_path,
-                self._storage,
                 self._image,
-                args.destination,
+                storage=self._storage,
+                destination=args.destination,
                 optimization_level=args.optimization_level,
                 gpuid=self._gpuid,
                 push_model=not self._no_push)
         elif args.cmd == 'serve':
-            if not self._stateless and (parent_model is None or config['modelType'] != 'release'):
-                raise ValueError('serving requires a released model')
+            if (not self._stateless
+                and (parent_model is None
+                     or config['modelType'] not in ('checkpoint', 'release'))):
+                raise ValueError('serving requires a training checkpoint or a released model')
+            if config['modelType'] == 'checkpoint':
+                model_path = self.release_wrapper(
+                    config,
+                    model_path,
+                    self._image,
+                    local_destination=self._output_dir,
+                    optimization_level=args.release_optimization_level,
+                    gpuid=self._gpuid,
+                    push_model=False)
+                config = utility.load_model_config(model_path)
             self.serve_wrapper(
                 config, model_path, args.host, args.port, gpuid=self._gpuid)
         elif args.cmd == 'preprocess':
@@ -426,7 +441,7 @@ class Framework(Utility):
         # Build and push the model package.
         bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config, should_check_integrity)
+        utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
         return {
@@ -445,7 +460,7 @@ class Framework(Utility):
         objects, tokenization_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
-        local_config['tokenization'] = resolve_environment_variables(tokenization_config)
+        local_config['tokenization'] = utility.resolve_environment_variables(tokenization_config)
         config['tokenization'] = tokenization_config
         config['model'] = model_id
         config['modelType'] = 'base'
@@ -458,7 +473,7 @@ class Framework(Utility):
 
         bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config, should_check_integrity)
+        utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
 
@@ -570,9 +585,10 @@ class Framework(Utility):
     def release_wrapper(self,
                         config,
                         model_path,
-                        storage,
                         image,
-                        destination,
+                        storage=None,
+                        local_destination=None,
+                        destination=None,
                         optimization_level=None,
                         gpuid=0,
                         push_model=True):
@@ -597,10 +613,13 @@ class Framework(Utility):
             with open(options_path, 'w') as options_file:
                 json.dump(schema, options_file)
             objects[os.path.basename(options_path)] = options_path
-        objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config, should_check_integrity)
+        if local_destination is None:
+            local_destination = self._models_dir
+        objects_dir = os.path.join(local_destination, model_id)
+        utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(destination, model_id))
+        return objects_dir
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
         local_config = self._finalize_config(config, training=False)
@@ -682,7 +701,7 @@ class Framework(Utility):
                 if f not in objects and f not in parent_dependencies:
                     objects[f] = os.path.join(model_path, f)
         objects_dir = os.path.join(self._models_dir, model_id)
-        build_model_dir(objects_dir, objects, config, should_check_integrity)
+        utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
         return {
@@ -903,9 +922,9 @@ class Framework(Utility):
         return build_info
 
     def _finalize_config(self, config, training=True):
-        config = resolve_environment_variables(config, training=training)
+        config = utility.resolve_environment_variables(config, training=training)
         config = self._upgrade_data_config(config, training=training)
-        config = resolve_remote_files(config, self._shared_dir, self._storage)
+        config = utility.resolve_remote_files(config, self._shared_dir, self._storage)
         return config
 
     def _upgrade_data_config(self, config, training=True):
@@ -943,7 +962,7 @@ def bundle_dependencies(objects, config, local_config):
             if os.path.isabs(config) and os.path.exists(config):
                 filename = os.path.basename(config)
             else:
-                match = ENVVAR_ABS_RE.match(config)
+                match = utility.ENVVAR_ABS_RE.match(config)
                 if match and "TRAIN" not in match.group(1):
                     filename = match.group(2)
                 else:
