@@ -18,12 +18,12 @@ def _generate_models(config, corpus_dir, data_dir, option):
     opt_target = config.get('tokenization', {}).get('target', {}).get(build_option)
 
     if not opt_multi and not (opt_source and opt_target):
-        logger.warning('No \'' + build_option + '\' option specified, exit without preprocessing.')
+        logger.warning('No \'%s\' option specified, exit without preprocessing.' % build_option)
         return
 
     if (opt_multi and opt_source) or \
        (opt_multi and opt_target) :
-        raise RuntimeError('Cannot specify \'' + build_option + '\' for both \'multi\' and either \'source\' or \'target\'.')
+        raise RuntimeError('Cannot specify \'%s\' for both \'multi\' and either \'source\' or \'target\'.' % build_option)
 
     # Generate preprocessed sentences and feed them to subword learners or to vocabularies.
     generate_preprocessed_data(config, corpus_dir, data_dir, option)

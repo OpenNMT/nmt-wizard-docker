@@ -133,15 +133,14 @@ class SubwordLearner(Consumer):
             size = self._subword_learners[side]['size']
 
             if side == 'multi' :
-                out_file = os.path.join(self._result_dir, "joint_" + subword_type + \
-                                        "_" + name + "-" + str(size) + "." + \
-                                        config['source'] + "_" + config['target'])
+                out_file = os.path.join(self._result_dir, \
+                                        "joint_%s_%s-%d.%s_%s" % \
+                                        (subword_type, name, size, config['source'], config['target']) )
                 config['tokenization']['source'][subword_type+"_model_path"] = out_file
                 config['tokenization']['target'][subword_type+"_model_path"] = out_file
             else :
-                out_file = os.path.join(self._result_dir, subword_type + \
-                                        "_" + name + "-" + str(size) + "." + \
-                                        config[side])
+                out_file = os.path.join(self._result_dir, \
+                                        "%s_%s-%d.%s" % (subword_type, name, size, config[side]))
                 config['tokenization'][side][subword_type+"_model_path"] = out_file
 
             self._subword_learners[side]['learner'].learn(out_file)
@@ -258,16 +257,14 @@ class VocabularyBuilder(Consumer):
 
             # Write to file.
             if side == 'multi' :
-                out_file = os.path.join(self._result_dir, "joint_" + name + \
-                                        "-" + str(real_size) + "." + \
-                                        config['source'] + "_" + config['target'])
+                out_file = os.path.join(self._result_dir, \
+                                        "joint_%s-%d.%s_%s" % \
+                                        (name, real_size, config['source'], config['target']))
                 config['tokenization']['source']['vocabulary'] = out_file
                 config['tokenization']['target']['vocabulary'] = out_file
 
             else :
-                out_file = os.path.join(self._result_dir, name + \
-                                        "-" + str(real_size) + "." + \
-                                        config[side])
+                out_file = os.path.join(self._result_dir, "%s-%d.%s" % (name, real_size, config[side]))
                 config['tokenization'][side]['vocabulary'] = out_file
 
             with open(out_file, 'w') as vocab_file :
