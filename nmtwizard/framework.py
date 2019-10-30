@@ -907,7 +907,7 @@ class Framework(utility.Utility):
         return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
 
     def _generate_vocabularies(self, config):
-        raise NotImplementedError('vocabularies generation is not supported yet')
+        return preprocess.generate_vocabularies(config, self._corpus_dir, self._data_dir)
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution

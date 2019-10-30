@@ -253,7 +253,8 @@ def test_storages(tmpdir, storages, storage_id):
                                           storage_id=storage_id))
     assert lsdir == ['myremotedirectory/europarl-v7.de-en.10K.tok.de',
                      'myremotedirectory/test/copy2-europarl-v7.de-en.10K.tok.de',
-                     'myremotedirectory/vocab-2/de-vocab.txt']
+                     'myremotedirectory/vocab-2/de-vocab.txt',
+                     'myremotedirectory/vocab-2/vocab-extra.txt']
     # getting directory back
     with pytest.raises(Exception):
         storage_client.get(os.path.join("myremotedirectory"),

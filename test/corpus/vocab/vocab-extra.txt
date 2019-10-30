@@ -1,0 +1,2 @@
+vocab_mama
+vocab_papa
