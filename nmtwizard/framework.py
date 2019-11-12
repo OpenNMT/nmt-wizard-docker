@@ -718,10 +718,15 @@ class Framework(utility.Utility):
             tokens_to_add = {}
         tok_config = config.get('tokenization', {})
         tok_local_config = local_config.get('tokenization', {})
+        joint_vocab = is_joint_vocab(tok_config)
         parent_dependencies = {}
         if model_config:
             model_tok_config = model_config.get('tokenization', {})
             model_tok_local_config = self._finalize_config(model_tok_config)
+            model_joint_vocab = is_joint_vocab(model_tok_config)
+            if joint_vocab != model_joint_vocab:
+                raise ValueError("Changing joint vocabularies to split vocabularies "
+                                 "(or vice-versa) is currently not supported.")
             if keep_previous:
                 bundle_dependencies(
                     parent_dependencies,
@@ -730,22 +735,29 @@ class Framework(utility.Utility):
         else:
             model_tok_config = None
             model_tok_local_config = None
+        source_tokens_to_add = tokens_to_add.get('source') or []
+        target_tokens_to_add = tokens_to_add.get('target') or []
+        if joint_vocab:
+            source_tokens_to_add = set(list(source_tokens_to_add) + list(target_tokens_to_add))
+            target_tokens_to_add = source_tokens_to_add
         src_info = self._get_vocab_info(
             'source',
             tok_config,
             tok_local_config,
             model_config=model_tok_config,
             local_model_config=model_tok_local_config,
-            tokens_to_add=tokens_to_add.get('source'),
-            keep_previous=keep_previous)
+            tokens_to_add=source_tokens_to_add,
+            keep_previous=keep_previous,
+            joint_vocab=joint_vocab)
         tgt_info = self._get_vocab_info(
             'target',
             tok_config,
             tok_local_config,
             model_config=model_tok_config,
             local_model_config=model_tok_local_config,
-            tokens_to_add=tokens_to_add.get('target'),
-            keep_previous=keep_previous)
+            tokens_to_add=target_tokens_to_add,
+            keep_previous=keep_previous,
+            joint_vocab=joint_vocab)
         return src_info, tgt_info, parent_dependencies
 
     def _get_vocab_info(self,
@@ -755,20 +767,22 @@ class Framework(utility.Utility):
                         model_config=None,
                         local_model_config=None,
                         tokens_to_add=None,
-                        keep_previous=False):
+                        keep_previous=False,
+                        joint_vocab=False):
         if not config:
             return None
         opt = config.get(side)
         if opt is None or 'vocabulary' not in opt:
             return None
         local_opt = local_config[side]
+        vocab_name = side if not joint_vocab else 'joint'
 
-        current_basename = '%s-vocab.txt' % side
+        current_basename = '%s-vocab.txt' % vocab_name
         current_vocab = self._convert_vocab(
             local_opt['vocabulary'], basename=current_basename)
 
         # First read previous_vocabulary if given.
-        previous_basename = 'previous-%s-vocab.txt' % side
+        previous_basename = 'previous-%s-vocab.txt' % vocab_name
         previous_vocab = local_opt.get('previous_vocabulary')
         if previous_vocab is not None:
             previous_vocab = self._convert_vocab(
@@ -785,7 +799,7 @@ class Framework(utility.Utility):
             if vocab_changed:
                 if not opt.get('replace_vocab', False):
                     raise ValueError('%s vocabulary has changed but replace_vocab is not set.'
-                                     % side.capitalize())
+                                     % vocab_name.capitalize())
                 if keep_previous:
                     opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
                     local_opt['previous_vocabulary'] = local_model_opt['vocabulary']
@@ -810,7 +824,7 @@ class Framework(utility.Utility):
                     opt['previous_vocabulary'] = opt['vocabulary']
                     local_opt['previous_vocabulary'] = local_opt['vocabulary']
             current_vocab = self._convert_vocab(
-                new_vocab, basename="updated-%s-vocab.txt" % side)
+                new_vocab, basename="updated-%s-vocab.txt" % vocab_name)
             opt["vocabulary"] = new_vocab
             local_opt["vocabulary"] = new_vocab
 
@@ -1022,3 +1036,8 @@ def next_filename_version(filename):
     else:
         version = 2
     return '%s.v%d' % (filename, version)
+
+def is_joint_vocab(tokenization_config):
+    source = tokenization_config.get('source', {})
+    target = tokenization_config.get('target', {})
+    return source.get('vocabulary') == target.get('vocabulary')
