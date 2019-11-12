@@ -153,14 +153,16 @@ class ReplaceVocabChecker(_TestFramework):
                  src_tokens_to_add=None,
                  tgt_tokens_to_add=None,
                  src_vocab_size=None,
-                 tgt_vocab_size=None):
+                 tgt_vocab_size=None,
+                 joint=False):
         super(ReplaceVocabChecker, self).__init__()
         self.src_changed = src_changed
         self.tgt_changed = tgt_changed
-        self.src_tokens_to_add = src_tokens_to_add
-        self.tgt_tokens_to_add = tgt_tokens_to_add
+        self.src_tokens_to_add = src_tokens_to_add or []
+        self.tgt_tokens_to_add = tgt_tokens_to_add or []
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
+        self.joint = joint
 
     def train(self,
               config,
@@ -171,10 +173,21 @@ class ReplaceVocabChecker(_TestFramework):
               align_file=None,
               model_path=None,
               gpuid=0):
-        _check_vocab(src_vocab_info.current, src_vocab_info.previous,
-                     self.src_changed, self.src_tokens_to_add, self.src_vocab_size)
-        _check_vocab(tgt_vocab_info.current, tgt_vocab_info.previous,
-                     self.tgt_changed, self.tgt_tokens_to_add, self.tgt_vocab_size)
+        if self.joint:
+            assert src_vocab_info.current == tgt_vocab_info.current
+            assert src_vocab_info.previous == tgt_vocab_info.previous
+            changed = self.src_changed or self.tgt_changed
+            tokens_to_add = set(self.src_tokens_to_add + self.tgt_tokens_to_add)
+            vocab_size = self.src_vocab_size
+            _check_vocab(src_vocab_info.current, src_vocab_info.previous,
+                         changed, tokens_to_add, vocab_size)
+            _check_vocab(tgt_vocab_info.current, tgt_vocab_info.previous,
+                         changed, tokens_to_add, vocab_size)
+        else:
+            _check_vocab(src_vocab_info.current, src_vocab_info.previous,
+                         self.src_changed, self.src_tokens_to_add, self.src_vocab_size)
+            _check_vocab(tgt_vocab_info.current, tgt_vocab_info.previous,
+                         self.tgt_changed, self.tgt_tokens_to_add, self.tgt_vocab_size)
         model_dir = os.path.join(self._output_dir, "model")
         os.makedirs(model_dir)
         checkpoint_path = os.path.join(model_dir, "checkpoint.txt")
@@ -779,6 +792,54 @@ def test_add_new_tokens_in_preprocess(tmpdir):
     config = _read_config(model_dir)
     assert "previous_vocabulary" not in config["tokenization"]["source"]
     assert "previous_vocabulary" not in config["tokenization"]["target"]
+
+@pytest.mark.parametrize(
+    "src_to_add,tgt_to_add,vocab_name",
+    [
+        (["token0"], ["token1", "token2"], "en-vocab.txt.v2"),
+        (["token0"], None, "en-vocab.txt.v2"),
+        (["token0"], ["token0"], "en-vocab.txt.v2"),
+    ])
+def test_add_new_tokens_joint_vocab(tmpdir, src_to_add, tgt_to_add, vocab_name):
+    config = copy.deepcopy(config_base)
+    source_vocab = config["tokenization"]["source"]["vocabulary"]
+    config["tokenization"]["target"]["vocabulary"] = source_vocab
+    initial_vocab_name = os.path.basename(source_vocab)
+    _run_framework(
+        tmpdir,
+        "model0",
+        "train",
+        config=config,
+        framework_fn=ReplaceVocabChecker)
+    framework_fn = lambda: ReplaceVocabChecker(
+        src_tokens_to_add=src_to_add, tgt_tokens_to_add=tgt_to_add, joint=True)
+    model_dir = _run_framework(
+        tmpdir,
+        "model1",
+        "train",
+        parent="model0",
+        framework_fn=framework_fn)
+    _check_dir(model_dir, [
+        vocab_name, "config.json", "checkpoint.txt", "checksum.md5"])
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % vocab_name
+    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % vocab_name
+
+    model_dir = _run_framework(
+        tmpdir,
+        "preprocess1",
+        "preprocess --build_model",
+        parent="model0",
+        framework_fn=framework_fn)
+    _check_dir(model_dir, [
+        initial_vocab_name, vocab_name, "config.json", "checkpoint.txt", "checksum.md5", "data"])
+    config = _read_config(model_dir)
+    assert config["tokenization"]["source"]["previous_vocabulary"] \
+        == "${MODEL_DIR}/%s" % initial_vocab_name
+    assert config["tokenization"]["target"]["previous_vocabulary"] \
+        == "${MODEL_DIR}/%s" % initial_vocab_name
+    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % vocab_name
+    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % vocab_name
 
 def test_replace_vocab_and_add_new_tokens(tmpdir):
     _run_framework(
