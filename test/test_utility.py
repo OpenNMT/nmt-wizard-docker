@@ -2,7 +2,9 @@ import os
 
 import pytest
 
-from nmtwizard import utility, storage
+from systran_storages import StorageClient
+
+from nmtwizard import utility
 
 
 def test_resolve_env():
@@ -35,7 +37,7 @@ def test_resolve_remote_files(tmpdir):
         "tmp": {"type": "local", "basedir": str(tmpdir)},
         "tmp2": {"type": "local", "basedir": str(tmpdir.join("remote"))}
     }
-    client = storage.StorageClient(config=storage_config)
+    client = StorageClient(config=storage_config)
     config = {
         "a": "/home/ubuntu/a.txt",
         "b": "non_storage:b.txt",

@@ -14,10 +14,8 @@ WORKDIR /root
 
 ADD requirements.txt /root/base_requirements.txt
 ADD frameworks/opennmt_py/requirements.txt /root
-RUN pip --no-cache-dir install --upgrade pip
-RUN pip --no-cache-dir install -r /root/base_requirements.txt
-RUN pip --no-cache-dir install -r /root/requirements.txt
-RUN pip --no-cache-dir install -r ${OPENNMT_PY_DIR}/requirements.txt
+ADD pip_install.sh .
+RUN sh pip_install.sh -r base_requirements.txt -r requirements.txt -r ${OPENNMT_PY_DIR}/requirements.txt
 
 ADD frameworks/opennmt_py/entrypoint.py /root
 ADD nmtwizard /root/nmtwizard

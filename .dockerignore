@@ -1,5 +1,6 @@
 *
 !frameworks
 !nmtwizard
+!pip_install.sh
 !requirements.txt
 !utilities
