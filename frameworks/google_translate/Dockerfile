@@ -1,10 +1,17 @@
 FROM ubuntu:16.04
 
 WORKDIR /root
+
+RUN apt-get update && apt-get install -y  --no-install-recommends \
+        python-pip \
+        python-setuptools && \
+    rm -rf /var/lib/apt/lists/*
+
 ADD requirements.txt /root/base_requirements.txt
 ADD frameworks/google_translate/requirements.txt /root
-ADD pip_install.sh .
-RUN sh pip_install.sh -r base_requirements.txt -r requirements.txt
+RUN pip --no-cache-dir install --upgrade pip
+RUN pip --no-cache-dir install -r /root/base_requirements.txt
+RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ENV PYTHONWARNINGS="ignore"
 

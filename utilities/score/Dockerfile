@@ -3,6 +3,7 @@ FROM ubuntu:16.04
 WORKDIR /root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        python-pip \
         git \
         perl \
         default-jre \
@@ -10,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxml-parser-perl \
         libxml-twig-perl \
         wget \
-        && \
+        python-setuptools && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /root/tools
@@ -38,9 +39,9 @@ ADD utilities/score/BLEU /root/tools/BLEU
 ADD utilities/score/TER /root/tools/TER
 ADD utilities/score/NIST /root/tools/NIST
 
-ADD requirements.txt .
-ADD pip_install.sh .
-RUN sh pip_install.sh -r requirements.txt
+ADD requirements.txt /root
+RUN pip --no-cache-dir install --upgrade pip
+RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ADD nmtwizard /root/nmtwizard
 ADD utilities/score/entrypoint.py /root/
