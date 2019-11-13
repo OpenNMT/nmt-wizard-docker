@@ -14,8 +14,9 @@ import requests
 import io
 import tempfile
 
+from systran_storages import StorageClient
+
 from nmtwizard.beat_service import start_beat_service
-from nmtwizard.storage import StorageClient
 from nmtwizard.utils import md5files
 from nmtwizard.logger import get_logger
 

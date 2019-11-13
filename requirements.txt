@@ -1,4 +1,5 @@
 boto3
+https://github.com/SYSTRAN/storages/archive/5fd569ca1ebfc4c084203b927a4b193cf186b216.tar.gz
 jsonschema
 paramiko
 pyonmttok>=1.16.1,<2
