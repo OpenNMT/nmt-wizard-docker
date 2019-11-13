@@ -3,6 +3,8 @@ import copy
 import shutil
 import six
 
+import tensorflow as tf
+
 from nmtwizard.framework import Framework
 from nmtwizard.logger import get_logger
 from nmtwizard import utils
@@ -11,7 +13,6 @@ from nmtwizard import serving
 logger = get_logger(__name__)
 
 import opennmt as onmt
-import tensorflow as tf
 
 import grpc
 
