@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import argparse
 import os
 import subprocess
@@ -18,9 +20,12 @@ parser.add_argument('--sudo', action='store_true',
 args = parser.parse_args()
 
 def run(cmd):
+    print("+ %s" % " ".join(cmd))
     if args.sudo:
         cmd = ['sudo'] + cmd
-    subprocess.call(cmd)
+    exit_code = subprocess.call(cmd)
+    if exit_code != 0:
+        exit(exit_code)
 
 if os.path.isfile(args.path):
     dockerfiles = [args.path]
