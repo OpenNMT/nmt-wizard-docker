@@ -1,6 +1,6 @@
 boto3
 jsonschema
 paramiko
-pyonmttok>=1.13.0,<2
+pyonmttok>=1.16.1,<2
 requests
 scp
