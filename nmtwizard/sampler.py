@@ -8,6 +8,8 @@ from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
+# TODO : is it ok that we sample empty lines ?
+
 class SamplerFile(object):
     """Class to store necessary information about the sampled files."""
     def __init__(self, base_name, files, lines_count = 0):

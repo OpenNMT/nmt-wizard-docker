@@ -213,3 +213,33 @@ def test_generate_vocabularies(tmpdir):
     _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_sp)
 
     _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_bpe, True)
+
+def test_preprocess_pipeline(tmpdir):
+
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 800,
+            "train_dir": ".",
+            "sample_dist": [
+                {
+                    "path": ".",
+                    "distribution": [
+                        ["europarl", 1]
+                    ]
+                }
+            ]
+        },
+        "preprocess": [
+            {
+                "op" : "length_filter",
+                "source": {
+                    "max_length_char" : 100
+                }
+            }
+        ]
+    }
+
+    data_path, train_dir, num_samples, summary, metadata = \
+        generate_preprocessed_data(config, "", str(tmpdir))

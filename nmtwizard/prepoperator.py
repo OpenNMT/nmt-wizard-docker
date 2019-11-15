@@ -19,8 +19,21 @@ class Operator(object):
 
 class PreprocessingPipeline(Operator):
 
-    def __init__(self):
+    def __init__(self, config):
         self._ops = []
+        if 'preprocess' in config:
+            self._build_pipeline(config['preprocess'])
+
+    def _build_pipeline(self, preprocess_config):
+        for i, op in enumerate(preprocess_config):
+            self.add(self._build_operator(i, op))
+
+    def _build_operator(self, step, operator_config):
+        if not "op" in operator_config:
+            raise RuntimeError('Step %d in \'preprocess\' doesn\'t have mandatory \'op\' option.' % step)
+        if operator_config["op"] == "length_filter":
+            return LengthFilter(operator_config)
+        # TODO : all other operators
 
     def add(self, op):
         self._ops.append(op)
@@ -28,6 +41,22 @@ class PreprocessingPipeline(Operator):
     def __call__(self, tu_batch):
         for op in self._ops:
             tu_batch = op(tu_batch)
+        return tu_batch
+
+class LengthFilter(Operator):
+
+    def __init__(self, config):
+        self._source_max = config.get('source', {}).get('max_length_char')
+        self._target_max = config.get('target', {}).get('max_length_char')
+
+    def __call__(self, tu_batch):
+
+        if self._source_max:
+            tu_batch = [tu for tu in tu_batch if len(tu.src_raw) < self._source_max]
+
+        if self._target_max:
+            tu_batch = [tu for tu in tu_batch if len(tu.tgt_raw) < self._target_max]
+
         return tu_batch
 
 
@@ -110,16 +139,16 @@ class SubwordLearner(Consumer):
 
     def __call__(self, tu_batch):
         # Feed lines to subword learners.
-        # TODO V2 : feed tokenized lines ?
+        # TODO V2 : feed tokenized lines, individual tokens ?
         # TODO V2 : undo all placeholder annotation for subword processing
         for tu in tu_batch :
             if 'source' in self._subword_learners:
-                self._subword_learners['source']['learner'].ingest(tu.src_raw)
+                self._subword_learners['source']['learner'].ingest(tu.get_src_detok())
             if 'target' in self._subword_learners:
-                self._subword_learners['target']['learner'].ingest(tu.tgt_raw)
+                self._subword_learners['target']['learner'].ingest(tu.get_tgt_detok())
             if 'multi' in self._subword_learners:
-                self._subword_learners['multi']['learner'].ingest(tu.src_raw)
-                self._subword_learners['multi']['learner'].ingest(tu.tgt_raw)
+                self._subword_learners['multi']['learner'].ingest(tu.get_src_detok())
+                self._subword_learners['multi']['learner'].ingest(tu.get_tgt_detok())
 
 
     def finalize(self, config):
@@ -176,18 +205,18 @@ class VocabularyBuilder(Consumer):
         # TODO : remove value for placeholders
         for tu in tu_batch :
             if 'source' in self._vocabularies:
-                for token in tu.src_raw.split():
+                for token in tu.get_src_tok():
                     self._vocabularies['source'][token] += 1
                     self._sums['source'] += 1
             if 'target' in self._vocabularies:
-                for token in tu.tgt_raw.split():
+                for token in tu.get_tgt_tok():
                     self._vocabularies['target'][token] += 1
                     self._sums['target'] += 1
             if 'multi' in self._vocabularies:
-                for token in tu.src_raw.split():
+                for token in tu.get_src_tok():
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
-                for token in tu.tgt_raw.split():
+                for token in tu.get_tgt_tok():
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
 
@@ -291,8 +320,8 @@ class FileWriter(Consumer):
         # Write lines to files from TUs
         for tu in tu_batch :
             # TODO V2 : Write preprocessed instead of raw
-            self._src_file_out.write("%s\n" % tu.src_raw)
-            self._tgt_file_out.write("%s\n" % tu.tgt_raw)
+            self._src_file_out.write("%s\n" % tu.get_src_detok())
+            self._tgt_file_out.write("%s\n" % tu.get_tgt_detok())
 
 
 def make_consumer(config, result_dir, result):
@@ -322,11 +351,9 @@ class Tokenizer(Operator):
 
     def __call__(self, tu_batch):
 
+        # Reset tokenization parameters
         for tu in tu_batch :
-            if self._src_tokenizer:
-                tu.src_raw = tokenizer.tokenize(self._src_tokenizer, tu.src_raw)
-
-            if self._tgt_tokenizer:
-                tu.tgt_raw = tokenizer.tokenize(self._tgt_tokenizer, tu.tgt_raw)
+            tu.reset_src_tok(self._src_tokenizer)
+            tu.reset_tgt_tok(self._tgt_tokenizer)
 
         return tu_batch

@@ -108,7 +108,7 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
                 loader = prepoperator.FileLoader(f, batch_size)
 
                 # Preprocessor : preprocess lines in batch.
-                pipeline = prepoperator.PreprocessingPipeline()
+                pipeline = prepoperator.PreprocessingPipeline(config)
                 # TODO V2 : Initialize FILE-SPECIFIC preprocessor pipeline
                 # if 'preprocess' in config:
                 # pipeline.add(buildPreprocessPipeline(config['preprocess']))
