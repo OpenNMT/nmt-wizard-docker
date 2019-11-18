@@ -1,7 +1,4 @@
-boto3
-https://github.com/SYSTRAN/storages/archive/bb3077446ebc48f463611d9d23888163f662b521.tar.gz
+https://github.com/SYSTRAN/storages/archive/877aefaa5c8f8db3a47760de35bb9c7571a6cc74.tar.gz
 jsonschema
-paramiko
 pyonmttok>=1.16.1,<2
 requests
-scp
