@@ -3,6 +3,7 @@ import six
 import abc
 import os
 import collections
+from itertools import chain
 
 from nmtwizard import tokenizer
 from nmtwizard import tu
@@ -43,21 +44,50 @@ class PreprocessingPipeline(Operator):
             tu_batch = op(tu_batch)
         return tu_batch
 
-class LengthFilter(Operator):
 
-    def __init__(self, config):
-        self._source_max = config.get('source', {}).get('max_length_char')
-        self._target_max = config.get('target', {}).get('max_length_char')
+class TUOperator(Operator):
+    """Base class for operations iterating on each TU in a batch."""
 
     def __call__(self, tu_batch):
 
-        if self._source_max:
-            tu_batch = [tu for tu in tu_batch if len(tu.src_raw) < self._source_max]
-
-        if self._target_max:
-            tu_batch = [tu for tu in tu_batch if len(tu.tgt_raw) < self._target_max]
+        # TU operator applies an action to each tu.
+        # The action yields zero, one or more element for the new list
+        tu_batch = list(chain.from_iterable(self.apply(tu) for tu in tu_batch))
 
         return tu_batch
+
+    @abc.abstractmethod
+    def apply(self, tu_batch):
+        raise NotImplementedError()
+
+
+class Filter(TUOperator):
+
+    def __init__(self):
+        # TODO: Sub-criteria for source_detok, target_detok, source_tok, target_tok, or both with alignment ?
+        self._criteria = []
+
+    def apply(self, tu):
+        for c in self._criteria:
+            if (c(tu)):
+                return []
+        return [tu]
+
+
+class LengthFilter(Filter):
+
+    def __init__(self, config):
+
+        super(LengthFilter, self).__init__()
+
+        self._source_max = config.get('source', {}).get('max_length_char')
+        self._target_max = config.get('target', {}).get('max_length_char')
+
+        if self._source_max:
+            self._criteria.append(lambda x:len(x.src_raw) > self._source_max)
+
+        if self._target_max:
+            self._criteria.append(lambda x:len(x.tgt_raw) > self._target_max)
 
 
 class FileLoader(object):
