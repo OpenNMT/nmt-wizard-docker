@@ -429,7 +429,12 @@ def test_release_change_file(tmpdir):
 
 def test_release_with_inference_options(tmpdir):
     config = copy.deepcopy(config_base)
-    config["preprocess"] = {"domain": {"some_training_field": {}}}
+    config["preprocess"] = [
+        { "op":"domain",
+          "source": {"some_training_field": {}}
+        }
+    ]
+    # TODO V2 : Deal with inference options
     config["inference_options"] = {
         "json_schema": {
             "type": "object",
@@ -443,7 +448,7 @@ def test_release_with_inference_options(tmpdir):
         },
         "options": [{
             "option_path": "domain",
-            "config_path": "preprocess/domain"
+            "config_path": "preprocess/0/source"
         }]
     }
     _run_framework(tmpdir, "model0", "train", config=config)

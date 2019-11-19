@@ -7,7 +7,9 @@ from itertools import chain
 
 from nmtwizard import tokenizer
 from nmtwizard import tu
+from nmtwizard.logger import get_logger
 
+logger = get_logger(__name__)
 
 @six.add_metaclass(abc.ABCMeta)
 class Operator(object):
@@ -27,7 +29,9 @@ class PreprocessingPipeline(Operator):
 
     def _build_pipeline(self, preprocess_config):
         for i, op in enumerate(preprocess_config):
-            self.add(self._build_operator(i, op))
+            operator = self._build_operator(i, op)
+            if operator:
+                self.add(operator)
 
     def _build_operator(self, step, operator_config):
         if not "op" in operator_config:
@@ -35,6 +39,10 @@ class PreprocessingPipeline(Operator):
         if operator_config["op"] == "length_filter":
             return LengthFilter(operator_config)
         # TODO : all other operators
+        else:
+            # TODO : warning or error ?
+            logger.warning('Unknown operator \'%s\' will be ignored.' % operator_config["op"])
+            return None
 
     def add(self, op):
         self._ops.append(op)
