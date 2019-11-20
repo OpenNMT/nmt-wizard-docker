@@ -20,16 +20,18 @@ class TranslationUnit(object):
 
     def get_src_tok(self):
         if self.__src_tok is None:
-            if not self.__src_tokenizer :
-                raise RuntimeError('No tokenizer is set, cannot perform tokenization.')
-            self.__src_tok,_ = self.__src_tokenizer.tokenize(self.__src_detok)
+            # TODO: should tokenization always be set ?
+            # raise RuntimeError('No tokenizer is set, cannot perform tokenization.')
+            if self.__src_tokenizer :
+                self.__src_tok,_ = self.__src_tokenizer.tokenize(self.__src_detok)
         return self.__src_tok
 
     def get_tgt_tok(self):
         if self.__tgt_tok is None:
-            if not self.__tgt_tokenizer :
-                raise RuntimeError('No tokenizer is set, cannot perform tokenization.')
-            self.__tgt_tok,_ = self.__tgt_tokenizer.tokenize(self.__tgt_detok)
+            # TODO: should tokenization always be set ?
+            # raise RuntimeError('No tokenizer is set, cannot perform tokenization.')
+            if self.__tgt_tokenizer :
+                self.__tgt_tok,_ = self.__tgt_tokenizer.tokenize(self.__tgt_detok)
         return self.__tgt_tok
 
     def get_src_detok(self):

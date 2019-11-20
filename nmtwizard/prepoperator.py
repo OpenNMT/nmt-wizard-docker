@@ -38,6 +38,8 @@ class PreprocessingPipeline(Operator):
             raise RuntimeError('Step %d in \'preprocess\' doesn\'t have mandatory \'op\' option.' % step)
         if operator_config["op"] == "length_filter":
             return LengthFilter(operator_config)
+        if operator_config["op"] == "tokenization":
+            return Tokenizer(operator_config)
         # TODO : all other operators
         else:
             # TODO : warning or error ?
@@ -157,15 +159,15 @@ class Consumer(object):
 
 class SubwordLearner(Consumer):
 
-    def __init__(self, config, result_dir):
+    def __init__(self, tok_config, result_dir):
 
         super(SubwordLearner, self).__init__(result_dir)
 
         self._subword_learners = {}
 
-        opt_multi = config.get('tokenization', {}).get('multi', {}).get('build_subword')
-        opt_source = config.get('tokenization', {}).get('source', {}).get('build_subword')
-        opt_target = config.get('tokenization', {}).get('target', {}).get('build_subword')
+        opt_multi = tok_config.get('multi', {}).get('build_subword')
+        opt_source = tok_config.get('source', {}).get('build_subword')
+        opt_target = tok_config.get('target', {}).get('build_subword')
 
         if opt_multi:
             self._subword_learners['multi'] = tokenizer.make_subword_learner(opt_multi, result_dir)
@@ -190,10 +192,17 @@ class SubwordLearner(Consumer):
 
 
     def finalize(self, config):
+
+        tok_config = None
+        for op in reversed(config["preprocess"]):
+            if op["op"] == "tokenization":
+                tok_config = op
+                break
+
         # Learn subword models and write them to files.
         for side, learner in self._subword_learners.items():
-            name =  config['tokenization'][side]['build_subword']['name'] \
-                    if 'name' in config['tokenization'][side]['build_subword'] \
+            name =  tok_config[side]['build_subword']['name'] \
+                    if 'name' in tok_config[side]['build_subword'] \
                     else 'model'
 
             subword_type = self._subword_learners[side]['subword_type']
@@ -203,28 +212,28 @@ class SubwordLearner(Consumer):
                 out_file = os.path.join(self._result_dir, \
                                         "joint_%s_%s-%d.%s_%s" % \
                                         (subword_type, name, size, config['source'], config['target']) )
-                config['tokenization']['source'][subword_type+"_model_path"] = out_file
-                config['tokenization']['target'][subword_type+"_model_path"] = out_file
+                tok_config['source'][subword_type+"_model_path"] = out_file
+                tok_config['target'][subword_type+"_model_path"] = out_file
             else :
                 out_file = os.path.join(self._result_dir, \
                                         "%s_%s-%d.%s" % (subword_type, name, size, config[side]))
-                config['tokenization'][side][subword_type+"_model_path"] = out_file
+                tok_config[side][subword_type+"_model_path"] = out_file
 
             self._subword_learners[side]['learner'].learn(out_file)
 
 
 class VocabularyBuilder(Consumer):
 
-    def __init__(self, config, result_dir):
+    def __init__(self, tok_config, result_dir):
 
         super(VocabularyBuilder, self).__init__(result_dir)
 
         self._vocabularies = {}
         self._sums = {}
 
-        opt_multi = config.get('tokenization', {}).get('multi', {}).get('build_vocabulary')
-        opt_source = config.get('tokenization', {}).get('source', {}).get('build_vocabulary')
-        opt_target = config.get('tokenization', {}).get('target', {}).get('build_vocabulary')
+        opt_multi = tok_config.get('multi', {}).get('build_vocabulary')
+        opt_source = tok_config.get('source', {}).get('build_vocabulary')
+        opt_target = tok_config.get('target', {}).get('build_vocabulary')
 
         if opt_multi:
             self._vocabularies['multi'] = collections.defaultdict(int)
@@ -273,24 +282,30 @@ class VocabularyBuilder(Consumer):
 
     def finalize(self, config):
 
+        tok_config = None
+        for op in reversed(config["preprocess"]):
+            if op["op"] == "tokenization":
+                tok_config = op
+                break
+
         for side, vocabulary in self._vocabularies.items():
-            name =  config['tokenization'][side]['build_vocabulary']['name'] \
-                    if 'name' in config['tokenization'][side]['build_vocabulary'] \
+            name =  tok_config[side]['build_vocabulary']['name'] \
+                    if 'name' in tok_config[side]['build_vocabulary'] \
                     else 'vocab'
 
             # Size option is mandatory, already checked it.
-            size = config['tokenization'][side]['build_vocabulary']['size']
+            size = tok_config[side]['build_vocabulary']['size']
 
-            min_frequency = config['tokenization'][side]['build_vocabulary']['min-frequency'] \
-                            if 'min-frequency' in config['tokenization'][side]['build_vocabulary'] \
+            min_frequency = tok_config[side]['build_vocabulary']['min-frequency'] \
+                            if 'min-frequency' in tok_config[side]['build_vocabulary'] \
                             else 0
 
             added_size = 0
 
             # Merge previously created vocabulary.
-            vocab_to_merge = config['tokenization'][side]['build_vocabulary']['merge'] \
-                            if 'merge' in config['tokenization'][side]['build_vocabulary'] \
-                            else None
+            vocab_to_merge = tok_config[side]['build_vocabulary']['merge'] \
+                             if 'merge' in tok_config[side]['build_vocabulary'] \
+                             else None
 
             if vocab_to_merge and os.path.isfile(vocab_to_merge):
                 with open(vocab_to_merge, 'r') as f:
@@ -306,8 +321,8 @@ class VocabularyBuilder(Consumer):
                             added_size += 1
 
             # Add extra tokens from a list.
-            vocab_to_add = config['tokenization'][side]['build_vocabulary']['add'] \
-                           if 'add' in config['tokenization'][side]['build_vocabulary'] \
+            vocab_to_add = tok_config[side]['build_vocabulary']['add'] \
+                           if 'add' in tok_config[side]['build_vocabulary'] \
                            else []
 
             for w in vocab_to_add:
@@ -327,12 +342,12 @@ class VocabularyBuilder(Consumer):
                 out_file = os.path.join(self._result_dir, \
                                         "joint_%s-%d.%s_%s" % \
                                         (name, real_size, config['source'], config['target']))
-                config['tokenization']['source']['vocabulary'] = out_file
-                config['tokenization']['target']['vocabulary'] = out_file
+                tok_config['source']['vocabulary'] = out_file
+                tok_config['target']['vocabulary'] = out_file
 
             else :
                 out_file = os.path.join(self._result_dir, "%s-%d.%s" % (name, real_size, config[side]))
-                config['tokenization'][side]['vocabulary'] = out_file
+                tok_config[side]['vocabulary'] = out_file
 
             with open(out_file, 'w') as vocab_file :
                 for i in range(real_size):
@@ -357,18 +372,28 @@ class FileWriter(Consumer):
     def __call__(self, tu_batch):
         # Write lines to files from TUs
         for tu in tu_batch :
-            # TODO V2 : Write preprocessed instead of raw
-            self._src_file_out.write("%s\n" % tu.get_src_detok())
-            self._tgt_file_out.write("%s\n" % tu.get_tgt_detok())
+            src_res = tu.get_src_tok()
+            tgt_res = tu.get_tgt_tok()
+            src_res = " ".join(src_res) if src_res else tu.src_raw
+            tgt_res = " ".join(tgt_res) if tgt_res else tu.tgt_raw
+            self._src_file_out.write("%s\n" % src_res)
+            self._tgt_file_out.write("%s\n" % tgt_res)
 
 
 def make_consumer(config, result_dir, result):
 
+    tok_config = None
+    if "preprocess" in config:
+        for op in reversed(config["preprocess"]):
+            if op["op"] == "tokenization":
+                tok_config = op
+                break
+
     if result == 'subword':
-        return SubwordLearner(config, result_dir)
+        return SubwordLearner(tok_config, result_dir)
 
     if result == 'vocabulary':
-        return VocabularyBuilder(config, result_dir)
+        return VocabularyBuilder(tok_config, result_dir)
 
     # Default is write to file.
     return FileWriter(result_dir)

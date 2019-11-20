@@ -528,15 +528,18 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
             }]
         },
         "options": {},
-        "tokenization": {
-            "source": { "mode": "aggressive" },
-            "target": { "mode": "aggressive" },
-            "multi": {}
-        }
+        "preprocess": [
+            {
+                "op":"tokenization",
+                "source": { "mode": "aggressive" },
+                "target": { "mode": "aggressive" },
+                "multi": {}
+            }
+        ]
     }
 
     for side, ext in sides.items():
-        config['tokenization'][side]['build_vocabulary'] = {
+        config['preprocess'][0][side]['build_vocabulary'] = {
             "name": "test",
             "size": 50,
             "min-frequency": 5

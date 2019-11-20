@@ -121,22 +121,25 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
                 }
             ]
         },
-        "tokenization": {
-            "source": { "mode": "aggressive" },
-            "target": { "mode": "aggressive" },
-            "multi": {}
-        }
+        "preprocess": [
+            {
+                "op":"tokenization",
+                "source": { "mode": "aggressive" },
+                "target": { "mode": "aggressive" },
+                "multi": {}
+            }
+        ]
     }
 
     for side, ext in sides.items():
-        config['tokenization'][side]['build_vocabulary'] = {
+        config['preprocess'][0][side]['build_vocabulary'] = {
             "name": "test",
             "size": size,
             "min-frequency": min_frequency,
             "add": ['mama', 'papa'],
             "merge": str(pytest.config.rootdir / "corpus" / "vocab" / "vocab-extra.txt")
         }
-        config['tokenization'][side]['build_subword'] = subword_config
+        config['preprocess'][0][side]['build_subword'] = subword_config
 
     _, result_tok_config = generate_vocabularies(config, "", str(tmpdir))
 
@@ -236,6 +239,15 @@ def test_preprocess_pipeline(tmpdir):
                 "op" : "length_filter",
                 "source": {
                     "max_length_char" : 100
+                }
+            },
+            {
+                "op" : "tokenization",
+                "source": {
+                    "mode": "aggressive"
+                },
+                "target": {
+                    "mode": "aggressive"
                 }
             }
         ]
