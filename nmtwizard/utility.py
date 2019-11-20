@@ -14,11 +14,11 @@ import requests
 import io
 import tempfile
 
-from systran_storages import StorageClient
-
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.utils import md5files
 from nmtwizard.logger import get_logger
+
+from systran_storages import StorageClient
 
 ENVVAR_RE = re.compile(r'\${(.*?)}')
 ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
