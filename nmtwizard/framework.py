@@ -885,7 +885,7 @@ class Framework(utility.Utility):
             header = True
             index = 0
             for line in vocab:
-                if header and line[0] == b'#':
+                if header and line.startswith(b'#'):
                     continue
                 header = False
                 token = line.strip().split()[0]

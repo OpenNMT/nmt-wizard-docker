@@ -116,9 +116,7 @@ def start_server(host,
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             data = json.dumps(result)
-            if not isinstance(data, six.binary_type):
-                data = data.encode("utf-8")
-            self.wfile.write(data)
+            self.wfile.write(six.ensure_binary(data))
 
         def handle_request(self, request):
             if 'src' not in request:
