@@ -204,7 +204,7 @@ class OpenNMTTFFramework(Framework):
             del os.environ["CUDA_VISIBLE_DEVICES"]
         else:
             os.environ["CUDA_VISIBLE_DEVICES"] = visible_devices
-        return export_dir
+        return six.ensure_str(export_dir)
 
     def _load_model(self, model_type=None, model_file=None, model_path=None):
         """Returns the model directory and the model instances.

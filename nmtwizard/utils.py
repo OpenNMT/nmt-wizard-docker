@@ -23,12 +23,13 @@ def md5files(files):
     """
     m = hashlib.md5()
     for key, path in sorted(files, key=lambda x: x[0]):
-        m.update(six.b(key))
+        m.update(six.ensure_binary(key))
         if os.path.isdir(path):
-            m.update(md5files([
+            sub_md5 = md5files([
                 (os.path.join(key, filename), os.path.join(path, filename))
                 for filename in os.listdir(path)
-                if not filename.startswith('.')]))
+                if not filename.startswith('.')])
+            m.update(six.ensure_binary(sub_md5))
         else:
             with open(path, 'rb') as f:
                 m.update(f.read())
