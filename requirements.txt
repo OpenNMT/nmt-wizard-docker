@@ -2,3 +2,4 @@ https://github.com/SYSTRAN/storages/archive/7d84808220f5f6d8eca6f0cc7b9d6b8accf0
 jsonschema
 pyonmttok>=1.16.1,<2
 requests
+six>=1.13,<2
