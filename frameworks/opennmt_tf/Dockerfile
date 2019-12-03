@@ -7,11 +7,11 @@ RUN apt-get update && \
         python3 \
         wget \
         && \
-     wget -nv https://bootstrap.pypa.io/get-pip.py && \
-     python3 get-pip.py && \
-     rm get-pip.py && \
-     apt-get autoremove -y wget && \
-     rm -rf /var/lib/apt/lists/*
+    wget -nv https://bootstrap.pypa.io/get-pip.py && \
+    python3 get-pip.py && \
+    rm get-pip.py && \
+    apt-get autoremove -y wget && \
+    rm -rf /var/lib/apt/lists/*
 
 ADD requirements.txt /root/base_requirements.txt
 ADD frameworks/opennmt_tf/requirements.txt /root
