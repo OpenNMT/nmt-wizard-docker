@@ -1,5 +1,6 @@
 """Tokenization utilities."""
 
+import copy
 import os
 import six
 import shutil
@@ -7,12 +8,7 @@ import pyonmttok
 
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
-    local_args = {}
-    for k, v in six.iteritems(args):
-        if isinstance(v, six.string_types):
-            local_args[k] = v.encode('utf-8')
-        else:
-            local_args[k] = v
+    local_args = copy.deepcopy(args)
     mode = local_args['mode']
     del local_args['mode']
     if 'vocabulary' in local_args:
