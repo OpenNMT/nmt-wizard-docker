@@ -6,11 +6,15 @@ import six
 
 def merge_config(a, b):
     """Merges config b in a."""
-    for k, v in six.iteritems(b):
-        if k in a and isinstance(v, dict) and type(a[k]) == type(v):
-            merge_config(a[k], v)
+    for key, b_value in six.iteritems(b):
+        if not isinstance(b_value, dict):
+            a[key] = b_value
         else:
-            a[k] = v
+            a_value = a.get(key)
+            if a_value is not None and isinstance(a_value, dict):
+                merge_config(a_value, b_value)
+            else:
+                a[key] = b_value
     return a
 
 def index_config(config, path, index_structure=True):
