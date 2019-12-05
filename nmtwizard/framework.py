@@ -12,6 +12,7 @@ import six
 import gzip
 import shutil
 import collections
+import traceback
 
 from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
@@ -570,8 +571,8 @@ class Framework(utility.Utility):
             except Exception as e:
                 # Catch any exception to not impact other translations.
                 filename = path_input if not isinstance(path_input, tuple) else path_input[0]
-                logger.error("Translation of %s failed with error \"%s: %s\"" % (
-                    filename, e.__class__.__name__, str(e)))
+                logger.error("Translation of file %s failed with error:\n%s" % (
+                    filename, traceback.format_exc()))
                 logger.warning("Skipping translation of %s" % filename)
                 failed_translation += 1
 
