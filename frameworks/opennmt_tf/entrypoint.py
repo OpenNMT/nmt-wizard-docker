@@ -95,6 +95,7 @@ class OpenNMTTFFramework(Framework):
             outputs = []
             for prediction, length, log_prob in zip(predictions, lengths, log_probs):
                 prediction = prediction[:length].tolist()
+                prediction = [token.decode("utf-8") for token in prediction]
                 score = float(log_prob)
                 outputs.append(serving.TranslationOutput(prediction, score=score))
             batch_outputs.append(outputs)
