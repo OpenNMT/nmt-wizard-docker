@@ -49,7 +49,7 @@ for dockerfile in dockerfiles:
     image_latest = '%s:latest' % image_name
     image_full_name = '%s:%s' % (image_name, args.version)
     if args.build:
-        run(['docker', 'build', '-t', image_latest, '-f', dockerfile, '.'])
+        run(['docker', 'build', '--pull', '-t', image_latest, '-f', dockerfile, '.'])
     run(['docker', 'tag', image_latest, image_full_name])
     if args.push:
         run(['docker', 'push', image_latest])
