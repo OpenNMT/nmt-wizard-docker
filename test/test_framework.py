@@ -459,14 +459,16 @@ def test_release_with_inference_options(tmpdir):
             "config_path": "preprocess/domain"
         }]
     }
+    config["supported_features"] = {"my_feature": True}
     _run_framework(tmpdir, "model0", "train", config=config)
     _run_framework(tmpdir, "release0", "release", parent="model0")
     model_dir = str(tmpdir.join("models").join("model0_release"))
     options_path = os.path.join(model_dir, "options.json")
     assert os.path.exists(options_path)
     with open(options_path) as options_file:
-        schema = json.load(options_file)
-        assert schema == config["inference_options"]["json_schema"]
+        model_options = json.load(options_file)
+        assert model_options["json_schema"] == config["inference_options"]["json_schema"]
+        assert model_options["supported_features"] == config["supported_features"]
 
 def test_integrity_check(tmpdir):
     model_dir = _run_framework(tmpdir, "model0", "train", config=config_base)

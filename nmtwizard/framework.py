@@ -607,12 +607,18 @@ class Framework(utility.Utility):
         for name in ("parent_model", "build", "data"):
             if name in config:
                 del config[name]
+        model_options = {}
+        supported_features = config.get('supported_features')
+        if supported_features is not None:
+            model_options['supported_features'] = supported_features
         inference_options = config.get('inference_options')
         if inference_options is not None:
             schema = config_util.validate_inference_options(inference_options, config)
+            model_options['json_schema'] = schema
+        if model_options:
             options_path = os.path.join(self._output_dir, 'options.json')
             with open(options_path, 'w') as options_file:
-                json.dump(schema, options_file)
+                json.dump(model_options, options_file)
             objects[os.path.basename(options_path)] = options_path
         if local_destination is None:
             local_destination = self._models_dir
