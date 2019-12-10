@@ -1,34 +1,24 @@
 import os
-import copy
 import shutil
-import six
+
+# Import logger before TensorFlow to register the global config and avoid duplicated logs.
+from nmtwizard.logger import get_logger
 
 import tensorflow as tf
+import opennmt
 
 from nmtwizard.framework import Framework
-from nmtwizard.logger import get_logger
 from nmtwizard import utils
 from nmtwizard import serving
 
 logger = get_logger(__name__)
+tf.get_logger().setLevel(logger.level)
 
-import opennmt as onmt
-
-import grpc
-
-from grpc.framework.interfaces.face.face import ExpirationError
-from tensorflow_serving.apis import predict_pb2
-from tensorflow_serving.apis import prediction_service_pb2_grpc
-
-from opennmt.config import load_model
-from opennmt.utils import checkpoint
+_V1_SAVED_MODEL_DIR = '1'
+_SAVED_MODEL_DIR = 'saved_model'
 
 
 class OpenNMTTFFramework(Framework):
-
-    def __init__(self, *args, **kwargs):
-        super(OpenNMTTFFramework, self).__init__(*args, **kwargs)
-        tf.logging.set_verbosity(logger.level)
 
     def train(self,
               config,
@@ -39,126 +29,76 @@ class OpenNMTTFFramework(Framework):
               align_file=None,
               model_path=None,
               gpuid=0):
-        if (model_path is not None
-            and tf.train.latest_checkpoint(model_path) is not None
-            and (src_vocab_info.previous or tgt_vocab_info.previous)):
-            model_path = checkpoint.update_vocab(
-                model_path,
-                os.path.join(self._output_dir, 'new_vocab_checkpoint'),
-                src_vocab_info.previous if src_vocab_info.previous else src_vocab_info.current,
-                tgt_vocab_info.previous if tgt_vocab_info.previous else tgt_vocab_info.current,
-                new_src_vocab=src_vocab_info.current if src_vocab_info.previous else None,
-                new_tgt_vocab=tgt_vocab_info.current if tgt_vocab_info.previous else None,
-                mode='replace',
-                session_config=tf.ConfigProto(
-                    device_count={'GPU': 0}))
-        model_dir, model = self._load_model(
-            model_type=config['options'].get('model_type'),
-            model_file=config['options'].get('model'),
+        if model_path is None or tf.train.latest_checkpoint(model_path) is None:
+            prev_src_vocab = None
+            prev_tgt_vocab = None
+        else:
+            prev_src_vocab = src_vocab_info.previous
+            prev_tgt_vocab = tgt_vocab_info.previous
+
+        runner = self._build_runner(
+            config,
+            src_vocab=prev_src_vocab or src_vocab_info.current,
+            tgt_vocab=prev_tgt_vocab or tgt_vocab_info.current,
+            src_file=src_file,
+            tgt_file=tgt_file,
+            align_file=align_file,
             model_path=model_path)
-        run_config = copy.deepcopy(config['options'].get('config', {}))
-        run_config['model_dir'] = model_dir
-        if 'data' not in run_config:
-            run_config['data'] = {}
-        if 'train' not in run_config:
-            run_config['train'] = {}
-        run_config['data']['source_words_vocabulary'] = src_vocab_info.current
-        run_config['data']['target_words_vocabulary'] = tgt_vocab_info.current
-        run_config['data']['train_features_file'] = src_file
-        run_config['data']['train_labels_file'] = tgt_file
-        if align_file is not None and os.path.exists(align_file) :
-            run_config['data']['train_alignments'] = align_file
-            if "params" not in run_config:
-                  run_config["params"] = {}
-            if "guided_alignment_type" not in run_config["params"]:
-                  run_config["params"]["guided_alignment_type"] = "ce"
-        if 'train_steps' not in run_config['train']:
-            run_config['train']['single_pass'] = True
-            run_config['train']['train_steps'] = None
-        if 'sample_buffer_size' not in run_config['train']:
-            run_config['train']['sample_buffer_size'] = -1
-        if 'average_last_checkpoints' not in run_config['train']:
-            run_config['train']['average_last_checkpoints'] = 0
-        runner = onmt.Runner(
-            model,
-            run_config,
-            num_devices=utils.count_devices(gpuid),
-            auto_config=config['options'].get('auto_config', False))
-        output_dir = runner.train()
-        if output_dir != model_dir:
-            shutil.copy(os.path.join(model_dir, "model_description.py"), output_dir)
-        return self._list_model_files(output_dir)
+
+        if prev_src_vocab or prev_tgt_vocab:
+            previous_model_dir = runner.model_dir
+            runner.update_vocab(
+                os.path.join(self._output_dir, 'new_vocab_checkpoint'),
+                src_vocab=src_vocab_info.current if prev_src_vocab else None,
+                tgt_vocab=tgt_vocab_info.current if prev_tgt_vocab else None)
+            shutil.rmtree(previous_model_dir)
+
+        output_dir = runner.train(num_devices=utils.count_devices(gpuid))
+        return _list_checkpoint_files(output_dir)
 
     def trans(self, config, model_path, input, output, gpuid=0):
-        runner = self._make_predict_runner(config, model_path)
+        runner = self._build_runner(config, model_path=model_path)
         runner.infer(input, predictions_file=output)
 
     def release(self, config, model_path, optimization_level=None, gpuid=0):
-        export_dir = self._export_model(config, model_path)
-        return {'1': export_dir}  # TensorFlow Serving expects a version number (here we use 1).
+        export_dir = os.path.join(self._output_dir, _SAVED_MODEL_DIR)
+        runner = self._build_runner(config, model_path=model_path)
+        runner.export(export_dir)
+        return {os.path.basename(export_dir): export_dir}
 
     def serve(self, config, model_path, gpuid=0):
-        # Start a new tensorflow_model_server instance.
-        batching_parameters = self._generate_batching_parameters(config.get('serving'))
-        port = serving.pick_free_port()
-        model_name = '%s%s' % (config['source'], config['target'])
-        cmd = ['tensorflow_model_server',
-               '--port=%d' % port,
-               '--model_name=%s' % model_name,
-               '--model_base_path=%s' % model_path,
-               '--enable_batching=true',
-               '--batching_parameters_file=%s' % batching_parameters]
-        process = utils.run_cmd(cmd, background=True)
-        info = {'port': port, 'model_name': model_name}
-        return process, info
+        v1_export_dir = os.path.join(model_path, _V1_SAVED_MODEL_DIR)
+        if os.path.exists(v1_export_dir):
+            raise ValueError("SavedModel exported with OpenNMT-tf 1.x are no longer supported. "
+                             "They include ops from tf.contrib which is not included in "
+                             "TensorFlow 2.x binaries. To upgrade automatically, you can release "
+                             "or serve from a OpenNMT-tf 1.x training checkpoint.")
+        export_dir = os.path.join(model_path, _SAVED_MODEL_DIR)
+        translate_fn = tf.saved_model.load(export_dir).signatures['serving_default']
+        return None, translate_fn
 
     def forward_request(self, batch_inputs, info, timeout=None):
-        max_message_length = int(os.getenv('GRPC_MAX_MESSAGE_LENGTH', 100 * 1024 * 1024))  # 100MB
-        channel = grpc.insecure_channel("localhost:%s" % info['port'], options=[
-            ('grpc.max_send_message_length', max_message_length),
-            ('grpc.max_receive_message_length', max_message_length)])
-        stub = prediction_service_pb2_grpc.PredictionServiceStub(channel)
+        translate_fn = info
 
-        max_length = max(len(src) for src in batch_inputs)
-        tokens, lengths = utils.pad_lists(batch_inputs, padding_value='', max_length=max_length)
-        batch_size = len(lengths)
+        tokens, lengths = utils.pad_lists(batch_inputs, padding_value='')
+        outputs = translate_fn(
+            tokens=tf.constant(tokens, dtype=tf.string),
+            length=tf.constant(lengths, dtype=tf.int32))
 
-        predict_request = predict_pb2.PredictRequest()
-        predict_request.model_spec.name = info['model_name']
-        predict_request.inputs['tokens'].CopyFrom(
-            tf.make_tensor_proto(tokens, dtype=tf.string, shape=(batch_size, max_length)))
-        predict_request.inputs['length'].CopyFrom(
-            tf.make_tensor_proto(lengths, dtype=tf.int32, shape=(batch_size,)))
-
-        try:
-            future = stub.Predict.future(predict_request, timeout)
-            result = future.result()
-        except ExpirationError as e:
-            logger.error('%s', e)
-            return None
-
-        lengths = tf.make_ndarray(result.outputs['length'])
-        predictions = tf.make_ndarray(result.outputs['tokens'])
-        log_probs = tf.make_ndarray(result.outputs['log_probs'])
+        batch_predictions = outputs['tokens'].numpy()
+        batch_lengths = outputs['length'].numpy()
+        batch_log_probs = outputs['log_probs'].numpy()
 
         batch_outputs = []
-        for hypotheses, length, log_prob in zip(predictions, lengths, log_probs):
+        for predictions, lengths, log_probs in zip(
+                batch_predictions, batch_lengths, batch_log_probs):
             outputs = []
-            for i, prediction in enumerate(hypotheses):
-                prediction_length = length[i] - 1  # Ignore </s>.
-                prediction = prediction[0:prediction_length].tolist()
-                prediction = [tf.compat.as_text(pred) for pred in prediction]
-                score = float(log_prob[i])
+            for prediction, length, log_prob in zip(predictions, lengths, log_probs):
+                prediction = prediction[:length].tolist()
+                score = float(log_prob)
                 outputs.append(serving.TranslationOutput(prediction, score=score))
             batch_outputs.append(outputs)
         return batch_outputs
-
-    def _register_vocab(self, config, data_config):
-        data_config['source_words_vocabulary'] = self._convert_vocab(
-            config['tokenization']['source']['vocabulary'])
-        data_config['target_words_vocabulary'] = self._convert_vocab(
-            config['tokenization']['target']['vocabulary'])
-        return data_config
 
     def _map_vocab_entry(self, index, token, vocab):
         if index == 0:
@@ -167,77 +107,97 @@ class OpenNMTTFFramework(Framework):
             vocab.write(b"</s>\n")
         vocab.write(b"%s\n" % token)
 
-    def _generate_batching_parameters(self, serving_config):
-        if serving_config is None:
-            serving_config = {}
-        parameters_path = os.path.join(self._output_dir, 'batching_parameters.txt')
-        with open(parameters_path, 'wb') as parameters_file:
-            parameters_file.write(b'max_batch_size { value: %d }\n' % (
-                serving_config.get('max_batch_size', 100000)))  # Handled by the wrapper.
-            parameters_file.write(b'batch_timeout_micros { value: %d }\n' % (
-                serving_config.get('batch_timeout_micros', 0)))
-            parameters_file.write(b'pad_variable_length_inputs: true\n')
-        return parameters_path
-
-    def _make_predict_runner(self, config, model_path):
-        model_dir, model = self._load_model(
-            model_type=config['options'].get('model_type'),
-            model_file=config['options'].get('model'),
-            model_path=model_path)
-        run_config = copy.deepcopy(config['options'].get('config', {}))
-        run_config['model_dir'] = model_dir
-        if 'data' not in run_config:
-            run_config['data'] = {}
-        run_config['data'] = self._register_vocab(config, run_config['data'])
-        return onmt.Runner(
-            model,
-            run_config,
-            auto_config=config['options'].get('auto_config', False))
-
-    def _export_model(self, config, model_path):
-        # Hide GPU when exporting the model.
-        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
-        runner = self._make_predict_runner(config, model_path)
-        export_dir = runner.export()
-        if visible_devices is None:
-            del os.environ["CUDA_VISIBLE_DEVICES"]
-        else:
-            os.environ["CUDA_VISIBLE_DEVICES"] = visible_devices
-        return six.ensure_str(export_dir)
-
-    def _load_model(self, model_type=None, model_file=None, model_path=None):
-        """Returns the model directory and the model instances.
-
-        If model_path is not None, the model files are copied in the current
-        working directory ${WORKSPACE_DIR}/output/model/.
-        """
-        model_dir = os.path.join(self._output_dir, "model")
+    def _build_runner(self,
+                      config,
+                      src_vocab=None,
+                      tgt_vocab=None,
+                      src_file=None,
+                      tgt_file=None,
+                      align_file=None,
+                      model_path=None):
+        model_dir = os.path.join(self._output_dir, 'model')
         if os.path.exists(model_dir):
             shutil.rmtree(model_dir)
         os.makedirs(model_dir)
-        if model_path is not None:
-            for filename in os.listdir(model_path):
-                path = os.path.join(model_path, filename)
-                if os.path.isfile(path):
-                    shutil.copy(path, model_dir)
-        model = load_model(model_dir, model_file=model_file, model_name=model_type)
-        return model_dir, model
 
-    def _list_model_files(self, model_dir):
-        """Lists the files that should be bundled in the model package."""
-        latest = tf.train.latest_checkpoint(model_dir)
-        # Only keep the latest checkpoint in the state proto.
-        tf.train.update_checkpoint_state(model_dir, os.path.basename(latest))
-        objects = {
-            "checkpoint": os.path.join(model_dir, "checkpoint"),
-            "model_description.py": os.path.join(model_dir, "model_description.py")
-        }
-        for filename in os.listdir(model_dir):
-            path = os.path.join(model_dir, filename)
-            if os.path.isfile(path) and path.startswith(latest):
-                objects[filename] = path
-        return objects
+        # Copy checkpoint files into the temporary model dir.
+        if model_path is not None:
+            checkpoint_files = _list_checkpoint_files(model_path)
+            for filename, path in checkpoint_files.items():
+                shutil.copy(path, os.path.join(model_dir, filename))
+
+        # Prepare vocabulary if not already done.
+        if src_vocab is None:
+            src_vocab = self._convert_vocab(config['tokenization']['source']['vocabulary'])
+        if tgt_vocab is None:
+            tgt_vocab = self._convert_vocab(config['tokenization']['target']['vocabulary'])
+
+        options = config['options']
+        run_config = _build_run_config(
+            options.get('config'),
+            model_dir,
+            src_vocab,
+            tgt_vocab,
+            src_file=src_file,
+            tgt_file=tgt_file,
+            align_file=align_file)
+        model = opennmt.load_model(
+            model_dir,
+            model_file=options.get('model'),
+            model_name=options.get('model_type'),
+            serialize_model=False)
+        return opennmt.Runner(
+            model,
+            run_config,
+            auto_config=options.get('auto_config', False))
+
+
+def _build_run_config(config,
+                      model_dir,
+                      src_vocab,
+                      tgt_vocab,
+                      src_file=None,
+                      tgt_file=None,
+                      align_file=None):
+    """Builds the final configuration for OpenNMT-tf."""
+    config = opennmt.convert_to_v2_config(config) if config else {}
+    config['model_dir'] = model_dir
+
+    data = config.setdefault('data', {})
+    data['source_vocabulary'] = src_vocab
+    data['target_vocabulary'] = tgt_vocab
+    if src_file is not None:
+        data['train_features_file'] = src_file
+    if tgt_file is not None:
+        data['train_labels_file'] = tgt_file
+    if align_file is not None and os.path.exists(align_file):
+        data['train_alignments'] = align_file
+        params = config.setdefault('params', {})
+        params.setdefault('guided_alignment_type', 'ce')
+
+    train = config.setdefault('train', {})
+    train.setdefault('sample_buffer_size', -1)
+    # No need to keep multiple checkpoints as only the last one will be pushed.
+    train.setdefault('save_checkpoints_steps', None)
+    if train.setdefault('average_last_checkpoints', 0) == 0:
+        train['keep_checkpoint_max'] = 1
+    if train.setdefault('max_step', None) is None:
+        # Force a single pass if the number of training steps in unspecified.
+        train['single_pass'] = True
+
+    return config
+
+def _list_checkpoint_files(model_dir):
+    """Lists the checkpoint files that should be bundled in the model package."""
+    latest = tf.train.latest_checkpoint(model_dir)
+    objects = {
+        'checkpoint': os.path.join(model_dir, 'checkpoint'),  # Checkpoint state file.
+    }
+    for filename in os.listdir(model_dir):
+        path = os.path.join(model_dir, filename)
+        if os.path.isfile(path) and path.startswith(latest):
+            objects[filename] = path
+    return objects
 
 
 if __name__ == '__main__':

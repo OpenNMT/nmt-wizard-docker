@@ -850,7 +850,6 @@ class Framework(utility.Utility):
         if isinstance(input, list):
             tokens = input
         elif 'src_tokenizer' in state:
-            input = input.encode('utf-8')
             tokens, _ = state['src_tokenizer'].tokenize(input)
         else:
             tokens = input.split()
@@ -860,8 +859,7 @@ class Framework(utility.Utility):
         if not isinstance(target, list):
             text = target
         elif 'tgt_tokenizer' in state:
-            output = [out.encode('utf-8') for out in target]
-            text = state['tgt_tokenizer'].detokenize(output)
+            text = state['tgt_tokenizer'].detokenize(target)
         else:
             text = ' '.join(target)
         return text
