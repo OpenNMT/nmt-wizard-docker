@@ -69,10 +69,10 @@ class OpenNMTTFFramework(Framework):
     def serve(self, config, model_path, gpuid=0):
         v1_export_dir = os.path.join(model_path, _V1_SAVED_MODEL_DIR)
         if os.path.exists(v1_export_dir):
-            raise ValueError("SavedModel exported with OpenNMT-tf 1.x are no longer supported. "
-                             "They include ops from tf.contrib which is not included in "
-                             "TensorFlow 2.x binaries. To upgrade automatically, you can release "
-                             "or serve from a OpenNMT-tf 1.x training checkpoint.")
+            raise ValueError('SavedModel exported with OpenNMT-tf 1.x are no longer supported. '
+                             'They include ops from tf.contrib which is not included in '
+                             'TensorFlow 2.x binaries. To upgrade automatically, you can release '
+                             'or serve from a OpenNMT-tf 1.x training checkpoint.')
         export_dir = os.path.join(model_path, _SAVED_MODEL_DIR)
         translate_fn = tf.saved_model.load(export_dir).signatures['serving_default']
         return None, translate_fn
@@ -95,7 +95,7 @@ class OpenNMTTFFramework(Framework):
             outputs = []
             for prediction, length, log_prob in zip(predictions, lengths, log_probs):
                 prediction = prediction[:length].tolist()
-                prediction = [token.decode("utf-8") for token in prediction]
+                prediction = [token.decode('utf-8') for token in prediction]
                 score = float(log_prob)
                 outputs.append(serving.TranslationOutput(prediction, score=score))
             batch_outputs.append(outputs)
@@ -103,10 +103,10 @@ class OpenNMTTFFramework(Framework):
 
     def _map_vocab_entry(self, index, token, vocab):
         if index == 0:
-            vocab.write(b"<blank>\n")
-            vocab.write(b"<s>\n")
-            vocab.write(b"</s>\n")
-        vocab.write(b"%s\n" % token)
+            vocab.write(b'<blank>\n')
+            vocab.write(b'<s>\n')
+            vocab.write(b'</s>\n')
+        vocab.write(b'%s\n' % token)
 
     def _build_runner(self,
                       config,
