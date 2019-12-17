@@ -7,7 +7,7 @@ import pyonmttok
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
     args = args.copy()
-    args.pop('vocabulary' None)
+    args.pop('vocabulary', None)
     args.pop('build_subword', None)
     args.pop('build_vocabulary', None)
     return pyonmttok.Tokenizer(**args)
