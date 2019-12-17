@@ -1,4 +1,4 @@
-FROM tensorflow/serving:1.14.0-gpu
+FROM nvidia/cuda:10.0-cudnn7-runtime-ubuntu16.04
 
 WORKDIR /root
 
