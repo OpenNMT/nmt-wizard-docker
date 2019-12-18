@@ -35,11 +35,14 @@ class Consumer(object):
 class SubwordLearner(Consumer):
     """SubwordLearner class stores, learns and writes subword models."""
 
-    def __init__(self, tok_config, result_dir):
+    def __init__(self, config, result_dir, tok_step):
 
         super(SubwordLearner, self).__init__(result_dir)
 
         self._subword_learners = {}
+
+        self._tok_step = tok_step
+        tok_config = config['preprocess'][tok_step]
 
         opt_multi = tok_config.get('multi', {}).get('build_subword')
         opt_source = tok_config.get('source', {}).get('build_subword')
@@ -69,17 +72,13 @@ class SubwordLearner(Consumer):
 
     def finalize(self, config):
 
-        tok_config = None
-        for op in reversed(config["preprocess"]):
-            if op["op"] == "tokenization":
-                tok_config = op
-                break
+        tok_config = config['preprocess'][self._tok_step]
 
         # Learn subword models and write them to files.
         for side, learner in self._subword_learners.items():
             name =  tok_config[side]['build_subword']['name'] \
                     if 'name' in tok_config[side]['build_subword'] \
-                    else 'model'
+                    else 'model'+str(self._tok_step)
 
             subword_type = self._subword_learners[side]['subword_type']
             size = self._subword_learners[side]['size']
@@ -101,12 +100,15 @@ class SubwordLearner(Consumer):
 class VocabularyBuilder(Consumer):
     """VocabularyBuilder class stores, learns and writes vocabularies."""
 
-    def __init__(self, tok_config, result_dir):
+    def __init__(self, config, result_dir, tok_step):
 
         super(VocabularyBuilder, self).__init__(result_dir)
 
         self._vocabularies = {}
         self._sums = {}
+
+        self._tok_step = tok_step
+        tok_config = config['preprocess'][tok_step]
 
         opt_multi = tok_config.get('multi', {}).get('build_vocabulary')
         opt_source = tok_config.get('source', {}).get('build_vocabulary')
@@ -159,16 +161,12 @@ class VocabularyBuilder(Consumer):
 
     def finalize(self, config):
 
-        tok_config = None
-        for op in reversed(config["preprocess"]):
-            if op["op"] == "tokenization":
-                tok_config = op
-                break
+        tok_config = config['preprocess'][self._tok_step]
 
         for side, vocabulary in self._vocabularies.items():
             name =  tok_config[side]['build_vocabulary']['name'] \
                     if 'name' in tok_config[side]['build_vocabulary'] \
-                    else 'vocab'
+                    else 'vocab'+str(self._tok_step)
 
             # Size option is mandatory, already checked it.
             size = tok_config[side]['build_vocabulary']['size']
@@ -219,12 +217,12 @@ class VocabularyBuilder(Consumer):
                 out_file = os.path.join(self._result_dir, \
                                         "joint_%s-%d.%s_%s" % \
                                         (name, real_size, config['source'], config['target']))
-                tok_config['source']['vocabulary'] = out_file
-                tok_config['target']['vocabulary'] = out_file
+                tok_config['source']['vocabulary_path'] = out_file
+                tok_config['target']['vocabulary_path'] = out_file
 
             else :
                 out_file = os.path.join(self._result_dir, "%s-%d.%s" % (name, real_size, config[side]))
-                tok_config[side]['vocabulary'] = out_file
+                tok_config[side]['vocabulary_path'] = out_file
 
             with open(out_file, 'w') as vocab_file :
                 for i in range(real_size):
@@ -289,20 +287,13 @@ class SamplerFileWriter(FileWriter):
         self._file.append(open(tgt, 'w'))
 
 
-def make_consumer(config, result_dir, result):
-
-    tok_config = None
-    if "preprocess" in config:
-        for op in reversed(config["preprocess"]):
-            if op["op"] == "tokenization":
-                tok_config = op
-                break
+def make_consumer(config, result_dir, result, tok_step):
 
     if result == 'subword':
-        return SubwordLearner(tok_config, result_dir)
+        return SubwordLearner(config, result_dir, tok_step)
 
     if result == 'vocabulary':
-        return VocabularyBuilder(tok_config, result_dir)
+        return VocabularyBuilder(config, result_dir, tok_step)
 
     # Default is write to file.
     return SamplerFileWriter(result_dir)

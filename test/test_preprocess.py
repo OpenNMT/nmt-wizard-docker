@@ -99,7 +99,7 @@ def test_sampler(tmpdir):
     assert summary['corpus_specific2.']['lines_sampled'] == 0
     assert summary['IT.']['lines_sampled'] == 0
 
-
+# TODO : test generate vocabularies with several tokenizations
 def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_config=None, multi=False):
 
     sides = {}
@@ -144,7 +144,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         }
         config['preprocess'][0][side]['build_subword'] = subword_config
 
-    _, result_preprocess_config = generate_vocabularies(config, "", str(tmpdir))
+    _, result_preprocess_config, result_vocab_config  = generate_vocabularies(config, "", str(tmpdir))
 
     for side, ext in sides.items():
 
@@ -154,7 +154,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             subword_file_name = "subword/"
             if multi:
                 subword_file_name += "joint_"
-            subword_file_name += "%s_model-100.%s" % (subword_type, ext)
+            subword_file_name += "%s_model0-100.%s" % (subword_type, ext)
             subword_file = str(tmpdir.join(subword_file_name))
 
             if subword_type == 'bpe':
@@ -180,10 +180,10 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             assert len(f.readlines()) == rs
 
         if side == 'multi':
-            assert result_preprocess_config[0]['source']['vocabulary'] == vocab_file
-            assert result_preprocess_config[0]['target']['vocabulary'] == vocab_file
+            assert result_vocab_config['source']['path'] == vocab_file
+            assert result_vocab_config['target']['path'] == vocab_file
         else:
-            assert result_preprocess_config[0][side]['vocabulary'] == vocab_file
+            assert result_vocab_config[side]['path'] == vocab_file
 
 
 def test_generate_vocabularies(tmpdir):

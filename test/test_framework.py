@@ -93,14 +93,11 @@ class DummyFramework(_TestFramework):
         # Verify that input files exist.
         assert os.path.exists(src_file)
         assert os.path.exists(tgt_file)
-        final_tok = preprocess.get_final_tok_config(config)
-        assert "source" in final_tok and \
-            os.path.exists(final_tok["source"]["vocabulary"]) or \
-            os.path.exists(final_tok["multi"]["vocabulary"])
+        assert "source" in config["vocabulary"] and \
+            os.path.exists(config["vocabulary"]["source"]["path"])
 
-        assert "target" in final_tok and \
-            os.path.exists(final_tok["target"]["vocabulary"]) or \
-            os.path.exists(final_tok["multi"]["vocabulary"])
+        assert "target" in config["vocabulary"] and \
+            os.path.exists(config["vocabulary"]["target"]["path"])
 
         # Generate some checkpoint files.
         index = 0
@@ -198,17 +195,19 @@ config_base = {
         {
             "op": "tokenization",
             "source": {
-                "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
                 "mode": "aggressive",
                 "joiner_annotate": True
             },
             "target": {
-                "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
                 "mode": "aggressive",
                 "joiner_annotate": True
             }
         }
     ],
+    "vocabulary":{
+        "source": {"path":"${CORPUS_DIR}/vocab/en-vocab.txt"},
+        "target": {"path":"${CORPUS_DIR}/vocab/de-vocab.txt"}
+    },
     "options": {}
 }
 
@@ -275,11 +274,10 @@ def test_train(tmpdir):
     config = _read_config(model_dir)
     assert config["model"] == "model0"
     assert config["modelType"] == "checkpoint"
-    final_tok = preprocess.get_final_tok_config(config)
     assert os.path.isfile(
-        os.path.join(model_dir, os.path.basename(final_tok["source"]["vocabulary"])))
+        os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
     assert os.path.isfile(
-        os.path.join(model_dir, os.path.basename(final_tok["target"]["vocabulary"])))
+        os.path.join(model_dir, os.path.basename(config["vocabulary"]["target"]["path"])))
     assert DummyCheckpoint(model_dir).index() == 0
 
 def test_train_with_storage_in_config(tmpdir):
@@ -296,17 +294,19 @@ def test_train_with_storage_in_config(tmpdir):
             {
                 "op":"tokenization",
                 "source": {
-                    "vocabulary": "${LOCAL_DIR}/vocab/en-vocab.txt",
                     "mode": "aggressive",
                     "joiner_annotate": True
                 },
                 "target": {
-                    "vocabulary": "${LOCAL_DIR}/vocab/de-vocab.txt",
                     "mode": "aggressive",
                     "joiner_annotate": True
                 }
             }
         ],
+        "vocabulary":{
+            "source":{"path":"${LOCAL_DIR}/vocab/en-vocab.txt"},
+            "target":{"path":"${LOCAL_DIR}/vocab/de-vocab.txt"}
+        },
         "options": {}
     }
     model_dir = _run_framework(
@@ -315,8 +315,8 @@ def test_train_with_storage_in_config(tmpdir):
         env={"LOCAL_DIR": "corpus:"},
         storage_config=storage_config)
     config = _read_config(model_dir)
-    assert preprocess.get_final_tok_config(config)["source"]["vocabulary"] == "${MODEL_DIR}/en-vocab.txt"
-    assert preprocess.get_final_tok_config(config)["target"]["vocabulary"] == "${MODEL_DIR}/de-vocab.txt"
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/en-vocab.txt"
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/de-vocab.txt"
     assert os.path.isfile(os.path.join(model_dir, "de-vocab.txt"))
     assert os.path.isfile(os.path.join(model_dir, "en-vocab.txt"))
 
@@ -372,6 +372,10 @@ def test_train_with_sampling_v2(tmpdir):
                 }
             }
         ],
+        "vocabulary":{
+            "source": {"path":"${DATA_DIR}/vocab/en-vocab.txt"},
+            "target": {"path":"${DATA_TRAIN_DIR}/vocab/de-vocab.txt"}
+        },
         "options": {}
     }
     os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
@@ -417,11 +421,10 @@ def test_release(tmpdir):
     assert config["model"] == "model1_release"
     assert config["modelType"] == "release"
     assert DummyCheckpoint(model_dir).index() == 1
-    final_tok = preprocess.get_final_tok_config(config)
     assert os.path.isfile(
-        os.path.join(model_dir, os.path.basename(final_tok["source"]["vocabulary"])))
+        os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
     assert os.path.isfile(
-        os.path.join(model_dir, os.path.basename(final_tok["target"]["vocabulary"])))
+        os.path.join(model_dir, os.path.basename(config["vocabulary"]["target"]["path"])))
 
 def test_release_change_file(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base)
@@ -579,17 +582,15 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
             vocab_file_name += "joint_"
         vocab_file_name += "test-50.%s" % ext
 
-        tok_config_buildvocab = preprocess.get_final_tok_config(config_buildvocab)
-        tok_config_checkpoint = preprocess.get_final_tok_config(config_checkpoint)
         if side == 'multi':
-            assert tok_config_buildvocab["source"]["vocabulary"] == vocab_file_name
-            assert tok_config_checkpoint["source"]["vocabulary"] == vocab_file_name
+            assert config_buildvocab["vocabulary"]["source"]["path"] == vocab_file_name
+            assert config_checkpoint["vocabulary"]["source"]["path"] == vocab_file_name
 
-            assert tok_config_buildvocab["target"]["vocabulary"] == vocab_file_name
-            assert tok_config_checkpoint["target"]["vocabulary"] == vocab_file_name
+            assert config_buildvocab["vocabulary"]["target"]["path"] == vocab_file_name
+            assert config_checkpoint["vocabulary"]["target"]["path"] == vocab_file_name
         else :
-            assert tok_config_buildvocab[side]["vocabulary"] == vocab_file_name
-            assert tok_config_checkpoint[side]["vocabulary"] == vocab_file_name
+            assert config_buildvocab["vocabulary"][side]["path"] == vocab_file_name
+            assert config_checkpoint["vocabulary"][side]["path"] == vocab_file_name
 
     del os.environ["DATA_DIR"]
 
@@ -597,8 +598,6 @@ def test_buildvocab(tmpdir):
     _test_buildvocab(tmpdir, 0)
     _test_buildvocab(tmpdir, 1, True)
 
-# TODO restore tests
-@pytest.mark.skip()
 def test_replace_vocab(tmpdir):
     _run_framework(
         tmpdir,
@@ -610,9 +609,9 @@ def test_replace_vocab(tmpdir):
     new_tgt_vocab = "new_tgt_vocab.txt"
     tmpdir.join(new_src_vocab).write("hello\n")
     tmpdir.join(new_tgt_vocab).write("hallo\n")
-    config = {"tokenization": {
-        "source": {"vocabulary": "${TMP_DIR}/%s" % new_src_vocab},
-        "target": {"vocabulary": "${TMP_DIR}/%s" % new_tgt_vocab}}
+    config = {"vocabulary": {
+        "source": {"path": "${TMP_DIR}/%s" % new_src_vocab},
+        "target": {"path": "${TMP_DIR}/%s" % new_tgt_vocab}}
     }
     framework_fn = lambda: ReplaceVocabChecker(src_changed=True, tgt_changed=True)
     run_fn = lambda: _run_framework(
@@ -626,8 +625,8 @@ def test_replace_vocab(tmpdir):
     with pytest.raises(ValueError) as exc:
         run_fn()
     assert exc.match("replace_vocab")
-    config["tokenization"]["source"]["replace_vocab"] = True
-    config["tokenization"]["target"]["replace_vocab"] = True
+    config["vocabulary"]["source"]["replace_vocab"] = True
+    config["vocabulary"]["target"]["replace_vocab"] = True
     model_dir = run_fn()
     _check_dir(model_dir, [
         new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt", "checksum.md5"])
@@ -640,15 +639,13 @@ def test_replace_vocab(tmpdir):
         os.path.join(str(tmpdir), new_tgt_vocab),
         shallow=False)
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_src_vocab
-    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % new_tgt_vocab
-    assert "replace_vocab" not in config["tokenization"]["target"]
-    assert "replace_vocab" not in config["tokenization"]["source"]
-    assert "previous_vocabulary" not in config["tokenization"]["target"]
-    assert "previous_vocabulary" not in config["tokenization"]["source"]
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % new_src_vocab
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/%s" % new_tgt_vocab
+    assert "replace_vocab" not in config["vocabulary"]["target"]
+    assert "replace_vocab" not in config["vocabulary"]["source"]
+    assert "previous_vocabulary" not in config["vocabulary"]["target"]
+    assert "previous_vocabulary" not in config["vocabulary"]["source"]
 
-# TODO restore tests
-@pytest.mark.skip()
 def test_replace_vocab_in_preprocess(tmpdir):
     framework_fn = lambda: ReplaceVocabChecker()
     _ = _run_framework(
@@ -661,9 +658,9 @@ def test_replace_vocab_in_preprocess(tmpdir):
     new_tgt_vocab = "new_tgt_vocab.txt"
     tmpdir.join(new_src_vocab).write("hello\n")
     tmpdir.join(new_tgt_vocab).write("hallo\n")
-    config = {"tokenization": {
-        "source": {"vocabulary": "${TMP_DIR}/%s" % new_src_vocab, "replace_vocab": True},
-        "target": {"vocabulary": "${TMP_DIR}/%s" % new_tgt_vocab, "replace_vocab": True}}
+    config = {"vocabulary": {
+        "source": {"path": "${TMP_DIR}/%s" % new_src_vocab, "replace_vocab": True},
+        "target": {"path": "${TMP_DIR}/%s" % new_tgt_vocab, "replace_vocab": True}}
     }
     model_dir = _run_framework(
         tmpdir,
@@ -693,14 +690,14 @@ def test_replace_vocab_in_preprocess(tmpdir):
         os.path.join(_test_dir(), "corpus", "vocab", "de-vocab.txt"),
         shallow=False)
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["previous_vocabulary"] \
+    assert config["vocabulary"]["source"]["previous_vocabulary"] \
         == "${MODEL_DIR}/previous-source-vocab.txt"
-    assert config["tokenization"]["target"]["previous_vocabulary"] \
+    assert config["vocabulary"]["target"]["previous_vocabulary"] \
         == "${MODEL_DIR}/previous-target-vocab.txt"
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_src_vocab
-    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % new_tgt_vocab
-    assert "replace_vocab" not in config["tokenization"]["target"]
-    assert "replace_vocab" not in config["tokenization"]["source"]
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % new_src_vocab
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/%s" % new_tgt_vocab
+    assert "replace_vocab" not in config["vocabulary"]["target"]
+    assert "replace_vocab" not in config["vocabulary"]["source"]
     framework_fn = lambda: ReplaceVocabChecker(src_changed=True, tgt_changed=True)
     model_dir = _run_framework(
         tmpdir,
@@ -719,13 +716,11 @@ def test_replace_vocab_in_preprocess(tmpdir):
         os.path.join(str(tmpdir), new_tgt_vocab),
         shallow=False)
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_src_vocab
-    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/%s" % new_tgt_vocab
-    assert "previous_vocabulary" not in config["tokenization"]["target"]
-    assert "previous_vocabulary" not in config["tokenization"]["source"]
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % new_src_vocab
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/%s" % new_tgt_vocab
+    assert "previous_vocabulary" not in config["vocabulary"]["target"]
+    assert "previous_vocabulary" not in config["vocabulary"]["source"]
 
-# TODO restore tests
-@pytest.mark.skip()
 def test_add_new_tokens(tmpdir):
     _run_framework(
         tmpdir,
@@ -744,8 +739,8 @@ def test_add_new_tokens(tmpdir):
     _check_dir(model_dir, [
         "en-vocab.txt.v2", "de-vocab.txt.v2", "config.json", "checkpoint.txt", "checksum.md5"])
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/en-vocab.txt.v2"
-    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/de-vocab.txt.v2"
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/en-vocab.txt.v2"
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/de-vocab.txt.v2"
     framework_fn = lambda: ReplaceVocabChecker(
         src_tokens_to_add=["token3", "token4"])
     model_dir = _run_framework(
@@ -757,11 +752,9 @@ def test_add_new_tokens(tmpdir):
     _check_dir(model_dir, [
         "en-vocab.txt.v3", "de-vocab.txt.v2", "config.json", "checkpoint.txt", "checksum.md5"])
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/en-vocab.txt.v3"
-    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/de-vocab.txt.v2"
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/en-vocab.txt.v3"
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/de-vocab.txt.v2"
 
-# TODO restore tests
-@pytest.mark.skip()
 def test_add_new_tokens_in_preprocess(tmpdir):
     _run_framework(
         tmpdir,
@@ -792,10 +785,10 @@ def test_add_new_tokens_in_preprocess(tmpdir):
         os.path.join(model_dir, "de-vocab.txt"),
         added_tokens=new_tgt_tokens)
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["previous_vocabulary"] == "${MODEL_DIR}/en-vocab.txt"
-    assert config["tokenization"]["target"]["previous_vocabulary"] == "${MODEL_DIR}/de-vocab.txt"
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/en-vocab.txt.v2"
-    assert config["tokenization"]["target"]["vocabulary"] == "${MODEL_DIR}/de-vocab.txt.v2"
+    assert config["vocabulary"]["source"]["previous_vocabulary"] == "${MODEL_DIR}/en-vocab.txt"
+    assert config["vocabulary"]["target"]["previous_vocabulary"] == "${MODEL_DIR}/de-vocab.txt"
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/en-vocab.txt.v2"
+    assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/de-vocab.txt.v2"
     framework_fn = lambda: ReplaceVocabChecker(src_changed=True, tgt_changed=True)
     model_dir = _run_framework(
         tmpdir,
@@ -807,11 +800,9 @@ def test_add_new_tokens_in_preprocess(tmpdir):
         "en-vocab.txt.v2", "de-vocab.txt.v2",
         "config.json", "checkpoint.txt", "checksum.md5"])
     config = _read_config(model_dir)
-    assert "previous_vocabulary" not in config["tokenization"]["source"]
-    assert "previous_vocabulary" not in config["tokenization"]["target"]
+    assert "previous_vocabulary" not in config["vocabulary"]["source"]
+    assert "previous_vocabulary" not in config["vocabulary"]["target"]
 
-# TODO restore tests
-@pytest.mark.skip()
 def test_replace_vocab_and_add_new_tokens(tmpdir):
     _run_framework(
         tmpdir,
@@ -823,9 +814,9 @@ def test_replace_vocab_and_add_new_tokens(tmpdir):
     new_tgt_vocab = "new_tgt_vocab.txt"
     tmpdir.join(new_src_vocab).write("hello\n")
     tmpdir.join(new_tgt_vocab).write("hallo\nwie\n")
-    config = {"tokenization": {
-        "source": {"vocabulary": "${TMP_DIR}/%s" % new_src_vocab, "replace_vocab": True},
-        "target": {"vocabulary": "${TMP_DIR}/%s" % new_tgt_vocab, "replace_vocab": True}}
+    config = {"vocabulary": {
+        "source": {"path": "${TMP_DIR}/%s" % new_src_vocab, "replace_vocab": True},
+        "target": {"path": "${TMP_DIR}/%s" % new_tgt_vocab, "replace_vocab": True}}
     }
     new_src_tokens = ["token0"]
     new_tgt_tokens = ["token1", "token2"]

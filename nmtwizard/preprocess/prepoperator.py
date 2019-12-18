@@ -24,7 +24,7 @@ class Operator(object):
 class Pipeline(Operator):
     """Pipeline operator for building and applying TU operators in order."""
 
-    def __init__(self, config):
+    def __init__(self, config, preprocess_exit_step=None):
         # Current state of preprocessing pipeline.
         # Passed to and modified by operator initializers if necessary.
         self.state = { "src_tokenizer" : None,
@@ -33,7 +33,7 @@ class Pipeline(Operator):
         self._ops = []
 
         if 'preprocess' in config:
-            self._build_pipeline(config['preprocess'])
+            self._build_pipeline(config['preprocess'], preprocess_exit_step)
 
     def build_postprocess_pipeline(self, config):
 
@@ -52,11 +52,13 @@ class Pipeline(Operator):
                 reversed_ops.append(op)
         self._ops = reversed_ops
 
-    def _build_pipeline(self, config):
+    def _build_pipeline(self, config, preprocess_exit_step):
         for i, op in enumerate(config):
             operator = self._build_operator(i, op)
             if operator:
                 self._ops.append(operator)
+            if preprocess_exit_step and i == preprocess_exit_step:
+                break
 
     def _build_operator(self, step, operator_config):
         if not "op" in operator_config:

@@ -457,11 +457,13 @@ class Framework(utility.Utility):
                     push_model=True):
         start_time = time.time()
         local_config = self._finalize_config(config)
-        objects, preprocess_config = self._generate_vocabularies(local_config)
+        objects, preprocess_config, vocab_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
         local_config["preprocess"] = utility.resolve_environment_variables(preprocess_config)
+        local_config["vocabulary"] = utility.resolve_environment_variables(vocab_config)
         config["preprocess"] = preprocess_config
+        config["vocabulary"] = vocab_config
         config['model'] = model_id
         config['modelType'] = 'base'
         config['imageTag'] = image
@@ -717,34 +719,34 @@ class Framework(utility.Utility):
                          keep_previous=False):
         if tokens_to_add is None:
             tokens_to_add = {}
-        tok_config = preprocess.get_final_tok_config(config)
-        tok_local_config = preprocess.get_final_tok_config(local_config)
+        vocab_config = config.get('vocabulary', {})
+        vocab_local_config = local_config.get('vocabulary', {})
         parent_dependencies = {}
         if model_config:
-            model_tok_config = preprocess.get_final_tok_config(model_config)
-            model_tok_local_config = self._finalize_config(model_tok_config)
+            model_vocab_config = model_config.get('vocabulary', {})
+            model_vocab_local_config = self._finalize_config(model_vocab_config)
             if keep_previous:
                 bundle_dependencies(
                     parent_dependencies,
-                    copy.deepcopy(model_tok_config),
-                    copy.deepcopy(model_tok_local_config))
+                    copy.deepcopy(model_vocab_config),
+                    copy.deepcopy(model_vocab_local_config))
         else:
-            model_tok_config = None
-            model_tok_local_config = None
+            model_vocab_config = None
+            model_vocab_local_config = None
         src_info = self._get_vocab_info(
             'source',
-            tok_config,
-            tok_local_config,
-            model_config=model_tok_config,
-            local_model_config=model_tok_local_config,
+            vocab_config,
+            vocab_local_config,
+            model_config=model_vocab_config,
+            local_model_config=model_vocab_local_config,
             tokens_to_add=tokens_to_add.get('source'),
             keep_previous=keep_previous)
         tgt_info = self._get_vocab_info(
             'target',
-            tok_config,
-            tok_local_config,
-            model_config=model_tok_config,
-            local_model_config=model_tok_local_config,
+            vocab_config,
+            vocab_local_config,
+            model_config=model_vocab_config,
+            local_model_config=model_vocab_local_config,
             tokens_to_add=tokens_to_add.get('target'),
             keep_previous=keep_previous)
         return src_info, tgt_info, parent_dependencies
@@ -760,13 +762,13 @@ class Framework(utility.Utility):
         if not config:
             return None
         opt = config.get(side)
-        if opt is None or 'vocabulary' not in opt:
+        if opt is None or 'path' not in opt:
             return None
         local_opt = local_config[side]
 
         current_basename = '%s-vocab.txt' % side
         current_vocab = self._convert_vocab(
-            local_opt['vocabulary'], basename=current_basename)
+            local_opt['path'], basename=current_basename)
 
         # First read previous_vocabulary if given.
         previous_basename = 'previous-%s-vocab.txt' % side
@@ -781,7 +783,7 @@ class Framework(utility.Utility):
             model_opt = model_config[side]
             local_model_opt = local_model_config[side]
             previous_vocab = self._convert_vocab(
-                local_model_opt['vocabulary'], basename=previous_basename)
+                local_model_opt['path'], basename=previous_basename)
             vocab_changed = not filecmp.cmp(previous_vocab, current_vocab)
             if vocab_changed:
                 if not opt.get('replace_vocab', False):
@@ -789,7 +791,7 @@ class Framework(utility.Utility):
                                      % side.capitalize())
                 if keep_previous:
                     opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
-                    local_opt['previous_vocabulary'] = local_model_opt['vocabulary']
+                    local_opt['previous_vocabulary'] = local_model_opt['path']
             else:
                 os.remove(previous_vocab)
                 previous_vocab = None
@@ -799,21 +801,21 @@ class Framework(utility.Utility):
             del local_opt['replace_vocab']
 
         if tokens_to_add:
-            new_filename = next_filename_version(os.path.basename(local_opt["vocabulary"]))
+            new_filename = next_filename_version(os.path.basename(local_opt["path"]))
             new_vocab = os.path.join(self._data_dir, new_filename)
-            shutil.copy(local_opt["vocabulary"], new_vocab)
+            shutil.copy(local_opt["path"], new_vocab)
             with open(new_vocab, "a") as vocab:
                 for token in tokens_to_add:
                     vocab.write("%s\n" % token)
             if previous_vocab is None:
                 previous_vocab = current_vocab
                 if keep_previous:
-                    opt['previous_vocabulary'] = opt['vocabulary']
-                    local_opt['previous_vocabulary'] = local_opt['vocabulary']
+                    opt['previous_vocabulary'] = opt['path']
+                    local_opt['previous_vocabulary'] = local_opt['path']
             current_vocab = self._convert_vocab(
                 new_vocab, basename="updated-%s-vocab.txt" % side)
-            opt["vocabulary"] = new_vocab
-            local_opt["vocabulary"] = new_vocab
+            opt["path"] = new_vocab
+            local_opt["path"] = new_vocab
 
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)

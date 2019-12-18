@@ -12,9 +12,11 @@ import tokenizer
 
 logger = get_logger(__name__)
 
-def _generate_models(config, tok_config, corpus_dir, data_dir, option):
+def _generate_models(config, tokenization_step, corpus_dir, data_dir, option):
 
     build_option = "build_" + option
+
+    tok_config = config['preprocess'][tokenization_step]
 
     opt_multi = tok_config.get('multi', {}).get(build_option)
     opt_source = tok_config.get('source', {}).get(build_option)
@@ -29,57 +31,76 @@ def _generate_models(config, tok_config, corpus_dir, data_dir, option):
         raise RuntimeError('Cannot specify \'%s\' for both \'multi\' and either \'source\' or \'target\'.' % build_option)
 
     # Generate preprocessed sentences and feed them to subword learners or to vocabularies.
-    generate_preprocessed_data(config, corpus_dir, data_dir, option)
+    generate_preprocessed_data(config, corpus_dir, data_dir, option, preprocess_exit_step=tokenization_step)
 
-def get_final_tok_config(config):
-    tok_config = None
+def _get_tok_configs(config):
+    tok_configs = []
     if "preprocess" in config:
-        for op in reversed(config["preprocess"]):
+        for i, op in enumerate(config["preprocess"]):
             if not "op" in op:
                 raise RuntimeError('Every step in \'preprocess\' must have a mandatory \'op\' option.')
-            # TODO : as is, we always use the last tokenization for buildvocab
-            # Should that be an option ?
             if op["op"] == "tokenization":
-                tok_config = op
-                break
-
-    return tok_config
+                tok_configs.append(i)
+    return tok_configs
 
 
 def generate_vocabularies(config, corpus_dir, data_dir):
 
-    tok_config = get_final_tok_config(config)
+    # Generate vocabularies and subword models for each tokenization block.
+    tok_configs = _get_tok_configs(config)
 
-    if not tok_config:
+    if not tok_configs:
         raise RuntimeError('No \'tokenization\' operator in preprocess configuration, cannot build vocabularies.)')
 
-    if ('source' not in tok_config or 'target' not in tok_config) and 'multi' not in tok_config :
-        raise RuntimeError('Final \'tokenization\' operator should contain \
-                            either both \'source\' and \'target\' fields \
-                            or \'multi\' field.')
+    for i in tok_configs:
+        tok_config = config['preprocess'][i]
+        if ('source' not in tok_config or 'target' not in tok_config) and 'multi' not in tok_config :
+            raise RuntimeError('Each \'tokenization\' operator should contain \
+                                either both \'source\' and \'target\' fields \
+                                or \'multi\' field.')
 
-    for side in tok_config:
-        if side == "op":
-            continue
-        if tok_config[side].get('vocabulary', {}):
-            raise RuntimeError('Cannot build vocabulary if \'%s\' vocabulary path is already specified.' % side)
-        build_vocab = tok_config[side].get('build_vocabulary')
-        if build_vocab and not build_vocab.get('size'):
-            raise RuntimeError('\'size\' option is mandatory to build vocabulary for \'%s\'.' % side)
+        for side in tok_config:
+            if side == "op":
+                continue
+            build_vocab = tok_config[side].get('build_vocabulary')
+            if build_vocab:
+                if tok_config[side].get('vocabulary_path', {}):
+                    raise RuntimeError('Cannot build vocabulary if \'%s\' vocabulary path is already specified.' % side)
+                if i == len(tok_configs)-1 and config.get('vocabulary',{}).get(side,{}).get('path'):
+                    raise RuntimeError('Cannot build vocabulary for final tokenization if \'%s\' vocabulary path for model is already specified.' % side)
+                if not build_vocab.get('size'):
+                    raise RuntimeError('\'size\' option is mandatory to build vocabulary for \'%s\'.' % side)
 
-    _generate_models(config, tok_config, corpus_dir, data_dir, 'subword')
+        _generate_models(config, i, corpus_dir, data_dir, 'subword')
 
-    _generate_models(config, tok_config, corpus_dir, data_dir, 'vocabulary')
+        _generate_models(config, i, corpus_dir, data_dir, 'vocabulary')
+
+        # Use vocabulary from final tokenization as vocabulary for translation framework.
+        if i == len(tok_configs)-1:
+            for side in tok_config:
+                if side == 'source' or side == 'target':
+                    if 'vocabulary' not in config:
+                        config['vocabulary'] = {}
+                    if side not in config['vocabulary']:
+                        config['vocabulary'][side] = {}
+                    config['vocabulary'][side]['path'] = tok_config[side]['vocabulary_path']
+                    # Only keep 'vocabulary_path' option for final tokenization if explicitly specified.
+                    if not tok_config[side].get('use_vocab_in_tok', False):
+                        del tok_config[side]['vocabulary_path']
 
     preprocess_config = None
     if "preprocess" in config:
         preprocess_config = config["preprocess"]
 
-    # TODO V2 : we don't need to return tokenization ?
-    return {}, preprocess_config
+    vocab_config = None
+    if "vocabulary" in config:
+        vocab_config = config["vocabulary"]
+
+    # TODO V2 : why we use a copy here ?
+    return {}, preprocess_config, vocab_config
 
 
-def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'):
+def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess', preprocess_exit_step=None):
 
     # TODO V2 : annotations
     # TODO V2 : file-specific rules/extra
@@ -122,9 +143,9 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
         if 'preprocess' in config and 'batch_size' in config['preprocess'] :
             batch_size = config['preprocess']['batch_size']
 
-        sampler_consumer = consumer.make_consumer(config, result_dir, result)
+        sampler_consumer = consumer.make_consumer(config, result_dir, result, preprocess_exit_step)
         preprocessor = Processor(loader.SamplerFileLoader(batch_size),
-                                 prepoperator.Pipeline(config),
+                                 prepoperator.Pipeline(config, preprocess_exit_step),
                                  sampler_consumer)
         for f in all_files:
             lines_filtered = 0
