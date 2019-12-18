@@ -17,8 +17,8 @@ from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
 from nmtwizard import serving
-from nmtwizard import tokenizer
-from nmtwizard import preprocess
+from nmtwizard.preprocess import tokenizer
+from nmtwizard.preprocess import preprocess
 from nmtwizard import utility
 
 
@@ -457,11 +457,11 @@ class Framework(utility.Utility):
                     push_model=True):
         start_time = time.time()
         local_config = self._finalize_config(config)
-        objects, tokenization_config = self._generate_vocabularies(local_config)
+        objects, preprocess_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
-        local_config['tokenization'] = utility.resolve_environment_variables(tokenization_config)
-        config['tokenization'] = tokenization_config
+        local_config["preprocess"] = utility.resolve_environment_variables(preprocess_config)
+        config["preprocess"] = preprocess_config
         config['model'] = model_id
         config['modelType'] = 'base'
         config['imageTag'] = image
@@ -525,7 +525,8 @@ class Framework(utility.Utility):
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input_preprocessed = self._preprocess_file(local_config, path_input_unzipped)
+                # Preprocessor is kept to be used in postprocess.
+                path_input_preprocessed, preprocessor = self._preprocess_file(local_config, path_input_unzipped)
                 metadata = None
                 if isinstance(path_input_preprocessed, tuple):
                     path_input_preprocessed, metadata = path_input_preprocessed
@@ -541,7 +542,7 @@ class Framework(utility.Utility):
                 generated_tokens += num_tokens
                 if not no_postprocess:
                     path_output = self._postprocess_file(
-                        local_config, path_input_preprocessed, path_output)
+                        local_config, preprocessor, path_input_preprocessed, path_output)
 
                 if copy_source:
                     copied_input = output
@@ -716,11 +717,11 @@ class Framework(utility.Utility):
                          keep_previous=False):
         if tokens_to_add is None:
             tokens_to_add = {}
-        tok_config = config.get('tokenization', {})
-        tok_local_config = local_config.get('tokenization', {})
+        tok_config = preprocess.get_final_tok_config(config)
+        tok_local_config = preprocess.get_final_tok_config(local_config)
         parent_dependencies = {}
         if model_config:
-            model_tok_config = model_config.get('tokenization', {})
+            model_tok_config = preprocess.get_final_tok_config(model_config)
             model_tok_local_config = self._finalize_config(model_tok_config)
             if keep_previous:
                 bundle_dependencies(
@@ -819,18 +820,22 @@ class Framework(utility.Utility):
 
     def _serving_state(self, config):
         state = {}
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            state['src_tokenizer'] = tokenizer.build_tokenizer(tok_config['source'])
-            state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
+        if 'preprocess' in config:
+            state['preprocessor'] = preprocess.BasicPreprocessor(config)
         return state
 
     def _preprocess_input(self, state, input, config):
         if isinstance(input, list):
             tokens = input
-        elif 'src_tokenizer' in state:
+        elif 'preprocessor' in state:
+            # TODO : should encoding be done by preprocessor ?
             input = input.encode('utf-8')
-            tokens, _ = state['src_tokenizer'].tokenize(input)
+            output, _ = state['preprocessor'].process(input)
+
+            # TODO : process always returns a batch.
+            # We suppose here that it is one sentence for one input.
+            # But preprocess could also split the sentence.
+            tokens = output[0]
         else:
             tokens = input.split()
         return tokens
@@ -838,29 +843,28 @@ class Framework(utility.Utility):
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
             text = target
-        elif 'tgt_tokenizer' in state:
+        elif 'preprocessor' in state or 'postprocess' in config:
+            # TODO : should encoding be done by preprocessor ?
+            # TODO : output could be a batch.
             output = [out.encode('utf-8') for out in target]
-            text = state['tgt_tokenizer'].detokenize(output)
+            state['preprocessor'].build_postprocess_pipeline(config)
+            text = state['preprocessor'].process(output)
+
+            # TODO : process always returns a batch.
+            # We suppose here that it returns one sentence for one output, but it could be wrong.
+            text = text[0]
         else:
             text = ' '.join(target)
         return text
 
     def _preprocess_file(self, config, input):
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
-            output = "%s.tok" % input
-            tokenizer.tokenize_file(src_tokenizer, input, output)
-            return output
-        return input
+        if 'preprocess' in config:
+            return preprocess.preprocess_file(config, input)
+        return input, None
 
-    def _postprocess_file(self, config, source, target):
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
-            output = "%s.detok" % target
-            tokenizer.detokenize_file(tgt_tokenizer, target, output)
-            return output
+    def _postprocess_file(self, config, preprocessor, source, target):
+        if 'preprocess' in config or 'postprocess' in config:
+            return preprocess.postprocess_file(config, preprocessor, source, target)
         return target
 
     def _convert_vocab(self, vocab_file, basename=None):

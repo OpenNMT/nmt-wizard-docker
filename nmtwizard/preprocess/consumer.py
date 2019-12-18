@@ -3,161 +3,37 @@ import six
 import abc
 import os
 import collections
-from itertools import chain
 
-from nmtwizard import tokenizer
-from nmtwizard import tu
-from nmtwizard.logger import get_logger
-
-logger = get_logger(__name__)
-
-@six.add_metaclass(abc.ABCMeta)
-class Operator(object):
-    """Base class for preprocessing opertators."""
-
-    @abc.abstractmethod
-    def __call__(self, tu_batch):
-        raise NotImplementedError()
-
-
-class PreprocessingPipeline(Operator):
-
-    def __init__(self, config):
-        self._ops = []
-        if 'preprocess' in config:
-            self._build_pipeline(config['preprocess'])
-
-    def _build_pipeline(self, preprocess_config):
-        for i, op in enumerate(preprocess_config):
-            operator = self._build_operator(i, op)
-            if operator:
-                self.add(operator)
-
-    def _build_operator(self, step, operator_config):
-        if not "op" in operator_config:
-            raise RuntimeError('Step %d in \'preprocess\' doesn\'t have mandatory \'op\' option.' % step)
-        if operator_config["op"] == "length_filter":
-            return LengthFilter(operator_config)
-        if operator_config["op"] == "tokenization":
-            return Tokenizer(operator_config)
-        # TODO : all other operators
-        else:
-            # TODO : warning or error ?
-            logger.warning('Unknown operator \'%s\' will be ignored.' % operator_config["op"])
-            return None
-
-    def add(self, op):
-        self._ops.append(op)
-
-    def __call__(self, tu_batch):
-        for op in self._ops:
-            tu_batch = op(tu_batch)
-        return tu_batch
-
-
-class TUOperator(Operator):
-    """Base class for operations iterating on each TU in a batch."""
-
-    def __call__(self, tu_batch):
-
-        # TU operator applies an action to each tu.
-        # The action yields zero, one or more element for the new list
-        tu_batch = list(chain.from_iterable(self.apply(tu) for tu in tu_batch))
-
-        return tu_batch
-
-    @abc.abstractmethod
-    def apply(self, tu_batch):
-        raise NotImplementedError()
-
-
-class Filter(TUOperator):
-
-    def __init__(self):
-        # TODO: Sub-criteria for source_detok, target_detok, source_tok, target_tok, or both with alignment ?
-        self._criteria = []
-
-    def apply(self, tu):
-        for c in self._criteria:
-            if (c(tu)):
-                return []
-        return [tu]
-
-
-class LengthFilter(Filter):
-
-    def __init__(self, config):
-
-        super(LengthFilter, self).__init__()
-
-        self._source_max = config.get('source', {}).get('max_length_char')
-        self._target_max = config.get('target', {}).get('max_length_char')
-
-        if self._source_max:
-            self._criteria.append(lambda x:len(x.src_raw) > self._source_max)
-
-        if self._target_max:
-            self._criteria.append(lambda x:len(x.tgt_raw) > self._target_max)
-
-
-class FileLoader(object):
-
-    def __init__(self, f, batch_size = 0):
-
-        # TODO V2: multiple src and tgt
-        self._file = f
-
-        self._batch_size = batch_size
-        self._current_line = 0
-
-    def __call__(self):
-
-        tu_batch = []
-        while True:
-            del tu_batch[:] # TODO V2: Check memory usage on a big corpus
-            # Read sampled lines from all files and build TUs.
-            batch_line = 0
-            while (batch_line < self._batch_size and self._current_line < self._file.lines_count):
-                src_line = self._file.files[0].readline().strip()
-                tgt_line = self._file.files[1].readline().strip()
-                if (self._current_line in self._file.random_sample):
-                    while self._file.random_sample[self._current_line] and \
-                          batch_line < self._batch_size:
-                        tu_batch.append(tu.TranslationUnit(src_line, tgt_line))
-                        batch_line += 1
-                        self._file.random_sample[self._current_line] -= 1
-                self._current_line += 1
-            if not tu_batch:
-                return
-
-            yield tu_batch
-
+import tokenizer
 
 @six.add_metaclass(abc.ABCMeta)
 class Consumer(object):
     """Base class for using preprocess results."""
 
-    def __init__(self, result_dir):
+    def __init__(self, result_dir=None):
         self._result_dir = result_dir
 
     @abc.abstractmethod
-    def __call__(self, tu_batch):
+    def __call__(self):
         raise NotImplementedError()
 
     def open_files(self, f):
+        # Basic consumer doesn't open any files.
         pass
 
     def close_files(self):
-        for _, obj in self.__dict__.items():
-            if hasattr(obj, "close") and callable(obj.close) and \
-               hasattr(obj, "closed") and not obj.closed:
-                obj.close()
+        if hasattr(self, "_file"):
+            for f in self._file:
+                f.close()
 
     def finalize(self, config):
+        # Basic consumer doesn't do anything in finalize().
+        # Only used for consumers operating on multiple files, such as SubwordLearner and VocabularyBuilder.
         pass
 
 
 class SubwordLearner(Consumer):
+    """SubwordLearner class stores, learns and writes subword models."""
 
     def __init__(self, tok_config, result_dir):
 
@@ -223,6 +99,7 @@ class SubwordLearner(Consumer):
 
 
 class VocabularyBuilder(Consumer):
+    """VocabularyBuilder class stores, learns and writes vocabularies."""
 
     def __init__(self, tok_config, result_dir):
 
@@ -357,27 +234,59 @@ class VocabularyBuilder(Consumer):
             # TODO V2 : header with configuration ?
             # TODO V2 : deal with placeholders
 
+class BasicWriter(Consumer):
+    """BasicWriter writes pre/postprocessed TUs at inference into strings or list of tokens."""
+
+    def __call__(self, tu_batch, postprocess=False):
+        # TODO : is there always just one input/TU in batch
+        result = []
+        for tu in tu_batch :
+            if not postprocess:
+                result.append(tu.get_src_tok())
+            else:
+                result.append(tu.get_tgt_detok())
+        return result
+
 
 class FileWriter(Consumer):
+    """FileWriter writes pre/postprocessed TUs into files at inference."""
+
+    def open_files(self, f):
+        # A basic file writer only opens one file.
+        # In preprocess, it is used to store preprocessed source.
+        # In postprocess, it is used to store postprocessed target.
+        # TODO V2 : multiple files
+        self._file = [open(f, 'w')]
+
+    def __call__(self, tu_batch, postprocess=False):
+        # Write lines to files from TUs
+        for tu in tu_batch :
+            if not postprocess:
+                src_res = tu.get_src_tok()
+                src_res = " ".join(src_res) if src_res else tu.src_raw
+                self._file[0].write("%s\n" % src_res)
+
+                if len(self._file) > 1:
+                    tgt_res = tu.get_tgt_tok()
+                    tgt_res = " ".join(tgt_res) if tgt_res else tu.tgt_raw
+                    self._file[1].write("%s\n" % tgt_res)
+            else:
+                res = tu.get_tgt_detok() or tu.tgt_raw
+                self._file[0].write("%s\n" % res)
+
+
+class SamplerFileWriter(FileWriter):
+    """SamplerFileWriter writes pre/postprocessed TUs into files at training using SamplerFile object."""
 
     def open_files(self, f):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
+        self._file = []
         src = os.path.join(self._result_dir, os.path.basename(f.files[0].name))
-        self._src_file_out = open(src, 'w')
+        self._file.append(open(src, 'w'))
 
         tgt = os.path.join(self._result_dir, os.path.basename(f.files[1].name))
-        self._tgt_file_out = open(tgt, 'w')
-
-    def __call__(self, tu_batch):
-        # Write lines to files from TUs
-        for tu in tu_batch :
-            src_res = tu.get_src_tok()
-            tgt_res = tu.get_tgt_tok()
-            src_res = " ".join(src_res) if src_res else tu.src_raw
-            tgt_res = " ".join(tgt_res) if tgt_res else tu.tgt_raw
-            self._src_file_out.write("%s\n" % src_res)
-            self._tgt_file_out.write("%s\n" % tgt_res)
+        self._file.append(open(tgt, 'w'))
 
 
 def make_consumer(config, result_dir, result):
@@ -396,27 +305,4 @@ def make_consumer(config, result_dir, result):
         return VocabularyBuilder(tok_config, result_dir)
 
     # Default is write to file.
-    return FileWriter(result_dir)
-
-
-class Tokenizer(Operator):
-
-    def __init__(self, tok_config):
-        self._src_tokenizer = ('source' in tok_config and \
-                              tokenizer.build_tokenizer(tok_config['source'])) or \
-                              ('multi' in tok_config and \
-                               tokenizer.build_tokenizer(tok_config['multi']))
-
-        self._tgt_tokenizer = ('target' in tok_config and \
-                              tokenizer.build_tokenizer(tok_config['target'])) or \
-                              ('multi' in tok_config and \
-                               tokenizer.build_tokenizer(tok_config['multi']))
-
-    def __call__(self, tu_batch):
-
-        # Reset tokenization parameters
-        for tu in tu_batch :
-            tu.reset_src_tok(self._src_tokenizer)
-            tu.reset_tgt_tok(self._tgt_tokenizer)
-
-        return tu_batch
+    return SamplerFileWriter(result_dir)

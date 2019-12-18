@@ -1,8 +1,11 @@
+# -*- coding: utf-8 -*-
+
 import pytest
 import shutil
 
-from nmtwizard.preprocess import generate_preprocessed_data
-from nmtwizard.preprocess import generate_vocabularies
+from nmtwizard.preprocess.preprocess import generate_preprocessed_data
+from nmtwizard.preprocess.preprocess import generate_vocabularies
+from nmtwizard.preprocess.preprocess import BasicProcessor
 
 def test_sampler(tmpdir):
 
@@ -141,7 +144,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         }
         config['preprocess'][0][side]['build_subword'] = subword_config
 
-    _, result_tok_config = generate_vocabularies(config, "", str(tmpdir))
+    _, result_preprocess_config = generate_vocabularies(config, "", str(tmpdir))
 
     for side, ext in sides.items():
 
@@ -159,10 +162,10 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
                     assert len(f.readlines()) == 101
 
             if side == 'multi':
-                assert result_tok_config['source']['%s_model_path' % subword_type] == subword_file
-                assert result_tok_config['target']['%s_model_path' % subword_type] == subword_file
+                assert result_preprocess_config[0]['source']['%s_model_path' % subword_type] == subword_file
+                assert result_preprocess_config[0]['target']['%s_model_path' % subword_type] == subword_file
             else:
-                assert result_tok_config[side]['%s_model_path' % subword_type] == subword_file
+                assert result_preprocess_config[0][side]['%s_model_path' % subword_type] == subword_file
 
         # Check vocabulary
         rs = real_size[side] if isinstance(real_size, dict) else real_size
@@ -177,10 +180,10 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             assert len(f.readlines()) == rs
 
         if side == 'multi':
-            assert result_tok_config['source']['vocabulary'] == vocab_file
-            assert result_tok_config['target']['vocabulary'] == vocab_file
+            assert result_preprocess_config[0]['source']['vocabulary'] == vocab_file
+            assert result_preprocess_config[0]['target']['vocabulary'] == vocab_file
         else:
-            assert result_tok_config[side]['vocabulary'] == vocab_file
+            assert result_preprocess_config[0][side]['vocabulary'] == vocab_file
 
 
 def test_generate_vocabularies(tmpdir):
@@ -244,10 +247,12 @@ def test_preprocess_pipeline(tmpdir):
             {
                 "op" : "tokenization",
                 "source": {
-                    "mode": "aggressive"
+                    "mode": "aggressive",
+                    "joiner_annotate": True
                 },
                 "target": {
-                    "mode": "aggressive"
+                    "mode": "aggressive",
+                    "joiner_annotate": True
                 }
             }
         ]
@@ -255,3 +260,12 @@ def test_preprocess_pipeline(tmpdir):
 
     data_path, train_dir, num_samples, summary, metadata = \
         generate_preprocessed_data(config, "", str(tmpdir))
+
+    prep = BasicProcessor(config)
+    res, _ = prep.process("This is a test.")
+    res = res[0]
+    assert res == ['This', 'is', 'a', 'test', '￭.']
+
+    prep.build_postprocess_pipeline(config)
+    res, _ = prep.process((res, res))
+    assert res[0] == "This is a test."
