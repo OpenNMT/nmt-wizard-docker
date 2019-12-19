@@ -1,4 +1,6 @@
+import collections
 import json
+import functools
 import logging
 import signal
 import threading
@@ -22,6 +24,14 @@ class TranslationOutput(object):
         self.output = output
         self.score = score
         self.attention = attention
+
+class TranslationExample(
+        collections.namedtuple("TranslationExample",
+                               ("config", "tokens", "metadata"))):
+
+    @property
+    def num_parts(self):
+        return len(self.tokens)
 
 def pick_free_port():
     """Selects an available port."""
@@ -86,13 +96,23 @@ def start_server(host,
                 return
             post_body = self.rfile.read(content_len)
             try:
-                body = json.loads(post_body)
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Incoming request: %s", json.dumps(body, ensure_ascii=False))
-            except ValueError:
-                self.send_error(400, 'badly formatted JSON data')
-                return
-            self.handle_request(body)
+                result = run_request(
+                    json.loads(six.ensure_str(post_body)),
+                    functools.partial(preprocess_fn, serving_state),
+                    functools.partial(translate_fn, info=backend_info),
+                    functools.partial(postprocess_fn, serving_state),
+                    config=config,
+                    max_batch_size=global_max_batch_size,
+                    timeout=global_timeout)
+            except ValueError as e:
+                self.send_error(400, str(e))
+            except RuntimeError as e:
+                self.send_error(504, str(e))
+            else:
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(six.ensure_binary(json.dumps(result)))
 
         def unload_model(self):
             global backend_process
@@ -110,123 +130,6 @@ def start_server(host,
                 backend_process.terminate()
             backend_process, backend_info = backend_service_fn()
             self.send_response(200)
-
-        def send_result(self, result):
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            data = json.dumps(result)
-            if not isinstance(data, six.binary_type):
-                data = data.encode("utf-8")
-            self.wfile.write(data)
-
-        def handle_request(self, request):
-            if 'src' not in request:
-                self.send_error(400, 'missing src field')
-                return
-            results = {'tgt': []}
-            if not request['src']:
-                self.send_result(results)
-                return
-            if not isinstance(request['src'], list):
-                self.send_error(400, 'src field must be a list')
-                return
-            timeout = global_timeout
-            max_batch_size = global_max_batch_size
-            batch_config = config
-            request_options = request.get('options')
-            if request_options is not None and isinstance(request_options, dict):
-                timeout = request_options.get('timeout', timeout)
-                max_batch_size = request_options.get('max_batch_size', max_batch_size)
-                if 'config' in request_options:
-                    batch_config = config_util.merge_config(
-                        copy.deepcopy(config), request['options']['config'])
-            extra_config = []
-            batch_metadata = []
-            batch_offsets = []
-            batch_tokens = []
-            offset = 0
-            for src in request['src']:
-                local_config = batch_config
-                if 'config' in src or 'options' in src:
-                    local_config = copy.deepcopy(local_config)
-                    if 'config' in src:
-                        local_config = config_util.merge_config(local_config, src['config'])
-                    if 'options' in src:
-                        try:
-                            config_util.update_config_with_options(local_config, src['options'])
-                        except ValueError as e:
-                            self.send_error(400, e.message)
-                            return
-                data = preprocess_fn(serving_state, src['text'], local_config)
-                # Preprocessing may return additional metadata.
-                if isinstance(data, tuple):
-                    tokens, metadata = data
-                else:
-                    tokens, metadata = data, None
-                # Preprocessing may split input text into multiple parts.
-                if tokens and isinstance(tokens[0], list):
-                    size = len(tokens)
-                    # Flatten the parts in the batch collection.
-                    batch_tokens.extend(tokens)
-                    batch_metadata.extend(metadata)
-                else:
-                    size = 1
-                    batch_tokens.append(tokens)
-                    batch_metadata.append(metadata)
-                extra_config.append(local_config)
-                batch_offsets.append((offset, offset + size))
-                offset += size
-            if max_batch_size is not None and len(batch_tokens) > max_batch_size:
-                offset = 0
-                batch_hypotheses = []
-                while offset < len(batch_tokens):
-                    lower_bound = offset
-                    upper_bound = min(offset + max_batch_size, len(batch_tokens))
-                    batch_hypotheses.extend(translate_fn(
-                        batch_tokens[lower_bound:upper_bound],
-                        backend_info,
-                        timeout=timeout))
-                    offset = upper_bound
-            else:
-                batch_hypotheses = translate_fn(
-                    batch_tokens, backend_info, timeout=timeout)
-            if batch_hypotheses is None:
-                self.send_error(504, 'translation request timed out')
-                return
-            for local_config, offset in zip(extra_config, batch_offsets):
-                hypotheses = batch_hypotheses[offset[0]:offset[1]]
-                num_parts = offset[1] - offset[0]
-                num_hypotheses = len(hypotheses[0])
-                src_tokens = batch_tokens[offset[0]:offset[1]]
-                src_metadata = batch_metadata[offset[0]:offset[1]]
-                result = []
-                for h in range(num_hypotheses):
-                    if num_parts == 1:
-                        src = src_tokens[0]
-                        if src_metadata[0] is not None:
-                            src = (src, src_metadata[0])
-                        tgt = hypotheses[0][h].output
-                        scores = hypotheses[0][h].score
-                        attention = hypotheses[0][h].attention
-                    else:
-                        # For multi parts inputs, send all result parts to the postprocessing.
-                        src = (src_tokens, src_metadata)
-                        tgt = []
-                        scores = []
-                        attention = None
-                        for j in range(num_parts):
-                            tgt.append(hypotheses[j][h].output)
-                            scores.append(hypotheses[j][h].score)
-                    result.append(_build_result(
-                        lambda src, tgt: postprocess_fn(serving_state, src, tgt, local_config),
-                        src,
-                        tgt,
-                        scores=scores,
-                        attention=attention,
-                        num_parts=num_parts))
-                results['tgt'].append(result)
-            self.send_result(results)
 
     try:
         frontend_server = socketserver.ThreadingTCPServer((host, port), ServerHandler)
@@ -251,19 +154,129 @@ def start_server(host,
     frontend_server.server_close()
 
 
-def _build_result(postprocess_fn, src_tokens, tgt_tokens, scores=None, attention=None, num_parts=1):
-    result = {}
-    result['text'] = postprocess_fn(src_tokens, tgt_tokens)
-    if scores is not None:
-        if num_parts > 1:
-            result['score'] = sum(scores)
-        else:
-            result['score'] = scores
-    if attention is not None and num_parts == 1:
-        result['align'] = _align(src_tokens, tgt_tokens, attention)
+def run_request(request,
+                preprocess_fn,
+                translate_fn,
+                postprocess_fn,
+                config=None,
+                max_batch_size=None,
+                timeout=None):
+    """Runs a translation request."""
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug("Incoming request: %s", json.dumps(request, ensure_ascii=False))
+
+    if not isinstance(request, dict):
+        raise ValueError('request should be a JSON object')
+    src = request.get('src')
+    if src is None:
+        raise ValueError('missing src field')
+    if not isinstance(src, list):
+        raise ValueError('src field must be a list')
+
+    if not src:
+        results = []
+    else:
+        # Read request specific options and config.
+        options = request.get('options', {})
+        config = finalize_config(config, override=options.get('config'))
+        max_batch_size = options.get('max_batch_size', max_batch_size)
+        timeout = options.get('timeout', timeout)
+
+        examples = preprocess_examples(src, preprocess_fn, config=config)
+        outputs = translate_examples(
+            examples,
+            translate_fn,
+            max_batch_size=max_batch_size,
+            timeout=timeout)
+        results = postprocess_outputs(outputs, examples, postprocess_fn)
+
+    return {'tgt': results}
+
+def finalize_config(config, override=None, options=None):
+    """Finalizes the configuration with possible override and options."""
+    if config is not None and (override or options):
+        config = copy.deepcopy(config)
+        if override:
+            config_util.merge_config(config, override)
+        if options:
+            config_util.update_config_with_options(config, options)
+    return config
+
+def preprocess_text(text, func, config=None):
+    """Applies preprocessing function on text."""
+    output = func(text, config)
+
+    # Preprocessing may return additional metadata alongside tokens.
+    if isinstance(output, tuple):
+        tokens, metadata = output
+    else:
+        tokens, metadata = output, None
+
+    # Move to the general multiparts representation.
+    if not tokens or not isinstance(tokens[0], list):
+        tokens = [tokens]
+        metadata = [metadata]
+
+    return TranslationExample(
+        config=config,
+        tokens=tokens,
+        metadata=metadata)
+
+def preprocess_examples(raw_examples, func, config=None):
+    """Applies preprocessing on a list of example structures."""
+    examples = []
+    for i, raw_example in enumerate(raw_examples):
+        if not isinstance(raw_example, dict):
+            raise ValueError('example %d is not a JSON object' % i)
+        text = raw_example.get('text')
+        if text is None:
+            raise ValueError('missing text field in example %d' % i)
+        example_config = finalize_config(
+            config,
+            override=raw_example.get('config'),
+            options=raw_example.get('options'))
+        example = preprocess_text(text, func, config=example_config)
+        examples.append(example)
+    return examples
+
+def postprocess_output(output, example, func):
+    """Applies postprocessing function on a translation output."""
+    if example.num_parts > 1:
+        # For multi parts inputs, send all parts to the postprocessing.
+        tgt_tokens = output.output
+        src_context = (example.tokens, example.metadata)
+        score = sum(output.score) if all(s is not None for s in output.score) else None
+        align = None
+    else:
+        # Otherwise just take the first element and pass metadata only if defined.
+        tgt_tokens = output.output[0]
+        src_tokens = example.tokens[0]
+        src_metadata = example.metadata[0]
+        src_context = src_tokens if src_metadata is None else (src_tokens, src_metadata)
+        score = output.score[0]
+        attention = output.attention[0]
+        align = align_tokens(src_tokens, tgt_tokens, attention) if attention else None
+
+    text = func(src_context, tgt_tokens, example.config)
+    result = {'text': text}
+    if score is not None:
+        result['score'] = score
+    if align is not None:
+        result['align'] = align
     return result
 
-def _align(src_tokens, tgt_tokens, attention):
+def postprocess_outputs(outputs, examples, func):
+    """Applies postprocess on model outputs."""
+    results = []
+    for hypotheses, example in zip(outputs, examples):
+        results.append([
+            postprocess_output(hypothesis, example, func)
+            for hypothesis in hypotheses])
+    return results
+
+def align_tokens(src_tokens, tgt_tokens, attention):
+    if not src_tokens or not tgt_tokens:
+        return []
     src_ranges = []
     offset = 0
     for src_token in src_tokens:
@@ -280,6 +293,58 @@ def _align(src_tokens, tgt_tokens, attention):
             "tgt": [{"range": tgt_range, "id": tgt_id}],
             "src": [{"range": src_range, "id": src_id}]})
     return alignments
+
+def translate_examples(examples, func, max_batch_size=None, timeout=None):
+    """Translates examples."""
+    flat_outputs = []
+    for batch in batch_iterator(examples, max_batch_size=max_batch_size):
+        hypotheses = func(batch, timeout=timeout)
+        if hypotheses is None:
+            raise RuntimeError('translation request timed out')
+        flat_outputs.extend(hypotheses)
+    return unflatten_outputs(flat_outputs, examples)
+
+def batch_iterator(examples, max_batch_size=None):
+    """Yields batch of tokens not larger than max_batch_size."""
+    all_tokens = []
+    for example in examples:
+        all_tokens.extend(example.tokens)
+    batch_size = len(all_tokens)
+    if max_batch_size is None or batch_size <= max_batch_size:
+        yield all_tokens
+    else:
+        offset = 0
+        while offset < batch_size:
+            lower_bound = offset
+            upper_bound = min(offset + max_batch_size, batch_size)
+            yield all_tokens[lower_bound:upper_bound]
+            offset = upper_bound
+
+def unflatten_outputs(flat_outputs, examples):
+    """Unflattens outputs according to examples parts."""
+    outputs = []
+    offset = 0
+    for example in examples:
+        num_parts = example.num_parts
+        hypotheses = flat_outputs[offset:offset + num_parts]
+        offset += num_parts
+        # Extract and merge parts of each hypothesis.
+        num_hypotheses = len(hypotheses[0])
+        outputs.append([
+            merge_translation_outputs([part[h] for part in hypotheses])
+            for h in range(num_hypotheses)])
+    return outputs
+
+def merge_translation_outputs(parts):
+    """Merges multiple translation outputs in a single one."""
+    output = []
+    score = []
+    attention = []
+    for part in parts:
+        output.append(part.output)
+        score.append(part.score)
+        attention.append(part.attention)
+    return TranslationOutput(output, score=score, attention=attention)
 
 def _process_is_running(process):
     return process is not None and process.poll() is None

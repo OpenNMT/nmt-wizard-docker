@@ -1,6 +1,5 @@
-boto3
+https://github.com/SYSTRAN/storages/archive/221fdea969473f10289f628e173b24c528c287d7.tar.gz
 jsonschema
-paramiko
-pyonmttok>=1.13.0,<2
+pyonmttok>=1.16.1,<2
 requests
-scp
+six>=1.13,<2

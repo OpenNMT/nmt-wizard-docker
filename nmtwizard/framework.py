@@ -12,6 +12,7 @@ import six
 import gzip
 import shutil
 import collections
+import traceback
 
 from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
@@ -573,8 +574,8 @@ class Framework(utility.Utility):
             except Exception as e:
                 # Catch any exception to not impact other translations.
                 filename = path_input if not isinstance(path_input, tuple) else path_input[0]
-                logger.error("Translation of %s failed with error \"%s: %s\"" % (
-                    filename, e.__class__.__name__, str(e)))
+                logger.error("Translation of file %s failed with error:\n%s" % (
+                    filename, traceback.format_exc()))
                 logger.warning("Skipping translation of %s" % filename)
                 failed_translation += 1
 
@@ -609,12 +610,18 @@ class Framework(utility.Utility):
         for name in ("parent_model", "build", "data"):
             if name in config:
                 del config[name]
+        model_options = {}
+        supported_features = config.get('supported_features')
+        if supported_features is not None:
+            model_options['supported_features'] = supported_features
         inference_options = config.get('inference_options')
         if inference_options is not None:
             schema = config_util.validate_inference_options(inference_options, config)
+            model_options['json_schema'] = schema
+        if model_options:
             options_path = os.path.join(self._output_dir, 'options.json')
             with open(options_path, 'w') as options_file:
-                json.dump(schema, options_file)
+                json.dump(model_options, options_file)
             objects[os.path.basename(options_path)] = options_path
         if local_destination is None:
             local_destination = self._models_dir
@@ -721,10 +728,15 @@ class Framework(utility.Utility):
             tokens_to_add = {}
         vocab_config = config.get('vocabulary', {})
         vocab_local_config = local_config.get('vocabulary', {})
+        joint_vocab = is_joint_vocab(vocab_config)
         parent_dependencies = {}
         if model_config:
             model_vocab_config = model_config.get('vocabulary', {})
             model_vocab_local_config = self._finalize_config(model_vocab_config)
+            model_joint_vocab = is_joint_vocab(model_vocab_config)
+            if joint_vocab != model_joint_vocab:
+                raise ValueError("Changing joint vocabularies to split vocabularies "
+                                 "(or vice-versa) is currently not supported.")
             if keep_previous:
                 bundle_dependencies(
                     parent_dependencies,
@@ -733,22 +745,29 @@ class Framework(utility.Utility):
         else:
             model_vocab_config = None
             model_vocab_local_config = None
+        source_tokens_to_add = tokens_to_add.get('source') or []
+        target_tokens_to_add = tokens_to_add.get('target') or []
+        if joint_vocab:
+            source_tokens_to_add = set(list(source_tokens_to_add) + list(target_tokens_to_add))
+            target_tokens_to_add = source_tokens_to_add
         src_info = self._get_vocab_info(
             'source',
             vocab_config,
             vocab_local_config,
             model_config=model_vocab_config,
             local_model_config=model_vocab_local_config,
-            tokens_to_add=tokens_to_add.get('source'),
-            keep_previous=keep_previous)
+            tokens_to_add=source_tokens_to_add,
+            keep_previous=keep_previous,
+            joint_vocab=joint_vocab)
         tgt_info = self._get_vocab_info(
             'target',
             vocab_config,
             vocab_local_config,
             model_config=model_vocab_config,
             local_model_config=model_vocab_local_config,
-            tokens_to_add=tokens_to_add.get('target'),
-            keep_previous=keep_previous)
+            tokens_to_add=target_tokens_to_add,
+            keep_previous=keep_previous,
+            joint_vocab=joint_vocab)
         return src_info, tgt_info, parent_dependencies
 
     def _get_vocab_info(self,
@@ -758,20 +777,22 @@ class Framework(utility.Utility):
                         model_config=None,
                         local_model_config=None,
                         tokens_to_add=None,
-                        keep_previous=False):
+                        keep_previous=False,
+                        joint_vocab=False):
         if not config:
             return None
         opt = config.get(side)
         if opt is None or 'path' not in opt:
             return None
         local_opt = local_config[side]
+        vocab_name = side if not joint_vocab else 'joint'
 
-        current_basename = '%s-vocab.txt' % side
+        current_basename = '%s-vocab.txt' % vocab_name
         current_vocab = self._convert_vocab(
             local_opt['path'], basename=current_basename)
 
         # First read previous_vocabulary if given.
-        previous_basename = 'previous-%s-vocab.txt' % side
+        previous_basename = 'previous-%s-vocab.txt' % vocab_name
         previous_vocab = local_opt.get('previous_vocabulary')
         if previous_vocab is not None:
             previous_vocab = self._convert_vocab(
@@ -788,7 +809,7 @@ class Framework(utility.Utility):
             if vocab_changed:
                 if not opt.get('replace_vocab', False):
                     raise ValueError('%s vocabulary has changed but replace_vocab is not set.'
-                                     % side.capitalize())
+                                     % vocab_name.capitalize())
                 if keep_previous:
                     opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
                     local_opt['previous_vocabulary'] = local_model_opt['path']
@@ -813,7 +834,7 @@ class Framework(utility.Utility):
                     opt['previous_vocabulary'] = opt['path']
                     local_opt['previous_vocabulary'] = local_opt['path']
             current_vocab = self._convert_vocab(
-                new_vocab, basename="updated-%s-vocab.txt" % side)
+                new_vocab, basename="updated-%s-vocab.txt" % vocab_name)
             opt["path"] = new_vocab
             local_opt["path"] = new_vocab
 
@@ -828,36 +849,27 @@ class Framework(utility.Utility):
 
     def _preprocess_input(self, state, input, config):
         if isinstance(input, list):
-            tokens = input
-        elif 'preprocessor' in state:
-            # TODO : should encoding be done by preprocessor ?
-            input = input.encode('utf-8')
-            output, _ = state['preprocessor'].process(input)
-
-            # TODO : process always returns a batch.
-            # We suppose here that it is one sentence for one input.
-            # But preprocess could also split the sentence.
-            tokens = output[0]
-        else:
-            tokens = input.split()
-        return tokens
+            return input
+        preprocessor = state.get('preprocessor')
+        if preprocessor is None:
+            return input.split()
+        output, _ = preprocessor.process(input)
+        # TODO : process always returns a batch.
+        # We suppose here that it is one sentence for one input.
+        # But preprocess could also split the sentence.
+        return output[0]
 
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
-            text = target
-        elif 'preprocessor' in state or 'postprocess' in config:
-            # TODO : should encoding be done by preprocessor ?
-            # TODO : output could be a batch.
-            output = [out.encode('utf-8') for out in target]
-            state['preprocessor'].build_postprocess_pipeline(config)
-            text = state['preprocessor'].process(output)
-
-            # TODO : process always returns a batch.
-            # We suppose here that it returns one sentence for one output, but it could be wrong.
-            text = text[0]
-        else:
-            text = ' '.join(target)
-        return text
+            return target
+        preprocessor = state.get('preprocessor')
+        if preprocessor is None:
+            return ' '.join(target)
+        preprocessor.build_postprocess_pipeline(config)
+        output = preprocessor.process(target)
+        # TODO : process always returns a batch.
+        # We suppose here that it returns one sentence for one output, but it could be wrong.
+        return output[0]
 
     def _preprocess_file(self, config, input):
         if 'preprocess' in config:
@@ -877,7 +889,7 @@ class Framework(utility.Utility):
             header = True
             index = 0
             for line in vocab:
-                if header and line[0] == b'#':
+                if header and line.startswith(b'#'):
                     continue
                 header = False
                 token = line.strip().split()[0]
@@ -1028,3 +1040,8 @@ def next_filename_version(filename):
     else:
         version = 2
     return '%s.v%d' % (filename, version)
+
+def is_joint_vocab(vocabulary_config):
+    source = vocabulary_config.get('source', {})
+    target = vocabulary_config.get('target', {})
+    return source.get('path') == target.get('path')
