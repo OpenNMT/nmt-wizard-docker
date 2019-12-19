@@ -4,7 +4,7 @@ import abc
 import os
 import collections
 
-import tokenizer
+from nmtwizard.preprocess import tokenizer
 
 @six.add_metaclass(abc.ABCMeta)
 class Consumer(object):

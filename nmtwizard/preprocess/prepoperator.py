@@ -3,8 +3,8 @@ import six
 import abc
 from itertools import chain
 
-import tokenizer
 from nmtwizard.logger import get_logger
+from nmtwizard.preprocess import tokenizer
 
 logger = get_logger(__name__)
 
