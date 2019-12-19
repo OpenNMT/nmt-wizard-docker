@@ -4,11 +4,11 @@ import os
 import sys
 
 from nmtwizard.logger import get_logger
-from sampler import sample
-import loader
-import prepoperator
-import consumer
-import tokenizer
+from nmtwizard.preprocess import consumer
+from nmtwizard.preprocess import loader
+from nmtwizard.preprocess import prepoperator
+from nmtwizard.preprocess import sampler
+from nmtwizard.preprocess import tokenizer
 
 logger = get_logger(__name__)
 
@@ -132,7 +132,7 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
         logger.info('Generating data to %s', result_dir)
 
         # Sample files and write information to a special file structure.
-        all_files, summary, metadata = sample(config, data_path)
+        all_files, summary, metadata = sampler.sample(config, data_path)
 
         num_samples = 0
 

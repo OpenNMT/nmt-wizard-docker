@@ -3,7 +3,7 @@ import six
 import abc
 import sys
 
-import tu
+from nmtwizard.preprocess import tu
 
 @six.add_metaclass(abc.ABCMeta)
 class Loader(object):
