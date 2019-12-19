@@ -8,6 +8,19 @@ from nmtwizard.preprocess import tokenizer
 
 logger = get_logger(__name__)
 
+def get_operator_type(config):
+    """Returns the operator type from the configuration."""
+    op = config.get("op")
+    if op is None:
+        raise ValueError("Missing 'op' field in operator configuration: %s" % str(config))
+    return op
+
+def get_operator_params(config):
+    """Returns the operator parameters from the configuration."""
+    config = config.copy()
+    config.pop("op", None)
+    return config
+
 @six.add_metaclass(abc.ABCMeta)
 class Operator(object):
     """Base class for preprocessing operators."""
@@ -54,23 +67,23 @@ class Pipeline(Operator):
 
     def _build_pipeline(self, config, preprocess_exit_step):
         for i, op in enumerate(config):
-            operator = self._build_operator(i, op)
+            operator = self._build_operator(op)
             if operator:
                 self._ops.append(operator)
             if preprocess_exit_step and i == preprocess_exit_step:
                 break
 
-    def _build_operator(self, step, operator_config):
-        if not "op" in operator_config:
-            raise RuntimeError('Step %d in \'preprocess\' doesn\'t have mandatory \'op\' option.' % step)
-        if operator_config["op"] == "length_filter":
-            return LengthFilter(operator_config)
-        if operator_config["op"] == "tokenization":
-            return Tokenizer(operator_config, self.state)
+    def _build_operator(self, operator_config):
+        op = get_operator_type(operator_config)
+        params = get_operator_params(operator_config)
+        if op == "length_filter":
+            return LengthFilter(params)
+        if op == "tokenization":
+            return Tokenizer(params, self.state)
         # TODO : all other operators
         else:
             # TODO : warning or error ?
-            logger.warning('Unknown operator \'%s\' will be ignored.' % operator_config["op"])
+            logger.warning('Unknown operator \'%s\' will be ignored.' % op)
             return None
 
     def __call__(self, tu_batch):

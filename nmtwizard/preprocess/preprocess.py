@@ -35,12 +35,11 @@ def _generate_models(config, tokenization_step, corpus_dir, data_dir, option):
 
 def _get_tok_configs(config):
     tok_configs = []
-    if "preprocess" in config:
-        for i, op in enumerate(config["preprocess"]):
-            if not "op" in op:
-                raise RuntimeError('Every step in \'preprocess\' must have a mandatory \'op\' option.')
-            if op["op"] == "tokenization":
-                tok_configs.append(i)
+    preprocess_config = config.get("preprocess")
+    if preprocess_config is not None:
+        for operator_config in preprocess_config:
+            if prepoperator.get_operator_type(operator_config) == "tokenization":
+                tok_configs.append(prepoperator.get_operator_params(operator_config))
     return tok_configs
 
 
@@ -52,16 +51,13 @@ def generate_vocabularies(config, corpus_dir, data_dir):
     if not tok_configs:
         raise RuntimeError('No \'tokenization\' operator in preprocess configuration, cannot build vocabularies.)')
 
-    for i in tok_configs:
-        tok_config = config['preprocess'][i]
+    for i, tok_config in enumerate(tok_configs):
         if ('source' not in tok_config or 'target' not in tok_config) and 'multi' not in tok_config :
             raise RuntimeError('Each \'tokenization\' operator should contain \
                                 either both \'source\' and \'target\' fields \
                                 or \'multi\' field.')
 
         for side in tok_config:
-            if side == "op":
-                continue
             build_vocab = tok_config[side].get('build_vocabulary')
             if build_vocab:
                 if tok_config[side].get('vocabulary_path', {}):
