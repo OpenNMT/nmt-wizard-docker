@@ -8,6 +8,26 @@ from nmtwizard.preprocess import tokenizer
 
 logger = get_logger(__name__)
 
+_OPERATORS_REGISTRY = {}
+
+def register_operator(name):
+    """A class decorator to register an operator.
+
+    Example:
+
+        @register_operator("length_filter")
+        class LengthFilter(Operator):
+            ...
+    """
+    if name in _OPERATORS_REGISTRY:
+        raise ValueError("An operator with name '%s' is already registered" % name)
+
+    def _decorator(cls):
+        _OPERATORS_REGISTRY[name] = cls
+        return cls
+
+    return _decorator
+
 def get_operator_type(config):
     """Returns the operator type from the configuration."""
     op = config.get("op")
@@ -20,6 +40,17 @@ def get_operator_params(config):
     config = config.copy()
     config.pop("op", None)
     return config
+
+def build_operator_from_config(config, state):
+    """Creates an operator instance from its configuration."""
+    operator_type = get_operator_type(config)
+    operator_cls = _OPERATORS_REGISTRY.get(operator_type)
+    if operator_cls is None:
+        raise ValueError("Unknown operator '%s'" % operator_type)
+    params = get_operator_params(config)
+    if operator_cls.is_stateful():
+        return operator_cls(params, state)
+    return operator_cls(params)
 
 
 class ProcessType(object):
@@ -41,26 +72,11 @@ class Pipeline(object):
 
     def _build_pipeline(self, op_list_config, exit_step=None):
         for i, op in enumerate(op_list_config):
-            operator = self._build_operator(op)
-            if operator and operator.is_applied_for(self._process_type):
+            operator = build_operator_from_config(op, self._build_state)
+            if operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
                 break
-
-
-    def _build_operator(self, operator_config):
-        op = get_operator_type(operator_config)
-        params = get_operator_params(operator_config)
-        operator = None
-        if op == "length_filter":
-            operator = LengthFilter(params)
-        elif op == "tokenization":
-            operator =  Tokenizer(params, self._build_state)
-        # TODO : all other operators
-        else:
-            # TODO : warning or error ?
-            logger.warning('Unknown operator \'%s\' will be ignored.' % op)
-        return operator
 
 
     def __call__(self, tu_batch):
@@ -144,6 +160,11 @@ class Operator(object):
         return True
 
 
+    @staticmethod
+    def is_stateful():
+        return False
+
+
 class TUOperator(Operator):
     """Base class for operations iterating on each TU in a batch."""
 
@@ -178,6 +199,7 @@ class Filter(TUOperator):
         return [tu]
 
 
+@register_operator("length_filter")
 class LengthFilter(Filter):
 
     def __init__(self, config):
@@ -194,6 +216,7 @@ class LengthFilter(Filter):
             self._criteria.append(lambda x:len(x.tgt_detok) > self._target_max)
 
 
+@register_operator("tokenization")
 class Tokenizer(Operator):
 
     def __init__(self, tok_config, state):
@@ -209,6 +232,11 @@ class Tokenizer(Operator):
 
         self._src_tokenizer = None
         self._tgt_tokenizer = None
+
+
+    @staticmethod
+    def is_stateful():
+        return True
 
 
     def _preprocess(self, tu_batch, training=True):
