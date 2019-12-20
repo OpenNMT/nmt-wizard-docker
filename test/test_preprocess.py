@@ -114,10 +114,9 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         "target": "de",
         "data": {
             "sample": 800,
-            "train_dir": ".",
             "sample_dist": [
                 {
-                    "path": ".",
+                    "path": str(pytest.config.rootdir / "corpus" / "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -227,10 +226,9 @@ def test_preprocess_pipeline(tmpdir):
         "target": "de",
         "data": {
             "sample": 800,
-            "train_dir": ".",
             "sample_dist": [
                 {
-                    "path": ".",
+                    "path": str(pytest.config.rootdir / "corpus" / "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
