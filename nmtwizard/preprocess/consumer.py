@@ -40,6 +40,9 @@ class SubwordLearner(Consumer):
         super(SubwordLearner, self).__init__(result_dir)
 
         self._subword_learners = {}
+        self._source_learner = None
+        self._target_learner = None
+        self._multi_learner = None
 
         self._tok_step = tok_step
         tok_config = config['preprocess'][tok_step]
@@ -49,25 +52,28 @@ class SubwordLearner(Consumer):
         opt_target = tok_config.get('target', {}).get('build_subword')
 
         if opt_multi:
-            self._subword_learners['multi'] = tokenizer.make_subword_learner(opt_multi, result_dir)
+            multi_learner_info = tokenizer.make_subword_learner(opt_multi, result_dir)
+            self._subword_learners['multi'] = multi_learner_info
+            self._multi_learner = multi_learner_info['learner']
         if opt_source:
-            self._subword_learners['source'] = tokenizer.make_subword_learner(opt_source, result_dir)
+            source_learner_info = tokenizer.make_subword_learner(opt_source, result_dir)
+            self._subword_learners['source'] = source_learner_info
+            self._source_learner = source_learner_info['learner']
         if opt_target:
-            self._subword_learners['target'] = tokenizer.make_subword_learner(opt_target, result_dir)
-
+            target_learner_info = tokenizer.make_subword_learner(opt_target, result_dir)
+            self._subword_learners['target'] = target_learner_info
+            self._target_learner = target_learner_info['learner']
 
     def __call__(self, tu_batch):
-        # Feed lines to subword learners.
-        # TODO V2 : feed tokenized lines, individual tokens ?
-        # TODO V2 : undo all placeholder annotation for subword processing
-        for tu in tu_batch :
-            if 'source' in self._subword_learners:
-                self._subword_learners['source']['learner'].ingest(tu.get_src_detok())
-            if 'target' in self._subword_learners:
-                self._subword_learners['target']['learner'].ingest(tu.get_tgt_detok())
-            if 'multi' in self._subword_learners:
-                self._subword_learners['multi']['learner'].ingest(tu.get_src_detok())
-                self._subword_learners['multi']['learner'].ingest(tu.get_tgt_detok())
+        # Feed tokens to subword learners.
+        for tu in tu_batch:
+            if self._source_learner is not None:
+                tokenizer.ingest_tokens(self._source_learner, tu.get_src_tok())
+            if self._target_learner is not None:
+                tokenizer.ingest_tokens(self._target_learner, tu.get_tgt_tok())
+            if self._multi_learner is not None:
+                tokenizer.ingest_tokens(self._multi_learner, tu.get_src_tok())
+                tokenizer.ingest_tokens(self._multi_learner, tu.get_tgt_tok())
 
 
     def finalize(self, config):

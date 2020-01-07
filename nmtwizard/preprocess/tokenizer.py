@@ -53,6 +53,11 @@ def tokenize(tokenizer, text):
     output = " ".join(words)
     return output
 
+def ingest_tokens(learner, tokens):
+    """Feeds all tokens to the subword learner."""
+    for token in tokens:
+        learner.ingest_token(token)  # This method ignores placeholder tokens.
+
 def make_subword_learner(subword_config, subword_dir):
     params = subword_config.get('params')
     if params is None:
