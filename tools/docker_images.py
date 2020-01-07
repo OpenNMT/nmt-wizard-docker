@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import argparse
 import os
 import subprocess
@@ -18,9 +20,12 @@ parser.add_argument('--sudo', action='store_true',
 args = parser.parse_args()
 
 def run(cmd):
+    print("+ %s" % " ".join(cmd))
     if args.sudo:
         cmd = ['sudo'] + cmd
-    subprocess.call(cmd)
+    exit_code = subprocess.call(cmd)
+    if exit_code != 0:
+        exit(exit_code)
 
 if os.path.isfile(args.path):
     dockerfiles = [args.path]
@@ -44,7 +49,7 @@ for dockerfile in dockerfiles:
     image_latest = '%s:latest' % image_name
     image_full_name = '%s:%s' % (image_name, args.version)
     if args.build:
-        run(['docker', 'build', '-t', image_latest, '-f', dockerfile, '.'])
+        run(['docker', 'build', '--pull', '-t', image_latest, '-f', dockerfile, '.'])
     run(['docker', 'tag', image_latest, image_full_name])
     if args.push:
         run(['docker', 'push', image_latest])

@@ -27,13 +27,15 @@ def merge_files_in_directory(input_dir, output_dir, src_suffix, tgt_suffix):
         merge_files(align_files, os.path.join(output_dir, 'train.align'))
 
 def paste_files(input_files, output_file, separator='\t'):
-    input_fhs = [open(f, 'rb') for f in input_files]
-    output_fb = open(output_file, 'wb')
+    input_fhs = [open(f, 'r') for f in input_files]
+    output_fb = open(output_file, 'w')
     while True:
         line = []
         for fh in input_fhs:
             line.append(fh.readline())
         if '' in line:
             break
-
         output_fb.write('%s\n' % separator.join([s.strip() for s in line]))
+    output_fb.close()
+    for fh in input_fhs:
+        fh.close()

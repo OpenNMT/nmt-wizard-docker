@@ -10,7 +10,6 @@ import shutil
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
 from nmtwizard.utility import resolve_environment_variables
-from nmtwizard.storage import StorageClient
 
 from similarity import main
 from build_vocab import main as build_vocab

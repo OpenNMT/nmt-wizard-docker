@@ -15,9 +15,10 @@ import io
 import tempfile
 
 from nmtwizard.beat_service import start_beat_service
-from nmtwizard.storage import StorageClient
 from nmtwizard.utils import md5files
 from nmtwizard.logger import get_logger
+
+from systran_storages import StorageClient
 
 ENVVAR_RE = re.compile(r'\${(.*?)}')
 ENVVAR_ABS_RE = re.compile(r'(\${.*?}.*)/(.*)')
@@ -73,7 +74,7 @@ def resolve_remote_files(config, local_dir, storage_client):
             remote_path = remote_path[1:]
         local_path = os.path.join(local_dir, storage_id, remote_path)
         # can be a file or a directory
-        storage_client.get(remote_path, local_path, storage_id=storage_id, directory=None)
+        storage_client.get(remote_path, local_path, storage_id=storage_id)
         return local_path
     return _map_config_fn(config, _map_fn)
 
