@@ -21,6 +21,66 @@ def get_operator_params(config):
     config.pop("op", None)
     return config
 
+
+class Pipeline(object):
+    """Pipeline for building and applying pre/postprocess operators in order."""
+
+    def __init__(self, config, process_type, preprocess_exit_step):
+        # Current state of preprocessing pipeline.
+        # Passed to and modified by operator initializers if necessary.
+        self.start_state = { "src_tokenizer" : None,
+                             "tgt_tokenizer" : None }
+
+        self._build_state = dict(self.start_state)
+
+        self._ops = []
+
+        preprocess_config = config.get("preprocess")
+        if preprocess_config:
+            for i, op in enumerate(preprocess_config):
+                operator = self._build_operator(op, process_type)
+                if operator and operator.is_applied():
+                    self._ops.append(operator)
+                if preprocess_exit_step and i == preprocess_exit_step:
+                    break
+
+        if process_type=="postprocess":
+            self._ops = reversed(self._ops)
+
+            self.start_state, self._build_state = self._build_state, self.start_state
+
+            # Add pure postprocessing operators.
+            postprocess_config = config.get("postprocess")
+            if postprocess_config:
+                for op in postprocess_config:
+                    op = op.copy()
+                    # Explicitely mark as a postprocess operator.
+                    op['postprocess'] = True
+                    operator = self._build_operator(op, process_type)
+                    if operator and operator.is_applied():
+                        self._ops.append(operator)
+
+
+    def _build_operator(self, operator_config, process_type):
+        op = get_operator_type(operator_config)
+        params = get_operator_params(operator_config)
+        operator = None
+        if op == "length_filter":
+            operator = LengthFilter(params, process_type)
+        elif op == "tokenization":
+            operator =  Tokenizer(params, process_type, self._build_state)
+        # TODO : all other operators
+        else:
+            # TODO : warning or error ?
+            logger.warning('Unknown operator \'%s\' will be ignored.' % op)
+        return operator
+
+    def __call__(self, tu_batch):
+        for op in self._ops:
+            tu_batch = op(tu_batch)
+        return tu_batch
+
+
 @six.add_metaclass(abc.ABCMeta)
 class Operator(object):
     """Base class for preprocessing operators."""
@@ -29,67 +89,11 @@ class Operator(object):
     def __call__(self, tu_batch):
         raise NotImplementedError()
 
-    def _reverse(self):
-        # Be default, operator is not reversible, unless redefined otherwise.
-        return False
-
-
-class Pipeline(Operator):
-    """Pipeline operator for building and applying TU operators in order."""
-
-    def __init__(self, config, preprocess_exit_step=None):
-        # Current state of preprocessing pipeline.
-        # Passed to and modified by operator initializers if necessary.
-        self.state = { "src_tokenizer" : None,
-                       "tgt_tokenizer" : None }
-
-        self._ops = []
-
-        if 'preprocess' in config:
-            self._build_pipeline(config['preprocess'], preprocess_exit_step)
-
-    def build_postprocess_pipeline(self, config):
-
-        # Reverse the order of the preprocessing operators.
-        # Remove operators that do not require postprocessing.
-        self._reverse()
-
-        # Add pure postprocessing operators.
-        if 'postprocess' in config:
-            self._build_pipeline(config['postprocess'])
-
-    def _reverse(self):
-        reversed_ops = []
-        for op in self._ops:
-            if op._reverse():
-                reversed_ops.append(op)
-        self._ops = reversed_ops
-
-    def _build_pipeline(self, config, preprocess_exit_step):
-        for i, op in enumerate(config):
-            operator = self._build_operator(op)
-            if operator:
-                self._ops.append(operator)
-            if preprocess_exit_step and i == preprocess_exit_step:
-                break
-
-    def _build_operator(self, operator_config):
-        op = get_operator_type(operator_config)
-        params = get_operator_params(operator_config)
-        if op == "length_filter":
-            return LengthFilter(params)
-        if op == "tokenization":
-            return Tokenizer(params, self.state)
-        # TODO : all other operators
-        else:
-            # TODO : warning or error ?
-            logger.warning('Unknown operator \'%s\' will be ignored.' % op)
-            return None
-
-    def __call__(self, tu_batch):
-        for op in self._ops:
-            tu_batch = op(tu_batch)
-        return tu_batch
+    def is_applied(self):
+        # Operator is applied by default, unless _is_applied property is explicitely set to False.
+        if hasattr(self, "_is_applied"):
+            return self._is_applied
+        return True
 
 
 class TUOperator(Operator):
@@ -110,9 +114,11 @@ class TUOperator(Operator):
 
 class Filter(TUOperator):
 
-    def __init__(self):
+    def __init__(self, process_type):
         # TODO: Sub-criteria for source_detok, target_detok, source_tok, target_tok, or both with alignment ?
         self._criteria = []
+        if process_type=="inference" or process_type=="postprocess":
+            self._is_applied = False
 
     def apply(self, tu):
         for c in self._criteria:
@@ -123,55 +129,51 @@ class Filter(TUOperator):
 
 class LengthFilter(Filter):
 
-    def __init__(self, config):
+    def __init__(self, config, process_type):
 
-        super(LengthFilter, self).__init__()
+        super(LengthFilter, self).__init__(process_type)
 
-        self._source_max = config.get('source', {}).get('max_length_char')
-        self._target_max = config.get('target', {}).get('max_length_char')
+        if self.is_applied():
+            self._source_max = config.get('source', {}).get('max_length_char')
+            self._target_max = config.get('target', {}).get('max_length_char')
 
-        if self._source_max:
-            self._criteria.append(lambda x:len(x.src_raw) > self._source_max)
+            if self._source_max:
+                self._criteria.append(lambda x:len(x.get_src_detok()) > self._source_max)
 
-        if self._target_max:
-            self._criteria.append(lambda x:len(x.tgt_raw) > self._target_max)
+            if self._target_max:
+                self._criteria.append(lambda x:len(x.get_tgt_detok()) > self._target_max)
 
 
 class Tokenizer(Operator):
 
-    def __init__(self, tok_config, state):
-        self._prev_src_tokenizer = state["src_tokenizer"]
-        self._prev_tgt_tokenizer = state["tgt_tokenizer"]
+    def __init__(self, tok_config, process_type, state):
+        src_tokenizer = ('source' in tok_config and \
+                         tokenizer.build_tokenizer(tok_config['source'])) or \
+                         ('multi' in tok_config and \
+                          tokenizer.build_tokenizer(tok_config['multi']))
 
-        self._src_tokenizer = ('source' in tok_config and \
-                              tokenizer.build_tokenizer(tok_config['source'])) or \
-                              ('multi' in tok_config and \
-                               tokenizer.build_tokenizer(tok_config['multi']))
+        tgt_tokenizer = ('target' in tok_config and \
+                         tokenizer.build_tokenizer(tok_config['target'])) or \
+                         ('multi' in tok_config and \
+                          tokenizer.build_tokenizer(tok_config['multi']))
 
-        self._tgt_tokenizer = ('target' in tok_config and \
-                              tokenizer.build_tokenizer(tok_config['target'])) or \
-                              ('multi' in tok_config and \
-                               tokenizer.build_tokenizer(tok_config['multi']))
+        if process_type=="postprocess":
+            self._src_tokenizer = state["src_tokenizer"]
+            self._tgt_tokenizer = state["tgt_tokenizer"]
+        else:
+            self._src_tokenizer = src_tokenizer
+            self._tgt_tokenizer = tgt_tokenizer
 
-        state["src_tokenizer"] = self._src_tokenizer
-        state["tgt_tokenizer"] = self._tgt_tokenizer
+        state["src_tokenizer"] = src_tokenizer
+        state["tgt_tokenizer"] = tgt_tokenizer
 
 
     def __call__(self, tu_batch):
 
         # Reset tokenization parameters
         for tu in tu_batch :
-            tu.reset_src_tok(self._src_tokenizer)
-            tu.reset_tgt_tok(self._tgt_tokenizer)
-
+            if self._src_tokenizer:
+                tu.set_src_tok(self._src_tokenizer)
+            if self._tgt_tokenizer:
+                tu.set_tgt_tok(self._tgt_tokenizer)
         return tu_batch
-
-    def _reverse(self):
-        tmp_src_tokenizer = self._prev_src_tokenizer
-        tmp_tgt_tokenizer = self._prev_tgt_tokenizer
-
-        self._src_tokenizer = self._prev_src_tokenizer
-        self._tgt_tokenizer = self._prev_tgt_tokenizer
-
-        self._prev_src_tokenizer = tmp_src_tokenizer
-        self._prev_tgt_tokenizer = tmp_tgt_tokenizer

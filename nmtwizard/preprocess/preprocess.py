@@ -33,6 +33,7 @@ def _generate_models(config, tokenization_step, corpus_dir, data_dir, option):
     # Generate preprocessed sentences and feed them to subword learners or to vocabularies.
     generate_preprocessed_data(config, corpus_dir, data_dir, option, preprocess_exit_step=tokenization_step)
 
+
 def _get_tok_configs(config):
     tok_configs = []
     preprocess_config = config.get("preprocess")
@@ -133,24 +134,23 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
         num_samples = 0
 
         # Default batch size is the whole sample size.
-        # batch_size = f.lines_kept
-        # TODO : check if we need itb
         batch_size = sys.maxsize
         if 'preprocess' in config and 'batch_size' in config['preprocess'] :
             batch_size = config['preprocess']['batch_size']
 
         sampler_consumer = consumer.make_consumer(config, result_dir, result, preprocess_exit_step)
-        preprocessor = Processor(loader.SamplerFileLoader(batch_size),
-                                 prepoperator.Pipeline(config, preprocess_exit_step),
-                                 sampler_consumer)
+        preprocessor = Processor(config, preprocess_exit_step=preprocess_exit_step)
+
         for f in all_files:
             lines_filtered = 0
             if f.lines_kept :
-                preprocessor.open_files(f)
-                _, lines_filtered = preprocessor.process()
-                preprocessor.close_files()
-
-            sampler_consumer.finalize(config)
+                sampler_loader=loader.SamplerFileLoader(f, batch_size)
+                if hasattr(sampler_consumer, "open_files"):
+                    sampler_consumer.open_files(f)
+                lines_filtered = preprocessor.process(sampler_loader, sampler_consumer)
+                sampler_loader.close_files()
+                if hasattr(sampler_consumer, "close_files"):
+                    sampler_consumer.close_files()
 
             if lines_filtered != f.lines_kept:
                 num_samples += lines_filtered
@@ -159,119 +159,75 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
                 num_samples += f.lines_kept
                 summary[f.base_name]["lines_filtered"] = f.lines_kept
 
+        if hasattr(sampler_consumer, "finalize"):
+            sampler_consumer.finalize(config)
+
         data_path = result_dir
 
     return data_path, train_dir, num_samples, summary, metadata
 
-def preprocess_file(config, input):
-
-    preprocessor = FileProcessor(config)
-
-    output = "%s.tok" % input
-
-    preprocessor.open_files([[input], output])
-    preprocessor.process()
-    preprocessor.close_files()
-
-    return output, preprocessor
-
-def postprocess_file(config, processor, source, target):
-
-    if not processor :
-        processor = FileProcessor(config)
-
-    processor.build_postprocess_pipeline(config)
-
-    # TODO :  can this file be compressed ?
-    output = "%s.detok" % target
-
-    # TODO deal with tokenized/detokenized
-    processor.open_files([[source, target], output])
-    processor.process()
-    processor.close_files()
-
-    return output
-
-
 class Processor(object):
 
-    def __init__(self, loader, pipeline, consumer):
-        self._loader = loader
-        self._pipeline = pipeline
-        self._consumer = consumer
-        self._postprocess = False
+    def __init__(self, config, process_type="sampling", preprocess_exit_step=None):
+        self._pipeline = prepoperator.Pipeline(config, process_type, preprocess_exit_step)
 
-        self._src_tokenizer = pipeline.state["src_tokenizer"]
-        self._tgt_tokenizer = pipeline.state["tgt_tokenizer"]
+    def process_input(self, input):
+        """Processes one translation example at inference.
 
-    def build_postprocess_pipeline(self, config):
-        # Inverse preprocess pipeline and add postprocess pipeline
-        self._pipeline.build_postprocess_pipeline(config)
-        self._postprocess = True
+              In preprocess:
+                 input is one single-part source as raw string
+                 output is one (source, metadata), where source is tokenized and possibly multipart.
 
-    def open_files(self, files):
-        if isinstance(files, list):
-            input_files = files[0]
-            output_files = files[1]
+             In postprocess:
+                 input is ((source, metadata), target), where source and target are tokenized and possibly multipart
+                 outputs is one single-part postprocessed target."""
+
+        basic_loader = loader.BasicLoader(input, self._pipeline.start_state)
+        basic_writer = consumer.BasicWriter()
+        self.process(basic_loader,
+                     basic_writer)
+
+        return basic_writer.output
+
+
+    def process_file(self, input_files):
+        """Process translation file at inference.
+
+              In preprocess:
+                 input is a file with raw sources
+                 output is (source, metadata), where source is a file with tokenized and possibly multipart sources.
+              In postprocess:
+                 input is ((source, metadata), target), where source and target are files with tokenized and multi-part data
+                 output is a file with postprocessed single-part targets."""
+
+        # TODO :  can this file be compressed ?
+        if isinstance(input_files, tuple):
+            output_file = "%s.detok" % input_files[-1]
         else:
-            # Input and output information can be in the same file structure (ex. SamplerFile).
-            input_files = files
-            output_files = files
-        self._loader.open_files(input_files)
-        self._consumer.open_files(output_files)
+            output_file = "%s.tok" % input_files
 
-    def close_files(self):
-        self._loader.close_files()
-        self._consumer.close_files()
+        file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
+        file_consumer = consumer.FileWriter(output_file)
 
-    def process(self, input=None):
+        self.process(file_loader, file_consumer)
 
-        loader_args = {
-            "postprocess": self._postprocess
-        }
-        if input:
-            # Without input, loader loads data from files.
-            loader_args["input"] = input
-        if self._postprocess:
-            # If we are in postprocess, loader should be aware of the current tokenization.
-            loader_args["src_tokenizer"] = self._src_tokenizer
-            loader_args["tgt_tokenizer"] = self._tgt_tokenizer
+        file_loader.close_files()
+        file_consumer.close_files()
 
-        consumer_args = {}
-        if self._postprocess:
-            # If we are in postprocess, consumer should be aware to output detokenized text.
-            consumer_args["postprocess"] = self._postprocess
+        if file_consumer.metadata:
+            output_file = (output_file, file_consumer.metadata)
 
-        output = []
+        return output_file
+
+
+    # Input can be files, SamplerFile object, list of strings or list of lists of tokens
+    def process(self, loader, consumer):
         lines_num = 0
 
         # TODO V2 : parallelization
-        for tu_batch in self._loader(**loader_args):
+        for tu_batch in loader():
             tu_batch = self._pipeline(tu_batch)
-            res_batch = self._consumer(tu_batch, **consumer_args)
+            consumer(tu_batch)
             lines_num += len(tu_batch)
-            # if consumer returns something, add it to output
-            if res_batch :
-                output.extend(res_batch)
 
-        return output, lines_num
-
-
-class FileProcessor(Processor):
-
-    def __init__(self, config):
-        super(FileProcessor, self).__init__(loader.FileLoader(),
-                                            prepoperator.Pipeline(config),
-                                            consumer.FileWriter())
-class BasicProcessor(Processor):
-
-    def __init__(self, config):
-         super(BasicProcessor, self).__init__(loader.BasicLoader(),
-                                              prepoperator.Pipeline(config),
-                                              consumer.BasicWriter())
-
-    def open_files(self, *args):
-        raise NotImplementedError()
-
-    def close_files(self, *args):
-        raise NotImplementedError()
+        return lines_num

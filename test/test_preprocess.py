@@ -5,7 +5,7 @@ import shutil
 
 from nmtwizard.preprocess.preprocess import generate_preprocessed_data
 from nmtwizard.preprocess.preprocess import generate_vocabularies
-from nmtwizard.preprocess.preprocess import BasicProcessor
+from nmtwizard.preprocess.preprocess import Processor
 
 def test_sampler(tmpdir):
 
@@ -114,10 +114,9 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         "target": "de",
         "data": {
             "sample": 800,
-            "train_dir": ".",
             "sample_dist": [
                 {
-                    "path": ".",
+                    "path": str(pytest.config.rootdir / "corpus" / "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -227,10 +226,9 @@ def test_preprocess_pipeline(tmpdir):
         "target": "de",
         "data": {
             "sample": 800,
-            "train_dir": ".",
             "sample_dist": [
                 {
-                    "path": ".",
+                    "path": str(pytest.config.rootdir / "corpus" / "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -261,11 +259,10 @@ def test_preprocess_pipeline(tmpdir):
     data_path, train_dir, num_samples, summary, metadata = \
         generate_preprocessed_data(config, "", str(tmpdir))
 
-    prep = BasicProcessor(config)
-    res, _ = prep.process("This is a test.")
-    res = res[0]
-    assert res == ['This', 'is', 'a', 'test', '￭.']
+    prep = Processor(config, process_type="inference")
+    res, _ = prep.process_input("This is a test.")
+    assert res[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
 
-    prep.build_postprocess_pipeline(config)
-    res, _ = prep.process((res, res))
-    assert res[0] == "This is a test."
+    post = Processor(config, process_type="postprocess")
+    res = post.process_input((res, res))
+    assert res == "This is a test."

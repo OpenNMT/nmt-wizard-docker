@@ -1,91 +1,115 @@
+class TranslationSide(object):
+
+    def __init__(self):
+        self.raw = None
+        self.tok = []
+        self.detok = None
+        self.tokenizer = None
+
+    def get_tok(self):
+        if not self.tok:
+            if self.tokenizer and self.detok:
+                tok,_ = self.tokenizer.tokenize(self.detok)
+                self.tok.append(tok)
+            # TODO: ignore empty lines and reactivate this
+            # else:
+            #     raise RuntimeError('Cannot perform tokenization.')
+        return list(self.tok)
+
+    def set_tok(self, tokenizer, tok):
+        if tok:
+            # Set a new list of tokens and a new tokenizer.
+            self.tok = tok
+            self.tokenizer = tokenizer
+            self.detok = None
+        else:
+            # Set a new tokenizer, perform detokenization with previous one.
+            if self.tok :
+                if not self.tokenizer :
+                    raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
+                self.detok = self.tokenizer.detokenize(self.tok[0]) # TODO : preperly deal with multipart.
+            self.tok = []
+            self.tokenizer = tokenizer
+
+
+    def get_detok(self):
+        if self.detok is None:
+            if self.tokenizer and self.tok:
+                self.detok = self.tokenizer.detokenize(self.tok[0])
+            else:
+                raise RuntimeError('Cannot perform detokenization.')
+        return self.detok
+
+
+    def set_detok(self, detok):
+        self.detok = detok
+        self.tok = []
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
-    def __init__(self, input, tokenized=False, src_tokenizer=None, tgt_tokenizer=None):
+    def __init__(self, input, start_state=None):
 
-        self.tgt_raw = None
+        self.__source = TranslationSide()
+        self.__target = None
+        self.__metadata = [1] #TODO: proper metadata
+
         if isinstance(input, tuple):
-            self.src_raw = input[0]
-            if len(input) > 1 :
-                self.tgt_raw = input[1]
-        else:
-            self.src_raw = input
-
-        # TODO : do we need to keep raw separately or should it be same ?
-        if not tokenized:
-            self.__src_detok = self.src_raw
-            self.__tgt_detok = self.tgt_raw
-        else:
-            self.__src_detok = None
-            self.__tgt_detok = None
-
-        # TODO is this really necessary ?
-        self.__src_tok = None
-        self.__tgt_tok = None
-
-        if tokenized:
-            if isinstance(self.src_raw, list):
-                self.__src_tok = self.src_raw
+            # We have both source and target.
+            # Can be raw (in training) or tokenized and in parts (in postprocess).
+            source, target = input
+            self.__target = TranslationSide()
+            if isinstance(source, tuple):
+                source, self.__metadata = source
+            if isinstance(source, list) and isinstance(target, list):
+                # Postprocess.
+                self.__source.tok = source
+                self.__target.tok = target
+                self.__source.tokenizer = start_state["src_tokenizer"]
+                self.__target.tokenizer = start_state["tgt_tokenizer"]
             else:
-                self.__src_tok = self.src_raw.split()
-
-            if self.tgt_raw:
-                if isinstance(self.tgt_raw, list):
-                    self.__tgt_tok = self.tgt_raw
-                else:
-                    self.__tgt_tok = self.tgt_raw.split()
-            
-        # TODO : is it costly to make as many references as TUs ?
-        # Should it be set on batch level ?
-        self.__src_tokenizer = src_tokenizer
-        self.__tgt_tokenizer = tgt_tokenizer
+                # Preprocess in training.
+                self.__source.raw = source.strip()
+                self.__target.raw = target.strip()
+                self.__source.detok = self.__source.raw
+                self.__target.detok = self.__target.raw
+        else:
+            # We have source only: preprocess at inferences.
+            self.__source.raw = input.strip()
+            self.__source.detok = self.__source.raw
 
     def get_src_tok(self):
-        if self.__src_tok is None:
-            # TODO: should tokenization always be set ?
-            # raise RuntimeError('No tokenizer is set, cannot perform tokenization.')
-            if self.__src_tokenizer :
-                self.__src_tok,_ = self.__src_tokenizer.tokenize(self.__src_detok)
-        return self.__src_tok
+        return self.__source.get_tok()
 
     def get_tgt_tok(self):
-        if self.__tgt_tok is None:
-            # TODO: should tokenization always be set ?
-            # raise RuntimeError('No tokenizer is set, cannot perform tokenization.')
-            if self.__tgt_tokenizer :
-                self.__tgt_tok,_ = self.__tgt_tokenizer.tokenize(self.__tgt_detok)
-        return self.__tgt_tok
+        if self.__target:
+            return self.__target.get_tok()
+        return self.__target
+
+
+    def set_src_tok(self, tokenizer, tok=None):
+        self.__source.set_tok(tokenizer, tok)
+
+    def set_tgt_tok(self, tokenizer, tok=None):
+        if self.__target:
+            self.__target.set_tok(tokenizer, tok)
+
 
     def get_src_detok(self):
-        if self.__src_detok is None:
-            # TODO: should tokenization always be set ?
-            # if not self.__src_tokenizer :
-            #     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-            if self.__src_tokenizer :
-                self.__src_detok = self.__src_tokenizer.detokenize(self.__src_tok)
-        return self.__src_detok
+        return self.__source.get_detok()
 
     def get_tgt_detok(self):
-        if self.__tgt_detok is None:
-            # if not self.__tgt_tokenizer :
-            #     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-            if self.__tgt_tokenizer :
-                self.__tgt_detok = self.__tgt_tokenizer.detokenize(self.__tgt_tok)
-        return self.__tgt_detok
+        if self.__target:
+            return self.__target.get_detok()
+        return self.__target
 
-    # TODO : get rid of identical functions
-    def reset_src_tok(self, tokenizer):
-        if self.__src_tok :
-            if not self.__src_tokenizer :
-                raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-            self.__src_detok = self.__src_tokenizer.detokenize(self.__src_tok)
-        self.__src_tok = None
-        self.__src_tokenizer = tokenizer
 
-    def reset_tgt_tok(self, tokenizer):
-        if self.__tgt_tok :
-            if not self.__tgt_tokenizer :
-                raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-            self.__tgt_detok = self.__tgt_tokenizer.detokenize(self.__tgt_tok)
-        self.__tgt_tok = None
-        self.__tgt_tokenizer = tokenizer
+    def set_src_detok(self, detok):
+        self.__source.set_detok(detok)
+
+    def set_tgt_detok(self, detok):
+        if self.__target:
+            self.__target.set_detok(detok)
+
+
+    def get_meta(self):
+        return self.__metadata
