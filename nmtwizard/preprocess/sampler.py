@@ -24,15 +24,16 @@ class SamplerFile(object):
 
 def count_lines(path):
     f = None
-    i = 0
     if os.path.isfile(path + ".gz"):
         f = gzip.open(path + ".gz", 'r')
     elif os.path.isfile(path):
         f = open(path, 'r')
-    if f is not None:
-        for i, _ in enumerate(f):
-            pass
-        f.seek(0)
+    else:
+        raise ValueError("File %s not found" % path)
+    i = 0
+    for i, _ in enumerate(f):
+        pass
+    f.seek(0)
     return f, i + 1
 
 def sample(config, source_dir):

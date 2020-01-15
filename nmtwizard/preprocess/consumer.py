@@ -3,6 +3,7 @@ import six
 import abc
 import os
 import collections
+import itertools
 
 from nmtwizard.preprocess import tokenizer
 
@@ -10,26 +11,9 @@ from nmtwizard.preprocess import tokenizer
 class Consumer(object):
     """Base class for using preprocess results."""
 
-    def __init__(self, result_dir=None):
-        self._result_dir = result_dir
-
     @abc.abstractmethod
-    def __call__(self):
+    def __call__(self, tu_batch):
         raise NotImplementedError()
-
-    def open_files(self, f):
-        # Basic consumer doesn't open any files.
-        pass
-
-    def close_files(self):
-        if hasattr(self, "_file"):
-            for f in self._file:
-                f.close()
-
-    def finalize(self, config):
-        # Basic consumer doesn't do anything in finalize().
-        # Only used for consumers operating on multiple files, such as SubwordLearner and VocabularyBuilder.
-        pass
 
 
 class SubwordLearner(Consumer):
@@ -37,7 +21,7 @@ class SubwordLearner(Consumer):
 
     def __init__(self, config, result_dir, tok_step):
 
-        super(SubwordLearner, self).__init__(result_dir)
+        self._result_dir = result_dir
 
         self._subword_learners = {}
 
@@ -102,7 +86,7 @@ class VocabularyBuilder(Consumer):
 
     def __init__(self, config, result_dir, tok_step):
 
-        super(VocabularyBuilder, self).__init__(result_dir)
+        self._result_dir = result_dir
 
         self._vocabularies = {}
         self._sums = {}
@@ -131,18 +115,18 @@ class VocabularyBuilder(Consumer):
         # TODO : remove value for placeholders
         for tu in tu_batch :
             if 'source' in self._vocabularies:
-                for token in tu.get_src_tok():
+                for token in itertools.chain.from_iterable(tu.get_src_tok()):
                     self._vocabularies['source'][token] += 1
                     self._sums['source'] += 1
             if 'target' in self._vocabularies:
-                for token in tu.get_tgt_tok():
+                for token in itertools.chain.from_iterable(tu.get_tgt_tok()):
                     self._vocabularies['target'][token] += 1
                     self._sums['target'] += 1
             if 'multi' in self._vocabularies:
-                for token in tu.get_src_tok():
+                for token in itertools.chain.from_iterable(tu.get_src_tok()):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
-                for token in tu.get_tgt_tok():
+                for token in itertools.chain.from_iterable(tu.get_tgt_tok()):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
 
@@ -233,48 +217,56 @@ class VocabularyBuilder(Consumer):
             # TODO V2 : deal with placeholders
 
 class BasicWriter(Consumer):
-    """BasicWriter writes pre/postprocessed TUs at inference into strings or list of tokens."""
+    """BasicWriter writes one pre/postprocessed TU at inference."""
 
-    def __call__(self, tu_batch, postprocess=False):
-        # TODO : is there always just one input/TU in batch
-        result = []
-        for tu in tu_batch :
-            if not postprocess:
-                result.append(tu.get_src_tok())
-            else:
-                result.append(tu.get_tgt_detok())
-        return result
+    def __call__(self, tu_batch):
+        """ In preprocess, output is (source, metadata), where source is tokenized and possibly multipart.
+            In postprocess, output is postprocessed target, untokenized and one-part."""
+
+        tu = tu_batch[0]
+        # Postprocess.
+        if tu.get_tgt_detok():
+            self.output = tu.get_tgt_detok()
+        else:
+            self.output = (tu.get_src_tok(), tu.get_meta())
 
 
 class FileWriter(Consumer):
     """FileWriter writes pre/postprocessed TUs into files at inference."""
 
-    def open_files(self, f):
+    def __init__(self, output_file):
         # A basic file writer only opens one file.
         # In preprocess, it is used to store preprocessed source.
         # In postprocess, it is used to store postprocessed target.
         # TODO V2 : multiple files
-        self._file = [open(f, 'w')]
+        self._file = open(output_file, 'w')
+        self.metadata = []
 
-    def __call__(self, tu_batch, postprocess=False):
+
+    def close_files(self):
+        self._file.close()
+
+
+    def __call__(self, tu_batch):
         # Write lines to files from TUs
         for tu in tu_batch :
-            if not postprocess:
-                src_res = tu.get_src_tok()
-                src_res = " ".join(src_res) if src_res else tu.src_raw
-                self._file[0].write("%s\n" % src_res)
-
-                if len(self._file) > 1:
-                    tgt_res = tu.get_tgt_tok()
-                    tgt_res = " ".join(tgt_res) if tgt_res else tu.tgt_raw
-                    self._file[1].write("%s\n" % tgt_res)
+            tgt_detok = tu.get_tgt_detok()
+            # Postprocess.
+            if tgt_detok:
+                self._file.write("%s\n" % tgt_detok)
+            # Preprocess.
             else:
-                res = tu.get_tgt_detok() or tu.tgt_raw
-                self._file[0].write("%s\n" % res)
+                for part in tu.get_src_tok():
+                    part = " ".join(part)
+                    self._file.write("%s\n" % part)
+                self.metadata.append(tu.get_meta())
 
 
-class SamplerFileWriter(FileWriter):
+class SamplerFileWriter(Consumer):
     """SamplerFileWriter writes pre/postprocessed TUs into files at training using SamplerFile object."""
+
+    def __init__(self, result_dir):
+        self._result_dir = result_dir
 
     def open_files(self, f):
         # TODO V2 : multiple files
@@ -282,9 +274,26 @@ class SamplerFileWriter(FileWriter):
         self._file = []
         src = os.path.join(self._result_dir, os.path.basename(f.files[0].name))
         self._file.append(open(src, 'w'))
-
         tgt = os.path.join(self._result_dir, os.path.basename(f.files[1].name))
         self._file.append(open(tgt, 'w'))
+
+    def close_files(self):
+        for f in self._file:
+            f.close()
+
+    def __call__(self, tu_batch):
+        # Write lines to file from TUs
+        for tu in tu_batch :
+
+            src = tu.get_src_tok()
+            for part in src:
+                part = " ".join(part)
+                self._file[0].write("%s\n" % part)
+
+            tgt = tu.get_tgt_tok()
+            for part in tgt:
+                part = " ".join(part)
+                self._file[0].write("%s\n" % part)
 
 
 def make_consumer(config, result_dir, result, tok_step):

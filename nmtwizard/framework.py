@@ -528,8 +528,7 @@ class Framework(utility.Utility):
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                # Preprocessor is kept to be used in postprocess.
-                path_input_preprocessed, preprocessor = self._preprocess_file(local_config, path_input_unzipped)
+                path_input_preprocessed = self._preprocess_file(local_config, path_input_unzipped)
                 metadata = None
                 if isinstance(path_input_preprocessed, tuple):
                     path_input_preprocessed, metadata = path_input_preprocessed
@@ -539,13 +538,13 @@ class Framework(utility.Utility):
                              path_output,
                              gpuid=gpuid)
                 if metadata is not None:
-                    path_input_preprocessed = (path_input_preprocessed, metadata)
+                    path_postprocess_input = (path_input_preprocessed, metadata)
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 if not no_postprocess:
                     path_output = self._postprocess_file(
-                        local_config, preprocessor, path_input_preprocessed, path_output)
+                        local_config, path_postprocess_input, path_output)
 
                 if copy_source:
                     copied_input = output
@@ -844,7 +843,9 @@ class Framework(utility.Utility):
     def _serving_state(self, config):
         state = {}
         if 'preprocess' in config:
-            state['preprocessor'] = preprocess.BasicPreprocessor(config)
+            state['preprocessor'] = preprocess.Processor(config, process_type="inference")
+        if 'preprocess' in config or 'postprocess' in config:
+            state['postprocessor'] = preprocess.Processor(config, process_type="postprocess")
         return state
 
     def _preprocess_input(self, state, input, config):
@@ -853,32 +854,26 @@ class Framework(utility.Utility):
         preprocessor = state.get('preprocessor')
         if preprocessor is None:
             return input.split()
-        output, _ = preprocessor.process(input)
-        # TODO : process always returns a batch.
-        # We suppose here that it is one sentence for one input.
-        # But preprocess could also split the sentence.
-        return output[0]
+        return preprocessor.process_input(input)
 
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
             return target
-        preprocessor = state.get('preprocessor')
-        if preprocessor is None:
+        preprocessor = state.get('postprocessor')
+        if postprocessor is None:
             return ' '.join(target)
-        preprocessor.build_postprocess_pipeline(config)
-        output = preprocessor.process(target)
-        # TODO : process always returns a batch.
-        # We suppose here that it returns one sentence for one output, but it could be wrong.
-        return output[0]
+        return postprocessor.process_input((source,target))
 
     def _preprocess_file(self, config, input):
         if 'preprocess' in config:
-            return preprocess.preprocess_file(config, input)
-        return input, None
+            preprocessor = preprocess.Processor(config, process_type="inference")
+            return preprocessor.process_file(input)
+        return input
 
-    def _postprocess_file(self, config, preprocessor, source, target):
+    def _postprocess_file(self, config, source, target):
         if 'preprocess' in config or 'postprocess' in config:
-            return preprocess.postprocess_file(config, preprocessor, source, target)
+            postprocessor = preprocess.Processor(config, process_type="postprocess")
+            return postprocessor.process_file((source, target))
         return target
 
     def _convert_vocab(self, vocab_file, basename=None):
