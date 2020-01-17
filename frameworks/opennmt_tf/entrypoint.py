@@ -191,6 +191,8 @@ def _build_run_config(config,
 def _list_checkpoint_files(model_dir):
     """Lists the checkpoint files that should be bundled in the model package."""
     latest = tf.train.latest_checkpoint(model_dir)
+    if latest is None:
+        return {}
     objects = {
         'checkpoint': os.path.join(model_dir, 'checkpoint'),  # Checkpoint state file.
     }
