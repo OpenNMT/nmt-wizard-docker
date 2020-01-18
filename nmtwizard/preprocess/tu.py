@@ -1,3 +1,5 @@
+from nmtwizard.preprocess import tokenizer
+
 class TranslationSide(object):
 
     def __init__(self):
@@ -64,8 +66,8 @@ class TranslationUnit(object):
                 # Postprocess.
                 self.__source.tok = source
                 self.__target.tok = target
-                self.__source.tokenizer = start_state["src_tokenizer"]
-                self.__target.tokenizer = start_state["tgt_tokenizer"]
+                self.__source.tokenizer = tokenizer.build_tokenizer(start_state["src_tok_config"])
+                self.__target.tokenizer = tokenizer.build_tokenizer(start_state["tgt_tok_config"])
             else:
                 # Preprocess in training.
                 self.__source.raw = source.strip()

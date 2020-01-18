@@ -169,7 +169,11 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
 class Processor(object):
 
     def __init__(self, config, process_type="sampling", preprocess_exit_step=None):
-        self._pipeline = prepoperator.Pipeline(config, process_type, preprocess_exit_step)
+        self._process_type = process_type
+        if process_type=="postprocess":
+            self._pipeline = prepoperator.PostprocessPipeline(config)
+        else:
+            self._pipeline = prepoperator.PreprocessPipeline(config, preprocess_exit_step)
 
     def process_input(self, input):
         """Processes one translation example at inference.
@@ -226,7 +230,7 @@ class Processor(object):
 
         # TODO V2 : parallelization
         for tu_batch in loader():
-            tu_batch = self._pipeline(tu_batch)
+            tu_batch = self._pipeline(tu_batch, self._process_type)
             consumer(tu_batch)
             lines_num += len(tu_batch)
 

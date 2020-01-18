@@ -111,7 +111,6 @@ class VocabularyBuilder(Consumer):
 
     def __call__(self, tu_batch):
 
-        # TODO V2 : feed tokenized words ?
         # TODO : remove value for placeholders
         for tu in tu_batch :
             if 'source' in self._vocabularies:
@@ -129,6 +128,7 @@ class VocabularyBuilder(Consumer):
                 for token in itertools.chain.from_iterable(tu.get_tgt_tok()):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
+
 
     def _prune(self, vocabulary, sorted_vocabulary, size, min_frequency):
         real_size = len(sorted_vocabulary)
