@@ -26,10 +26,9 @@ def update_config(a, b, mode='merge'):
     """Update the configuration a with b."""
     if mode == 'merge':
         return merge_config(a, b)
-    elif mode == 'replace':
+    if mode == 'replace':
         return replace_config(a, b)
-    else:
-        raise ValueError('Invalid configuration update mode: %s' % mode)
+    raise ValueError('Invalid configuration update mode: %s' % mode)
 
 def index_config(config, path, index_structure=True):
     """Index a configuration with a path-like string."""
