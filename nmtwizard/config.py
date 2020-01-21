@@ -17,6 +17,20 @@ def merge_config(a, b):
                 a[key] = b_value
     return a
 
+def replace_config(a, b):
+    """Updates fields in a by fields in b."""
+    a.update(b)
+    return a
+
+def update_config(a, b, mode='merge'):
+    """Update the configuration a with b."""
+    if mode == 'merge':
+        return merge_config(a, b)
+    elif mode == 'replace':
+        return replace_config(a, b)
+    else:
+        raise ValueError('Invalid configuration update mode: %s' % mode)
+
 def index_config(config, path, index_structure=True):
     """Index a configuration with a path-like string."""
     key = None

@@ -278,7 +278,8 @@ class Framework(utility.Utility):
                     model_config['modelType'] = 'release'
                 else:
                     model_config['modelType'] = 'checkpoint'
-            config = config_util.merge_config(copy.deepcopy(model_config), config)
+            config = config_util.update_config(
+                copy.deepcopy(model_config), config, mode=args.config_update_mode)
         else:
             model_path = None
             model_config = None
