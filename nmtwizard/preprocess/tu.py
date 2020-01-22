@@ -4,48 +4,51 @@ class TranslationSide(object):
 
     def __init__(self):
         self.raw = None
-        self.tok = []
-        self.detok = None
-        self.tokenizer = None
+        self.__tok = []
+        self.__detok = None
+        self.__tokenizer = None
 
-    def get_tok(self):
-        if not self.tok:
-            if self.tokenizer and self.detok:
-                tok,_ = self.tokenizer.tokenize(self.detok)
-                self.tok.append(tok)
+    @property
+    def tok(self):
+        if not self.__tok:
+            if self.__tokenizer and self.__detok:
+                tok,_ = self.__tokenizer.tokenize(self.__detok)
+                self.__tok.append(tok)
             # TODO: ignore empty lines and reactivate this
             # else:
             #     raise RuntimeError('Cannot perform tokenization.')
-        return list(self.tok)
+        return self.__tokenizer, list(self.__tok)
 
-    def set_tok(self, tokenizer, tok):
+    @tok.setter
+    def tok(self, tok):
+        tokenizer, tok = tok
         if tok:
             # Set a new list of tokens and a new tokenizer.
-            self.tok = tok
-            self.tokenizer = tokenizer
-            self.detok = None
+            self.__tok = tok
+            self.__tokenizer = tokenizer
+            self.__detok = None
         else:
             # Set a new tokenizer, perform detokenization with previous one.
-            if self.tok :
-                if not self.tokenizer :
+            if self.__tok :
+                if not self.__tokenizer :
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-                self.detok = self.tokenizer.detokenize(self.tok[0]) # TODO : preperly deal with multipart.
-            self.tok = []
-            self.tokenizer = tokenizer
+                self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
+            self.__tok = []
+            self.__tokenizer = tokenizer
 
-
-    def get_detok(self):
-        if self.detok is None:
-            if self.tokenizer and self.tok:
-                self.detok = self.tokenizer.detokenize(self.tok[0])
+    @property
+    def detok(self):
+        if self.__detok is None:
+            if self.__tokenizer and self.__tok:
+                self.__detok = self.__tokenizer.detokenize(self.__tok[0])
             else:
                 raise RuntimeError('Cannot perform detokenization.')
-        return self.detok
+        return self.__detok
 
-
-    def set_detok(self, detok):
-        self.detok = detok
-        self.tok = []
+    @detok.setter
+    def detok(self, detok):
+        self.__detok = detok
+        self.__tok = []
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
@@ -64,10 +67,10 @@ class TranslationUnit(object):
                 source, self.__metadata = source
             if isinstance(source, list) and isinstance(target, list):
                 # Postprocess.
-                self.__source.tok = source
-                self.__target.tok = target
-                self.__source.tokenizer = tokenizer.build_tokenizer(start_state["src_tok_config"])
-                self.__target.tokenizer = tokenizer.build_tokenizer(start_state["tgt_tok_config"])
+                self.__source.tok = (tokenizer.build_tokenizer(start_state["src_tok_config"]),
+                                     source)
+                self.__target.tok = (tokenizer.build_tokenizer(start_state["tgt_tok_config"]),
+                                     target)
             else:
                 # Preprocess in training.
                 self.__source.raw = source.strip()
@@ -79,38 +82,45 @@ class TranslationUnit(object):
             self.__source.raw = input.strip()
             self.__source.detok = self.__source.raw
 
-    def get_src_tok(self):
-        return self.__source.get_tok()
+    @property
+    def src_tok(self):
+        return self.__source.tok
 
-    def get_tgt_tok(self):
+    @property
+    def tgt_tok(self):
         if self.__target:
-            return self.__target.get_tok()
+            return self.__target.tok
         return self.__target
 
 
-    def set_src_tok(self, tokenizer, tok=None):
-        self.__source.set_tok(tokenizer, tok)
+    @src_tok.setter
+    def src_tok(self, tok):
+        self.__source.tok = tok
 
-    def set_tgt_tok(self, tokenizer, tok=None):
+    @tgt_tok.setter
+    def tgt_tok(self, tok):
         if self.__target:
-            self.__target.set_tok(tokenizer, tok)
+            self.__target.tok = tok
 
 
-    def get_src_detok(self):
-        return self.__source.get_detok()
+    @property
+    def src_detok(self):
+        return self.__source.detok
 
-    def get_tgt_detok(self):
+    @property
+    def tgt_detok(self):
         if self.__target:
-            return self.__target.get_detok()
+            return self.__target.detok
         return self.__target
 
+    @src_detok.setter
+    def src_detok(self, detok):
+        self.__source.detok = detok
 
-    def set_src_detok(self, detok):
-        self.__source.set_detok(detok)
-
-    def set_tgt_detok(self, detok):
+    @tgt_detok.setter
+    def tgt_detok(self, detok):
         if self.__target:
-            self.__target.set_detok(detok)
+            self.__target.detok = detok
 
 
     def get_meta(self):

@@ -179,10 +179,10 @@ class LengthFilter(Filter):
         self._target_max = config.get('target', {}).get('max_length_char')
 
         if self._source_max:
-            self._criteria.append(lambda x:len(x.get_src_detok()) > self._source_max)
+            self._criteria.append(lambda x:len(x.src_detok) > self._source_max)
 
         if self._target_max:
-            self._criteria.append(lambda x:len(x.get_tgt_detok()) > self._target_max)
+            self._criteria.append(lambda x:len(x.tgt_detok) > self._target_max)
 
 
 class Tokenizer(Operator):
@@ -222,7 +222,7 @@ class Tokenizer(Operator):
 
         # Set tokenizers for TUs.
         for tu in tu_batch :
-            tu.set_src_tok(self._src_tokenizer)
-            tu.set_tgt_tok(self._tgt_tokenizer)
+            tu.src_tok = (self._src_tokenizer, None)
+            tu.tgt_tok = (self._tgt_tokenizer, None)
 
         return tu_batch
