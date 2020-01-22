@@ -18,7 +18,6 @@ from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
 from nmtwizard import serving
-from nmtwizard.preprocess import tokenizer
 from nmtwizard.preprocess import preprocess
 from nmtwizard import utility
 
@@ -843,9 +842,9 @@ class Framework(utility.Utility):
     def _serving_state(self, config):
         state = {}
         if 'preprocess' in config:
-            state['preprocessor'] = preprocess.Processor(config, process_type="inference")
+            state['preprocessor'] = preprocess.InferenceProcessor(config)
         if 'preprocess' in config or 'postprocess' in config:
-            state['postprocessor'] = preprocess.Processor(config, process_type="postprocess")
+            state['postprocessor'] = preprocess.Postprocessor(config)
         return state
 
     def _preprocess_input(self, state, input, config):
@@ -866,13 +865,13 @@ class Framework(utility.Utility):
 
     def _preprocess_file(self, config, input):
         if 'preprocess' in config:
-            preprocessor = preprocess.Processor(config, process_type="inference")
+            preprocessor = preprocess.InferenceProcessor(config)
             return preprocessor.process_file(input)
         return input
 
     def _postprocess_file(self, config, source, target):
         if 'preprocess' in config or 'postprocess' in config:
-            postprocessor = preprocess.Processor(config, process_type="postprocess")
+            postprocessor = preprocess.Postprocessor(config)
             return postprocessor.process_file((source, target))
         return target
 

@@ -166,10 +166,30 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
 
     return data_path, train_dir, num_samples, summary, metadata
 
+
 class Processor(object):
 
-    def __init__(self, config, process_type="sampling", preprocess_exit_step=None):
-        self._pipeline = prepoperator.Pipeline(config, process_type, preprocess_exit_step)
+    def __init__(self, config, preprocess_exit_step=None):
+        self._pipeline = prepoperator.TrainingPipeline(config, preprocess_exit_step)
+
+
+    def process(self, loader, consumer):
+        lines_num = 0
+
+        # TODO V2 : parallelization
+        for tu_batch in loader():
+            tu_batch = self._pipeline(tu_batch)
+            consumer(tu_batch)
+            lines_num += len(tu_batch)
+
+        return lines_num
+
+
+class InferenceProcessor(Processor):
+
+    def __init__(self, config):
+        self._pipeline = prepoperator.InferencePipeline(config)
+
 
     def process_input(self, input):
         """Processes one translation example at inference.
@@ -220,14 +240,7 @@ class Processor(object):
         return output_file
 
 
-    # Input can be files, SamplerFile object, list of strings or list of lists of tokens
-    def process(self, loader, consumer):
-        lines_num = 0
+class Postprocessor(InferenceProcessor):
 
-        # TODO V2 : parallelization
-        for tu_batch in loader():
-            tu_batch = self._pipeline(tu_batch)
-            consumer(tu_batch)
-            lines_num += len(tu_batch)
-
-        return lines_num
+    def __init__(self, config):
+        self._pipeline = prepoperator.PostprocessPipeline(config)

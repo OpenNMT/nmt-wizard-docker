@@ -46,12 +46,12 @@ class SubwordLearner(Consumer):
         # TODO V2 : undo all placeholder annotation for subword processing
         for tu in tu_batch :
             if 'source' in self._subword_learners:
-                self._subword_learners['source']['learner'].ingest(tu.get_src_detok())
+                self._subword_learners['source']['learner'].ingest(tu.src_detok)
             if 'target' in self._subword_learners:
-                self._subword_learners['target']['learner'].ingest(tu.get_tgt_detok())
+                self._subword_learners['target']['learner'].ingest(tu.tgt_detok)
             if 'multi' in self._subword_learners:
-                self._subword_learners['multi']['learner'].ingest(tu.get_src_detok())
-                self._subword_learners['multi']['learner'].ingest(tu.get_tgt_detok())
+                self._subword_learners['multi']['learner'].ingest(tu.src_detok)
+                self._subword_learners['multi']['learner'].ingest(tu.tgt_detok)
 
 
     def finalize(self, config):
@@ -111,24 +111,24 @@ class VocabularyBuilder(Consumer):
 
     def __call__(self, tu_batch):
 
-        # TODO V2 : feed tokenized words ?
         # TODO : remove value for placeholders
         for tu in tu_batch :
             if 'source' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.get_src_tok()):
+                for token in itertools.chain.from_iterable(tu.src_tok.tokens):
                     self._vocabularies['source'][token] += 1
                     self._sums['source'] += 1
             if 'target' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.get_tgt_tok()):
+                for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
                     self._vocabularies['target'][token] += 1
                     self._sums['target'] += 1
             if 'multi' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.get_src_tok()):
+                for token in itertools.chain.from_iterable(tu.src_tok.tokens):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
-                for token in itertools.chain.from_iterable(tu.get_tgt_tok()):
+                for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
+
 
     def _prune(self, vocabulary, sorted_vocabulary, size, min_frequency):
         real_size = len(sorted_vocabulary)
@@ -225,10 +225,10 @@ class BasicWriter(Consumer):
 
         tu = tu_batch[0]
         # Postprocess.
-        if tu.get_tgt_detok():
-            self.output = tu.get_tgt_detok()
+        if tu.tgt_detok:
+            self.output = tu.tgt_detok
         else:
-            self.output = (tu.get_src_tok(), tu.get_meta())
+            self.output = (tu.src_tok.tokens, tu.get_meta())
 
 
 class FileWriter(Consumer):
@@ -250,13 +250,13 @@ class FileWriter(Consumer):
     def __call__(self, tu_batch):
         # Write lines to files from TUs
         for tu in tu_batch :
-            tgt_detok = tu.get_tgt_detok()
+            tgt_detok = tu.tgt_detok
             # Postprocess.
             if tgt_detok:
                 self._file.write("%s\n" % tgt_detok)
             # Preprocess.
             else:
-                for part in tu.get_src_tok():
+                for part in tu.src_tok.tokens:
                     part = " ".join(part)
                     self._file.write("%s\n" % part)
                 self.metadata.append(tu.get_meta())
@@ -285,12 +285,12 @@ class SamplerFileWriter(Consumer):
         # Write lines to file from TUs
         for tu in tu_batch :
 
-            src = tu.get_src_tok()
+            src = tu.src_tok.tokens
             for part in src:
                 part = " ".join(part)
                 self._file[0].write("%s\n" % part)
 
-            tgt = tu.get_tgt_tok()
+            tgt = tu.tgt_tok.tokens
             for part in tgt:
                 part = " ".join(part)
                 self._file[0].write("%s\n" % part)

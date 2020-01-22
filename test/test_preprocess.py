@@ -5,7 +5,7 @@ import shutil
 
 from nmtwizard.preprocess.preprocess import generate_preprocessed_data
 from nmtwizard.preprocess.preprocess import generate_vocabularies
-from nmtwizard.preprocess.preprocess import Processor
+from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor
 
 def test_sampler(tmpdir):
 
@@ -259,10 +259,10 @@ def test_preprocess_pipeline(tmpdir):
     data_path, train_dir, num_samples, summary, metadata = \
         generate_preprocessed_data(config, "", str(tmpdir))
 
-    prep = Processor(config, process_type="inference")
+    prep = InferenceProcessor(config)
     res, _ = prep.process_input("This is a test.")
     assert res[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
 
-    post = Processor(config, process_type="postprocess")
+    post = Postprocessor(config)
     res = post.process_input((res, res))
     assert res == "This is a test."
