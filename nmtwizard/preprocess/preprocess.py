@@ -170,7 +170,7 @@ def generate_preprocessed_data(config, corpus_dir, data_dir, result='preprocess'
 class Processor(object):
 
     def __init__(self, config, preprocess_exit_step=None):
-        self._pipeline = prepoperator.Pipeline(config, preprocess_exit_step)
+        self._pipeline = prepoperator.TrainingPipeline(config, preprocess_exit_step)
 
 
     def process(self, loader, consumer):

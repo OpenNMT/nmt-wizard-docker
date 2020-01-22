@@ -114,18 +114,18 @@ class VocabularyBuilder(Consumer):
         # TODO : remove value for placeholders
         for tu in tu_batch :
             if 'source' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.src_tok[1]):
+                for token in itertools.chain.from_iterable(tu.src_tok.tokens):
                     self._vocabularies['source'][token] += 1
                     self._sums['source'] += 1
             if 'target' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.tgt_tok[1]):
+                for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
                     self._vocabularies['target'][token] += 1
                     self._sums['target'] += 1
             if 'multi' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.src_tok[1]):
+                for token in itertools.chain.from_iterable(tu.src_tok.tokens):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
-                for token in itertools.chain.from_iterable(tu.tgt_tok[1]):
+                for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
                     self._vocabularies['multi'][token] += 1
                     self._sums['multi'] += 1
 
@@ -228,7 +228,7 @@ class BasicWriter(Consumer):
         if tu.tgt_detok:
             self.output = tu.tgt_detok
         else:
-            self.output = (tu.src_tok[1], tu.get_meta())
+            self.output = (tu.src_tok.tokens, tu.get_meta())
 
 
 class FileWriter(Consumer):
@@ -256,7 +256,7 @@ class FileWriter(Consumer):
                 self._file.write("%s\n" % tgt_detok)
             # Preprocess.
             else:
-                for part in tu.src_tok[1]:
+                for part in tu.src_tok.tokens:
                     part = " ".join(part)
                     self._file.write("%s\n" % part)
                 self.metadata.append(tu.get_meta())
@@ -285,12 +285,12 @@ class SamplerFileWriter(Consumer):
         # Write lines to file from TUs
         for tu in tu_batch :
 
-            src = tu.src_tok[1]
+            src = tu.src_tok.tokens
             for part in src:
                 part = " ".join(part)
                 self._file[0].write("%s\n" % part)
 
-            tgt = tu.tgt_tok[1]
+            tgt = tu.tgt_tok.tokens
             for part in tgt:
                 part = " ".join(part)
                 self._file[0].write("%s\n" % part)

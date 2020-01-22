@@ -39,24 +39,13 @@ class ProcessType(object):
 class Pipeline(object):
     """Pipeline for building and applying pre/postprocess operators in order."""
 
-    def __init__(self, config, preprocess_exit_step):
-        self._build_state = None
-        self._process_type = ProcessType.TRAINING
-        self._build_preprocess_pipeline(config, preprocess_exit_step)
-
-
-    def _build_preprocess_pipeline(self, config, preprocess_exit_step=None):
-
-        self._ops = []
-
-        preprocess_config = config.get("preprocess")
-        if preprocess_config:
-            for i, op in enumerate(preprocess_config):
-                operator = self._build_operator(op)
-                if operator:
-                    self._ops.append(operator)
-                if preprocess_exit_step and i == preprocess_exit_step:
-                    break
+    def _build_pipeline(self, op_list_config, exit_step=None):
+        for i, op in enumerate(op_list_config):
+            operator = self._build_operator(op)
+            if operator and operator.is_applied_for(self._process_type):
+                self._ops.append(operator)
+            if exit_step and i == exit_step:
+                break
 
 
     def _build_operator(self, operator_config):
@@ -75,16 +64,28 @@ class Pipeline(object):
 
 
     def __call__(self, tu_batch):
-        for i, op in enumerate(self._ops):
+        for op in self._ops:
             tu_batch = op(tu_batch, self._process_type)
         return tu_batch
+
+
+class TrainingPipeline(Pipeline):
+
+    def __init__(self, config, preprocess_exit_step):
+        self._build_state = None
+        self._process_type = ProcessType.TRAINING
+        self._ops = []
+
+        preprocess_config = config.get("preprocess")
+        if preprocess_config:
+            self._build_pipeline(preprocess_config, preprocess_exit_step)
 
 
 class InferencePipeline(Pipeline):
 
     def __init__(self, config, process_type=ProcessType.INFERENCE):
-
         self._process_type = process_type
+        self._ops = []
 
         # TODO : do we really need those now ?
         self.start_state = { "src_tok_config" : None,
@@ -94,14 +95,14 @@ class InferencePipeline(Pipeline):
         # Passed to and modified by operator initializers if necessary.
         self._build_state = dict(self.start_state)
 
-        self._build_preprocess_pipeline(config)
-
+        preprocess_config = config.get("preprocess")
+        if preprocess_config:
+            self._build_pipeline(preprocess_config)
 
 
 class PostprocessPipeline(InferencePipeline):
 
     def __init__(self, config):
-
         super(PostprocessPipeline, self).__init__(config, ProcessType.POSTPROCESS)
 
         # Reverse preprocessing operators.
@@ -112,10 +113,7 @@ class PostprocessPipeline(InferencePipeline):
         # Add pure postprocessing operators.
         postprocess_config = config.get("postprocess")
         if postprocess_config:
-            for op in postprocess_config:
-                operator = self._build_operator(op)
-                if operator:
-                    self._ops.append(operator)
+            self._build_pipeline(postprocess_config)
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -123,30 +121,42 @@ class Operator(object):
     """Base class for preprocessing operators."""
 
     def __call__(self, tu_batch, process_type):
-        if self._is_enabled_for(process_type):
-            tu_batch = self._apply_operator(tu_batch, process_type)
+        if process_type == ProcessType.POSTPROCESS:
+            tu_batch = self._postprocess(tu_batch)
+        else:
+            tu_batch = self._preprocess(tu_batch, training=process_type == ProcessType.TRAINING)
+        # TODO : do we need a separate function for inference ?
         return tu_batch
 
+
     @abc.abstractmethod
-    def _apply_operator(self, tu_batch, process_type):
+    def _preprocess(self, tu_batch, training):
         raise NotImplementedError()
 
-    def _is_enabled_for(self, process_type):
+
+    def _postprocess(self, tu_batch):
+        # Postprocess is not mandatorily reimplemented by each operator.
+        # If the operator has no postprocess, it should implement "is_applied_for" function correctly and never get here.
+        raise NotImplementedError()
+
+
+    def is_applied_for(self, process_type):
         return True
 
 
 class TUOperator(Operator):
     """Base class for operations iterating on each TU in a batch."""
 
-    def _apply_operator(self, tu_batch, process_type):
+    def _preprocess(self, tu_batch, training):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
-        tu_batch = list(chain.from_iterable(self._apply_tu_operator(tu, process_type) for tu in tu_batch))
+        tu_batch = list(chain.from_iterable(self._preprocess_tu(tu, training) for tu in tu_batch))
 
         return tu_batch
 
+
     @abc.abstractmethod
-    def _apply_tu_operator(self, tu, process_type):
+    def _preprocess_tu(self, tu, training):
         raise NotImplementedError()
 
 
@@ -156,13 +166,12 @@ class Filter(TUOperator):
         # TODO: Sub-criteria for source_detok, target_detok, source_tok, target_tok, or both with alignment ?
         self._criteria = []
 
-    # TODO : make generic ?
-    def _is_enabled_for(self, process_type):
-        if process_type > ProcessType.TRAINING:
-            return False
-        return True
 
-    def _apply_tu_operator(self, tu, process_type):
+    def is_applied_for(self, process_type):
+        return process_type == ProcessType.TRAINING
+
+
+    def _preprocess_tu(self, tu, training):
         for c in self._criteria:
             if (c(tu)):
                 return []
@@ -202,23 +211,23 @@ class Tokenizer(Operator):
         self._tgt_tokenizer = None
 
 
-    def _apply_operator(self, tu_batch, process_type):
-        # Build tokenizers if necessary.
-        if not self._src_tokenizer:
-            if process_type == ProcessType.POSTPROCESS:
-                if self._src_tok_config_prev:
-                    self._src_tokenizer = tokenizer.build_tokenizer(self._src_tok_config_prev)
-            else:
-                if self._src_tok_config:
-                    self._src_tokenizer = tokenizer.build_tokenizer(self._src_tok_config)
+    def _preprocess(self, tu_batch, training=True):
+        tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config, self._tgt_tok_config)
+        return tu_batch
 
-        if not self._tgt_tokenizer:
-            if process_type == ProcessType.POSTPROCESS:
-                if self._tgt_tok_config_prev:
-                    self._tgt_tokenizer = tokenizer.build_tokenizer(self._tgt_tok_config_prev)
-            else:
-                if self._tgt_tok_config:
-                    self._tgt_tokenizer = tokenizer.build_tokenizer(self._tgt_tok_config)
+
+    def _postprocess(self, tu_batch):
+        tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config_prev, self._tgt_tok_config_prev)
+        return tu_batch
+
+
+    def _set_tokenizers(self, tu_batch, src_tok_config, tgt_tok_config):
+
+        if not self._src_tokenizer and src_tok_config:
+            self._src_tokenizer = tokenizer.build_tokenizer(src_tok_config)
+
+        if not self._tgt_tokenizer and tgt_tok_config:
+            self._tgt_tokenizer = tokenizer.build_tokenizer(tgt_tok_config)
 
         # Set tokenizers for TUs.
         for tu in tu_batch :

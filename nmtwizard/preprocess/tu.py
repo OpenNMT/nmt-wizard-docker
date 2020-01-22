@@ -1,4 +1,10 @@
+import collections
+
 from nmtwizard.preprocess import tokenizer
+
+class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens"))):
+    """Tuple structure to keep tokenizer and tokens together."""
+
 
 class TranslationSide(object):
 
@@ -17,7 +23,7 @@ class TranslationSide(object):
             # TODO: ignore empty lines and reactivate this
             # else:
             #     raise RuntimeError('Cannot perform tokenization.')
-        return self.__tokenizer, list(self.__tok)
+        return Tokenization(tokenizer=self.__tokenizer, tokens=list(self.__tok))
 
     @tok.setter
     def tok(self, tok):
