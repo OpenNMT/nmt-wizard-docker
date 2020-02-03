@@ -858,7 +858,7 @@ class Framework(utility.Utility):
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
             return target
-        preprocessor = state.get('postprocessor')
+        postprocessor = state.get('postprocessor')
         if postprocessor is None:
             return ' '.join(target)
         return postprocessor.process_input((source,target))
@@ -916,10 +916,12 @@ class Framework(utility.Utility):
         return merged_path
 
     def _generate_training_data(self, config):
-        return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
+        preprocessor = preprocess.SamplingProcessor(config, self._corpus_dir, self._data_dir)
+        return preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        return preprocess.generate_vocabularies(config, self._corpus_dir, self._data_dir)
+        preprocessor = preprocess.SamplingProcessor(config, self._corpus_dir, self._data_dir)
+        return preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution

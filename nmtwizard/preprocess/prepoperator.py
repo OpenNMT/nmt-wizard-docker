@@ -26,12 +26,12 @@ class ProcessType(object):
       """Type of processing pipeline.
 
       Possible values are:
-        * ``TRAINING``
+        * ``SAMPLING``
         * ``INFERENCE``
         * ``POSTPROCESS``
       """
 
-      TRAINING = 0
+      SAMPLING = 0
       INFERENCE = 1
       POSTPROCESS = 2
 
@@ -69,11 +69,11 @@ class Pipeline(object):
         return tu_batch
 
 
-class TrainingPipeline(Pipeline):
+class SamplingPipeline(Pipeline):
 
     def __init__(self, config, preprocess_exit_step):
         self._build_state = None
-        self._process_type = ProcessType.TRAINING
+        self._process_type = ProcessType.SAMPLING
         self._ops = []
 
         preprocess_config = config.get("preprocess")
@@ -124,13 +124,13 @@ class Operator(object):
         if process_type == ProcessType.POSTPROCESS:
             tu_batch = self._postprocess(tu_batch)
         else:
-            tu_batch = self._preprocess(tu_batch, training=process_type == ProcessType.TRAINING)
+            tu_batch = self._preprocess(tu_batch, sampling=process_type == ProcessType.SAMPLING)
         # TODO : do we need a separate function for inference ?
         return tu_batch
 
 
     @abc.abstractmethod
-    def _preprocess(self, tu_batch, training):
+    def _preprocess(self, tu_batch, sampling):
         raise NotImplementedError()
 
 
@@ -147,16 +147,16 @@ class Operator(object):
 class TUOperator(Operator):
     """Base class for operations iterating on each TU in a batch."""
 
-    def _preprocess(self, tu_batch, training):
+    def _preprocess(self, tu_batch, sampling):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
-        tu_batch = list(chain.from_iterable(self._preprocess_tu(tu, training) for tu in tu_batch))
+        tu_batch = list(chain.from_iterable(self._preprocess_tu(tu, sampling) for tu in tu_batch))
 
         return tu_batch
 
 
     @abc.abstractmethod
-    def _preprocess_tu(self, tu, training):
+    def _preprocess_tu(self, tu, sampling):
         raise NotImplementedError()
 
 
@@ -168,10 +168,10 @@ class Filter(TUOperator):
 
 
     def is_applied_for(self, process_type):
-        return process_type == ProcessType.TRAINING
+        return process_type == ProcessType.SAMPLING
 
 
-    def _preprocess_tu(self, tu, training):
+    def _preprocess_tu(self, tu, sampling):
         for c in self._criteria:
             if (c(tu)):
                 return []
@@ -211,7 +211,7 @@ class Tokenizer(Operator):
         self._tgt_tokenizer = None
 
 
-    def _preprocess(self, tu_batch, training=True):
+    def _preprocess(self, tu_batch, sampling=True):
         tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config, self._tgt_tok_config)
         return tu_batch
 

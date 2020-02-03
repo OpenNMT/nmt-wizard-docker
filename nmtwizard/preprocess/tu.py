@@ -66,7 +66,7 @@ class TranslationUnit(object):
 
         if isinstance(input, tuple):
             # We have both source and target.
-            # Can be raw (in training) or tokenized and in parts (in postprocess).
+            # Can be raw (in sampling) or tokenized and in parts (in postprocess).
             source, target = input
             self.__target = TranslationSide()
             if isinstance(source, tuple):
@@ -78,7 +78,7 @@ class TranslationUnit(object):
                 self.__target.tok = (tokenizer.build_tokenizer(start_state["tgt_tok_config"]),
                                      target)
             else:
-                # Preprocess in training.
+                # Preprocess in sampling.
                 self.__source.raw = source.strip()
                 self.__target.raw = target.strip()
                 self.__source.detok = self.__source.raw
