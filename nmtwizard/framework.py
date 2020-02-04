@@ -916,11 +916,11 @@ class Framework(utility.Utility):
         return merged_path
 
     def _generate_training_data(self, config):
-        preprocessor = preprocess.SamplingProcessor(config, self._corpus_dir, self._data_dir)
+        preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
         return preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        preprocessor = preprocess.SamplingProcessor(config, self._corpus_dir, self._data_dir)
+        preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
         return preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):

@@ -36,7 +36,7 @@ class Processor(object):
         return lines_num
 
 
-class SamplingProcessor(Processor):
+class TrainingProcessor(Processor):
 
     def __init__(self, config, corpus_dir, data_dir):
         self._config = config
@@ -44,7 +44,7 @@ class SamplingProcessor(Processor):
         self._data_dir = data_dir
 
     def _set_pipeline(self, preprocess_exit_step=None):
-        self._pipeline = prepoperator.SamplingPipeline(self._config, preprocess_exit_step)
+        self._pipeline = prepoperator.TrainingPipeline(self._config, preprocess_exit_step)
 
 
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):

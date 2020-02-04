@@ -3,7 +3,7 @@
 import pytest
 import shutil
 
-from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor, SamplingProcessor
+from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor, TrainingProcessor
 
 def test_sampler(tmpdir):
 
@@ -47,7 +47,7 @@ def test_sampler(tmpdir):
         }
     }
 
-    preprocessor = SamplingProcessor(config, "", str(tmpdir))
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
     assert num_samples == 5000
@@ -88,7 +88,7 @@ def test_sampler(tmpdir):
         }
     ]
 
-    preprocessor = SamplingProcessor(config, "", str(tmpdir))
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
 
@@ -144,7 +144,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         }
         config['preprocess'][0][side]['build_subword'] = subword_config
 
-    preprocessor = SamplingProcessor(config, "", str(tmpdir))
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     _, result_preprocess_config, result_vocab_config  = preprocessor.generate_vocabularies()
 
     for side, ext in sides.items():
@@ -258,7 +258,7 @@ def test_preprocess_pipeline(tmpdir):
         ]
     }
 
-    preprocessor = SamplingProcessor(config, "", str(tmpdir))
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
 
