@@ -3,9 +3,7 @@
 import pytest
 import shutil
 
-from nmtwizard.preprocess.preprocess import generate_preprocessed_data
-from nmtwizard.preprocess.preprocess import generate_vocabularies
-from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor
+from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor, TrainingProcessor
 
 def test_sampler(tmpdir):
 
@@ -49,8 +47,9 @@ def test_sampler(tmpdir):
         }
     }
 
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
-        generate_preprocessed_data(config, "", str(tmpdir))
+        preprocessor.generate_preprocessed_data()
     assert num_samples == 5000
     assert summary['news_pattern.']['lines_sampled'] == 3000
     assert summary['generic_corpus.']['lines_sampled'] >= 215
@@ -88,8 +87,10 @@ def test_sampler(tmpdir):
             ]
         }
     ]
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
-        generate_preprocessed_data(config, "", str(tmpdir))
+        preprocessor.generate_preprocessed_data()
 
     assert num_samples == 6000
     assert summary['news_pattern.']['lines_sampled'] == 6000
@@ -143,7 +144,8 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
         }
         config['preprocess'][0][side]['build_subword'] = subword_config
 
-    _, result_preprocess_config, result_vocab_config  = generate_vocabularies(config, "", str(tmpdir))
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    _, result_preprocess_config, result_vocab_config  = preprocessor.generate_vocabularies()
 
     for side, ext in sides.items():
 
@@ -256,8 +258,9 @@ def test_preprocess_pipeline(tmpdir):
         ]
     }
 
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
-        generate_preprocessed_data(config, "", str(tmpdir))
+        preprocessor.generate_preprocessed_data()
 
     prep = InferenceProcessor(config)
     res, _ = prep.process_input("This is a test.")
