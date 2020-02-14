@@ -394,6 +394,20 @@ def test_train_chain(tmpdir):
     assert config["modelType"] == "checkpoint"
     assert DummyCheckpoint(model_dir).index() == 1
 
+def test_config_replace(tmpdir):
+    config = copy.deepcopy(config_base)
+    config["custom_field"] = {"a": 1, "b": 2}
+    _run_framework(tmpdir, "model0", "train", config=config)
+    new_config = {"custom_field": {"a": 3}}
+    model_dir = _run_framework(
+        tmpdir,
+        "model1",
+        ["--config_update_mode", "replace", "train"],
+        parent="model0",
+        config=new_config)
+    config = _read_config(model_dir)
+    assert config["custom_field"] == new_config["custom_field"]
+
 def test_model_storage(tmpdir):
     ms1 = tmpdir.join("ms1")
     ms2 = tmpdir.join("ms2")
