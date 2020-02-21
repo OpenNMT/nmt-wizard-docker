@@ -58,11 +58,12 @@ class TranslationSide(object):
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
-    def __init__(self, input, start_state=None):
+    def __init__(self, input, start_state=None, annotations=None):
 
         self.__source = TranslationSide()
         self.__target = None
         self.__metadata = [1] #TODO: proper metadata
+        self.__annotations = annotations
 
         if isinstance(input, tuple):
             # We have both source and target.
@@ -73,10 +74,14 @@ class TranslationUnit(object):
                 source, self.__metadata = source
             if isinstance(source, list) and isinstance(target, list):
                 # Postprocess.
-                self.__source.tok = (tokenizer.build_tokenizer(start_state["src_tok_config"]),
-                                     source)
-                self.__target.tok = (tokenizer.build_tokenizer(start_state["tgt_tok_config"]),
-                                     target)
+                src_tokenizer = None
+                tgt_tokenizer = None
+                if start_state and start_state["src_tok_config"]:
+                    src_tokenizer = tokenizer.build_tokenizer(start_state["src_tok_config"])
+                if start_state and start_state["tgt_tok_config"]:
+                    tgt_tokenizer = tokenizer.build_tokenizer(start_state["tgt_tok_config"])
+                self.__source.tok = (src_tokenizer, source)
+                self.__target.tok = (tgt_tokenizer, target)
             else:
                 # Preprocess in training.
                 self.__source.raw = source.strip()
@@ -128,6 +133,10 @@ class TranslationUnit(object):
         if self.__target:
             self.__target.detok = detok
 
-
-    def get_meta(self):
+    @property
+    def metadata(self):
         return self.__metadata
+
+    @property
+    def annotations(self):
+        return self.__annotations

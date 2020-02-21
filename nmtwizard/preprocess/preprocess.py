@@ -31,7 +31,7 @@ class Processor(object):
         for tu_batch in loader():
             tu_batch = self._pipeline(tu_batch)
             consumer(tu_batch)
-            lines_num += len(tu_batch)
+            lines_num += len(tu_batch[0])
 
         return lines_num
 

@@ -536,6 +536,7 @@ class Framework(utility.Utility):
                              path_input_preprocessed,
                              path_output,
                              gpuid=gpuid)
+                path_postprocess_input = path_input_preprocessed
                 if metadata is not None:
                     path_postprocess_input = (path_input_preprocessed, metadata)
                 num_lines, num_tokens = file_stats(path_output)

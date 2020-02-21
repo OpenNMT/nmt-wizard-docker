@@ -12,24 +12,35 @@ logger = get_logger(__name__)
 
 class SamplerFile(object):
     """Class to store necessary information about the sampled files."""
-    def __init__(self, base_name, files, lines_count = 0):
+    def __init__(self, root, base_name, files, lines_count, no_preprocess):
+        self.root = root
         self.base_name = base_name
         self.lines_count = lines_count
         self.files = files
+        self.no_preprocess = no_preprocess
 
-    def close_files(self) :
-        for f in self.files :
-            if not f.closed:
-                f.close()
+    def close_files(self, f=None) :
+        if f is None:
+            f = self.files
+        for v in f.values():
+            if isinstance(v, dict):
+                self.close_files(v)
+            else:
+                if not v.closed:
+                    v.close()
 
-def count_lines(path):
+
+def count_lines(path, skip_if_absent=False):
     f = None
     if os.path.isfile(path + ".gz"):
         f = gzip.open(path + ".gz", 'r')
     elif os.path.isfile(path):
         f = open(path, 'r')
     else:
-        raise ValueError("File %s not found" % path)
+        if skip_if_absent:
+            return None, None
+        else:
+            raise ValueError("File %s not found" % path)
     i = 0
     for i, _ in enumerate(f):
         pass
@@ -38,20 +49,38 @@ def count_lines(path):
 
 def sample(config, source_dir):
 
-    def _count_lines(file_path):
-        files = []
+    def _count_lines(root, base_name, annotations):
+        file_path = os.path.join(root, base_name)
+        files = {}
         logger.debug("Processing %s", file_path)
 
         # Check all directions are present and aligned, open files
-        src_file, src_lines = count_lines(file_path + src_suffix)
-        files.append(src_file)
+        src_file, src_lines = count_lines(file_path + "." + src_suffix)
+        files["src"] = src_file
 
         if src_file and src_lines :
             # TODO V2 : multiple sources and targets
-            tgt_file, tgt_lines = count_lines(file_path + tgt_suffix)
-            files.append(tgt_file)
+            tgt_file, tgt_lines = count_lines(file_path + "." + tgt_suffix)
+            files["tgt"] = tgt_file
             if src_lines != tgt_lines:
+                logger.warning('Target file %s is not aligned with source file %s. Files will be ignored in sampling.', file_path + tgt_suffix, file_path + src_suffix)
                 return files, 0
+
+        files["annotations"] = {}
+        for key, annot_path in annotations.items():
+            for suffix in ["", src_suffix, tgt_suffix]:
+                annot_file_path = os.path.join(annot_path, base_name)
+                if suffix :
+                    annot_file_path += "." + suffix
+                annot_file, annot_lines = count_lines(annot_file_path, skip_if_absent=True)
+                if not annot_file :
+                    continue
+                if suffix:
+                    key = key + ":" + suffix
+                files["annotations"][key] = annot_file
+                if src_lines != annot_lines:
+                    logger.warning('Annotation file %s is not aligned with source file %s. Files will be ignored in sampling.', annot_path, file_path + src_suffix)
+                    return files, 0
 
         return files, src_lines
 
@@ -72,8 +101,23 @@ def sample(config, source_dir):
                 if not os.path.exists(dpath) or not os.path.isdir(dpath):
                     raise RuntimeError('distribution path %s does not exist' % dpath)
                 d_item["path"] = dpath
+            else:
+                source_dir = d_item["path"]
 
             distribution = d_item['distribution']
+
+            # Get annotations
+            annotations = d_item.get('annotations', {})
+            if not isinstance(annotations, dict):
+                raise ValueError("invalid type for 'annotations' field")
+            for key in annotations:
+                if not isinstance(annotations[key], str):
+                    raise ValueError("innvalid type for 'annotations' value")
+                if not os.path.isabs(annotations[key]):
+                    annotations[key]=os.path.join(source_dir, annotations[key])
+                if not os.path.exists(annotations[key]):
+                    raise RuntimeError('annotation path %s does not exist' % annotations[key])
+
             # walk over all files in path
             for root, _, files in os.walk(d_item['path']):
                 for f in files:
@@ -83,24 +127,27 @@ def sample(config, source_dir):
                     if (not (os.path.isfile(src_file))) :
                         continue
                     if f.endswith(src_suffix):
-                        base_name = f[:-len(src_suffix)]
+                        base_name = f[:-len(src_suffix) - 1]
                     elif f.endswith(src_suffix + ".gz"):
-                        base_name = f[:-len(src_suffix) - 3]
+                        base_name = f[:-len(src_suffix) - 4]
                     else:
                         continue
 
                     # Check all directions are present and aligned
                     # Return opened files and line count
-                    files, size = _count_lines(os.path.join(root, base_name))
-                    # Returns 0 if all files do not exist, cannot be aligned or empty
-                    if (size == 0) :
-                        for f in files :
-                            if not f.closed:
-                                f.close()
-                        continue
+                    opened_files, size = _count_lines(root, base_name, annotations)
+
+                    no_preprocess = d_item.get("no_preprocess", False)
 
                     # build file structure
-                    all_files.append(SamplerFile(base_name, files, size))
+                    sampler_file = SamplerFile(root, base_name, opened_files, size, no_preprocess)
+
+                    # Size is 0 if some files do not exist, cannot be aligned or empty
+                    if (size == 0) :
+                        sampler_file.close_files()
+                        continue
+
+                    all_files.append(sampler_file)
 
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:

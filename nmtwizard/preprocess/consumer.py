@@ -44,7 +44,8 @@ class SubwordLearner(Consumer):
         # Feed lines to subword learners.
         # TODO V2 : feed tokenized lines, individual tokens ?
         # TODO V2 : undo all placeholder annotation for subword processing
-        for tu in tu_batch :
+        tu_list, _ = tu_batch
+        for tu in tu_list :
             if 'source' in self._subword_learners:
                 self._subword_learners['source']['learner'].ingest(tu.src_detok)
             if 'target' in self._subword_learners:
@@ -111,8 +112,9 @@ class VocabularyBuilder(Consumer):
 
     def __call__(self, tu_batch):
 
+        tu_list, _ = tu_batch
         # TODO : remove value for placeholders
-        for tu in tu_batch :
+        for tu in tu_list :
             if 'source' in self._vocabularies:
                 for token in itertools.chain.from_iterable(tu.src_tok.tokens):
                     self._vocabularies['source'][token] += 1
@@ -223,12 +225,13 @@ class BasicWriter(Consumer):
         """ In preprocess, output is (source, metadata), where source is tokenized and possibly multipart.
             In postprocess, output is postprocessed target, untokenized and one-part."""
 
-        tu = tu_batch[0]
+        tu_list, _ = tu_batch
+        tu = tu_list[0]
         # Postprocess.
         if tu.tgt_detok:
             self.output = tu.tgt_detok
         else:
-            self.output = (tu.src_tok.tokens, tu.get_meta())
+            self.output = (tu.src_tok.tokens, tu.metadata)
 
 
 class FileWriter(Consumer):
@@ -248,8 +251,9 @@ class FileWriter(Consumer):
 
 
     def __call__(self, tu_batch):
+        tu_list, _ = tu_batch
         # Write lines to files from TUs
-        for tu in tu_batch :
+        for tu in tu_list :
             tgt_detok = tu.tgt_detok
             # Postprocess.
             if tgt_detok:
@@ -259,7 +263,7 @@ class FileWriter(Consumer):
                 for part in tu.src_tok.tokens:
                     part = " ".join(part)
                     self._file.write("%s\n" % part)
-                self.metadata.append(tu.get_meta())
+                self.metadata.append(tu.metadata)
 
 
 class SamplerFileWriter(Consumer):
@@ -271,29 +275,30 @@ class SamplerFileWriter(Consumer):
     def open_files(self, f):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
-        self._file = []
-        src = os.path.join(self._result_dir, os.path.basename(f.files[0].name))
-        self._file.append(open(src, 'w'))
-        tgt = os.path.join(self._result_dir, os.path.basename(f.files[1].name))
-        self._file.append(open(tgt, 'w'))
+        self._files = {}
+        src = os.path.join(self._result_dir, os.path.basename(f.files["src"].name))
+        self._files["src"] = open(src, 'w')
+        tgt = os.path.join(self._result_dir, os.path.basename(f.files["tgt"].name))
+        self._files["tgt"] = open(tgt, 'w')
 
     def close_files(self):
-        for f in self._file:
+        for f in self._files.values():
             f.close()
 
     def __call__(self, tu_batch):
+        tu_list, _ = tu_batch
         # Write lines to file from TUs
-        for tu in tu_batch :
+        for tu in tu_list :
 
             src = tu.src_tok.tokens
             for part in src:
                 part = " ".join(part)
-                self._file[0].write("%s\n" % part)
+                self._files["src"].write("%s\n" % part)
 
             tgt = tu.tgt_tok.tokens
             for part in tgt:
                 part = " ".join(part)
-                self._file[0].write("%s\n" % part)
+                self._files["tgt"].write("%s\n" % part)
 
 
 def make_consumer(config, result_dir, result, tok_step):

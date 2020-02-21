@@ -25,10 +25,10 @@ class BasicLoader(Loader):
         self._start_state = start_state
 
     def __call__(self):
-        self._tu_batch = []
+        tu_list = []
         if input:
-            self._tu_batch.append(tu.TranslationUnit(self._input, self._start_state))
-        yield self._tu_batch
+            tu_list.append(tu.TranslationUnit(self._input, self._start_state))
+        yield tu_list, {}
         return
 
 
@@ -53,7 +53,7 @@ class FileLoader(Loader):
             f.close()
 
     def __call__(self):
-        tu_batch = []
+        tu_list = []
 
         # Postprocess.
         if len(self._files) > 1:
@@ -64,23 +64,23 @@ class FileLoader(Loader):
                 src_lines = [next(self._files[0]).strip().split() for _ in range(num_parts)]
                 tgt_lines = [next(self._files[1]).strip().split() for _ in range(num_parts)]
 
-                tu_batch.append(tu.TranslationUnit(
+                tu_list.append(tu.TranslationUnit(
                     ((src_lines, meta), tgt_lines), self._start_state))
 
-                if len(tu_batch) == self._batch_size:
-                    yield tu_batch
-                    del tu_batch[:] # TODO V2: Check memory usage on a big corpus
+                if len(tu_list) == self._batch_size:
+                    yield tu_list, {}
+                    del tu_list[:] # TODO V2: Check memory usage on a big corpus
 
         # Preprocess.
         else :
             for line in self._files[0]:
-                tu_batch.append(tu.TranslationUnit(line, self._start_state))
-                if len(tu_batch) == self._batch_size:
-                    yield tu_batch
-                    del tu_batch[:] # TODO V2: Check memory usage on a big corpus
+                tu_list.append(tu.TranslationUnit(line, self._start_state))
+                if len(tu_list) == self._batch_size:
+                    yield tu_list, {}
+                    del tu_list[:] # TODO V2: Check memory usage on a big corpus
 
-        if tu_batch:
-            yield tu_batch
+        if tu_list:
+            yield tu_list, {}
         return
 
 
@@ -100,22 +100,31 @@ class SamplerFileLoader(Loader):
 
     def __call__(self):
 
-        tu_batch = []
+        tu_list = []
         while True:
-            del tu_batch[:] # TODO V2: Check memory usage on a big corpus
+            del tu_list[:] # TODO V2: Check memory usage on a big corpus
             # Read sampled lines from all files and build TUs.
             batch_line = 0
+            annotations = self._file.files.get("annotations", {})
             while (batch_line < self._batch_size and self._current_line < self._file.lines_count):
-                src_line = self._file.files[0].readline().strip()
-                tgt_line = self._file.files[1].readline().strip()
+                src_line = self._file.files["src"].readline().strip()
+                tgt_line = self._file.files["tgt"].readline().strip()
+                annot_lines = {}
+                for key, annot_file in annotations.items():
+                    annot_lines[key] = annot_file.readline().strip()
                 if (self._current_line in self._file.random_sample):
                     while self._file.random_sample[self._current_line] and \
                           batch_line < self._batch_size:
-                        tu_batch.append(tu.TranslationUnit((src_line, tgt_line)))
+                        tu_list.append(tu.TranslationUnit((src_line, tgt_line), annotations=annot_lines))
                         batch_line += 1
                         self._file.random_sample[self._current_line] -= 1
                 self._current_line += 1
-            if not tu_batch:
+            if not tu_list:
                 return
 
-            yield tu_batch
+            meta = self._file.weight.copy()
+            meta["base_name"] = self._file.base_name
+            meta["root"] = self._file.root
+            meta["no_preprocess"] = self._file.no_preprocess
+
+            yield tu_list, meta

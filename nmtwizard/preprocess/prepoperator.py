@@ -150,9 +150,10 @@ class TUOperator(Operator):
     def _preprocess(self, tu_batch, training):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
-        tu_batch = list(chain.from_iterable(self._preprocess_tu(tu, training) for tu in tu_batch))
+        tu_list, meta = tu_batch
+        tu_list = list(chain.from_iterable(self._preprocess_tu(tu, training) for tu in tu_list))
 
-        return tu_batch
+        return tu_list, meta
 
 
     @abc.abstractmethod
@@ -212,16 +213,18 @@ class Tokenizer(Operator):
 
 
     def _preprocess(self, tu_batch, training=True):
-        tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config, self._tgt_tok_config)
-        return tu_batch
+        tu_list, meta = tu_batch
+        tu_list = self._set_tokenizers(tu_list, self._src_tok_config, self._tgt_tok_config)
+        return tu_list, meta
 
 
     def _postprocess(self, tu_batch):
-        tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config_prev, self._tgt_tok_config_prev)
-        return tu_batch
+        tu_list, meta = tu_batch
+        tu_list = self._set_tokenizers(tu_list, self._src_tok_config_prev, self._tgt_tok_config_prev)
+        return tu_list, meta
 
 
-    def _set_tokenizers(self, tu_batch, src_tok_config, tgt_tok_config):
+    def _set_tokenizers(self, tu_list, src_tok_config, tgt_tok_config):
 
         if not self._src_tokenizer and src_tok_config:
             self._src_tokenizer = tokenizer.build_tokenizer(src_tok_config)
@@ -230,8 +233,8 @@ class Tokenizer(Operator):
             self._tgt_tokenizer = tokenizer.build_tokenizer(tgt_tok_config)
 
         # Set tokenizers for TUs.
-        for tu in tu_batch :
+        for tu in tu_list :
             tu.src_tok = (self._src_tokenizer, None)
             tu.tgt_tok = (self._tgt_tokenizer, None)
 
-        return tu_batch
+        return tu_list
