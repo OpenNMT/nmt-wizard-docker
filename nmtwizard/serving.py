@@ -27,11 +27,11 @@ class TranslationOutput(object):
 
 class TranslationExample(
         collections.namedtuple("TranslationExample",
-                               ("config", "tokens", "metadata"))):
+                               ("config", "source_tokens", "target_tokens", "metadata"))):
 
     @property
     def num_parts(self):
-        return len(self.tokens)
+        return len(self.source_tokens)
 
 def pick_free_port():
     """Selects an available port."""
@@ -99,7 +99,7 @@ def start_server(host,
                 result = run_request(
                     json.loads(six.ensure_str(post_body)),
                     functools.partial(preprocess_fn, serving_state),
-                    functools.partial(translate_fn, info=backend_info),
+                    functools.partial(translate_fn, backend_info),
                     functools.partial(postprocess_fn, serving_state),
                     config=config,
                     max_batch_size=global_max_batch_size,
@@ -178,16 +178,16 @@ def run_request(request,
     else:
         # Read request specific options and config.
         options = request.get('options', {})
+        options.setdefault('timeout', timeout)
         config = finalize_config(config, override=options.get('config'))
         max_batch_size = options.get('max_batch_size', max_batch_size)
-        timeout = options.get('timeout', timeout)
 
         examples = preprocess_examples(src, preprocess_fn, config=config)
         outputs = translate_examples(
             examples,
             translate_fn,
             max_batch_size=max_batch_size,
-            timeout=timeout)
+            options=options)
         results = postprocess_outputs(outputs, examples, postprocess_fn)
 
     return {'tgt': results}
@@ -202,24 +202,25 @@ def finalize_config(config, override=None, options=None):
             config_util.update_config_with_options(config, options)
     return config
 
-def preprocess_text(text, func, config=None):
+def preprocess_text(func, source_text, target_text=None, config=None):
     """Applies preprocessing function on text."""
-    output = func(text, config)
+    result = func(source_text, target_text, config)
 
+    source_tokens = result[0]
+    target_tokens = result[1]
     # Preprocessing may return additional metadata alongside tokens.
-    if isinstance(output, tuple):
-        tokens, metadata = output
-    else:
-        tokens, metadata = output, None
+    metadata = result[2] if len(result) >= 3 else None
 
     # Move to the general multiparts representation.
-    if not tokens or not isinstance(tokens[0], list):
-        tokens = [tokens]
+    if not source_tokens or not isinstance(source_tokens[0], list):
+        source_tokens = [source_tokens]
+        target_tokens = [target_tokens]
         metadata = [metadata]
 
     return TranslationExample(
         config=config,
-        tokens=tokens,
+        source_tokens=source_tokens,
+        target_tokens=target_tokens,
         metadata=metadata)
 
 def preprocess_examples(raw_examples, func, config=None):
@@ -231,11 +232,12 @@ def preprocess_examples(raw_examples, func, config=None):
         text = raw_example.get('text')
         if text is None:
             raise ValueError('missing text field in example %d' % i)
+        output_prefix = raw_example.get('output_prefix')
         example_config = finalize_config(
             config,
             override=raw_example.get('config'),
             options=raw_example.get('options'))
-        example = preprocess_text(text, func, config=example_config)
+        example = preprocess_text(func, text, output_prefix, example_config)
         examples.append(example)
     return examples
 
@@ -244,13 +246,13 @@ def postprocess_output(output, example, func):
     if example.num_parts > 1:
         # For multi parts inputs, send all parts to the postprocessing.
         tgt_tokens = output.output
-        src_context = (example.tokens, example.metadata)
+        src_context = (example.source_tokens, example.metadata)
         score = sum(output.score) if all(s is not None for s in output.score) else None
         align = None
     else:
         # Otherwise just take the first element and pass metadata only if defined.
         tgt_tokens = output.output[0]
-        src_tokens = example.tokens[0]
+        src_tokens = example.source_tokens[0]
         src_metadata = example.metadata[0]
         src_context = src_tokens if src_metadata is None else (src_tokens, src_metadata)
         score = output.score[0]
@@ -294,11 +296,11 @@ def align_tokens(src_tokens, tgt_tokens, attention):
             "src": [{"range": src_range, "id": src_id}]})
     return alignments
 
-def translate_examples(examples, func, max_batch_size=None, timeout=None):
+def translate_examples(examples, func, max_batch_size=None, options=None):
     """Translates examples."""
     flat_outputs = []
-    for batch in batch_iterator(examples, max_batch_size=max_batch_size):
-        hypotheses = func(batch, timeout=timeout)
+    for source_tokens, target_tokens in batch_iterator(examples, max_batch_size=max_batch_size):
+        hypotheses = func(source_tokens, target_tokens, options)
         if hypotheses is None:
             raise RuntimeError('translation request timed out')
         flat_outputs.extend(hypotheses)
@@ -306,18 +308,20 @@ def translate_examples(examples, func, max_batch_size=None, timeout=None):
 
 def batch_iterator(examples, max_batch_size=None):
     """Yields batch of tokens not larger than max_batch_size."""
-    all_tokens = []
+    source_tokens = []
+    target_tokens = []
     for example in examples:
-        all_tokens.extend(example.tokens)
-    batch_size = len(all_tokens)
+        source_tokens.extend(example.source_tokens)
+        target_tokens.extend(example.target_tokens)
+    batch_size = len(source_tokens)
     if max_batch_size is None or batch_size <= max_batch_size:
-        yield all_tokens
+        yield source_tokens, target_tokens
     else:
         offset = 0
         while offset < batch_size:
             lower_bound = offset
             upper_bound = min(offset + max_batch_size, batch_size)
-            yield all_tokens[lower_bound:upper_bound]
+            yield source_tokens[lower_bound:upper_bound], target_tokens[lower_bound:upper_bound]
             offset = upper_bound
 
 def unflatten_outputs(flat_outputs, examples):

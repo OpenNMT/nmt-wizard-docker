@@ -10,40 +10,46 @@ def _make_example(tokens, metadata=None):
         metadata = [None]
     return serving.TranslationExample(
         config=None,
-        tokens=tokens,
+        source_tokens=tokens,
+        target_tokens=[None],
         metadata=metadata)
 
 def test_batch_iterator():
     examples = [_make_example([1]), _make_example([2]), _make_example([3])]
-    assert list(serving.batch_iterator(examples)) == [[1, 2, 3]]
-    assert list(serving.batch_iterator(examples, max_batch_size=4)) == [[1, 2, 3]]
-    assert list(serving.batch_iterator(examples, max_batch_size=2)) == [[1, 2], [3]]
+    assert (list(serving.batch_iterator(examples))
+            == [([1, 2, 3], [None, None, None])])
+    assert (list(serving.batch_iterator(examples, max_batch_size=4))
+            == [([1, 2, 3], [None, None, None])])
+    assert (list(serving.batch_iterator(examples, max_batch_size=2))
+            == [([1, 2], [None, None]), ([3], [None])])
 
 def test_preprocess_text():
-    func = lambda s, _: s.split()
-    example = serving.preprocess_text("a b c", func)
-    assert example.tokens == [["a", "b", "c"]]
+    func = lambda *args: (args[0].split(), None)
+    example = serving.preprocess_text(func, "a b c")
+    assert example.source_tokens == [["a", "b", "c"]]
     assert example.metadata == [None]
 
-    func = lambda s, _: (s.split(), len(s))
-    example = serving.preprocess_text("a b c", func)
-    assert example.tokens == [["a", "b", "c"]]
+    func = lambda *args: (args[0].split(), args[1].split(), len(args[0]))
+    example = serving.preprocess_text(func, "a b c", target_text="d e")
+    assert example.source_tokens == [["a", "b", "c"]]
+    assert example.target_tokens == [["d", "e"]]
     assert example.metadata == [5]
 
-    func = lambda s, _: ([s.split()[:2], s.split()[2:]], [1, 2])
-    example = serving.preprocess_text("a b c d", func)
-    assert example.tokens == [["a", "b"], ["c", "d"]]
+    func = lambda *args: ([args[0].split()[:2], args[0].split()[2:]], None, [1, 2])
+    example = serving.preprocess_text(func, "a b c d")
+    assert example.source_tokens == [["a", "b"], ["c", "d"]]
     assert example.metadata == [1, 2]
 
 def test_preprocess_examples():
-    def func(text, config=None):
+    def func(*args):
+        text = args[0]
         tokens = text.split()
         if len(tokens) > 3:
             tokens = [tokens[:3], tokens[3:]]
             metadata = list(map(len, tokens))
         else:
             metadata = len(tokens)
-        return tokens, metadata
+        return tokens, None, metadata
 
     with pytest.raises(ValueError):
         serving.preprocess_examples(["a b c"], func)
@@ -59,10 +65,10 @@ def test_preprocess_examples():
     examples = serving.preprocess_examples(raw_examples, func, config=config)
     assert len(examples) == 2
     assert examples[0].config == {"a": 42}
-    assert examples[0].tokens == [["a", "b", "c"]]
+    assert examples[0].source_tokens == [["a", "b", "c"]]
     assert examples[0].metadata == [3]
     assert examples[1].config == {"a": 24}
-    assert examples[1].tokens == [["d", "e", "f"], ["g"]]
+    assert examples[1].source_tokens == [["d", "e", "f"], ["g"]]
     assert examples[1].metadata == [3, 1]
 
 def test_postprocess_output():
@@ -172,10 +178,10 @@ def test_align_tokens():
         "tgt": [{"range": (6, 8), "id": 2}]}
 
 def test_translate_examples():
-    def func(batch, timeout=None):
+    def func(source_tokens, target_tokens, options=None):
         return [
             [_make_output(list(reversed(element)))]
-            for element in batch]
+            for element in source_tokens]
 
     examples = [
         _make_example([["a", "b"], ["c", "d"]], metadata=[3, 2]),
@@ -203,19 +209,24 @@ def test_run_request():
 
     assert serving.run_request({"src": []}, None, None, None) == {"tgt": []}
 
-    def preprocess(src, config):
-        return src.split(config["separator"])
-    def translate(batch, timeout=None):
+    def preprocess(src, tgt, config):
+        sep = config["separator"]
+        src = src.split(sep)
+        if tgt is not None:
+            tgt = tgt.split(sep)
+        return src, tgt
+    def translate(source_tokens, target_tokens, options=None):
+        assert options is not None and "config" in options  # Request options are fowarded.
         return [
-            [_make_output(list(reversed(element)))]
-            for element in batch]
+            [_make_output((target if target is not None else []) + list(reversed(source)))]
+            for source, target in zip(source_tokens, target_tokens)]
     def postprocess(src, tgt, config):
         return config["separator"].join(tgt)
 
     config = {"separator": "-"}
     request = {
         "src": [
-            {"text": "a b c"},
+            {"text": "a b c", "output_prefix": "1 2"},
             {"text": "x_y_z", "config": {"separator": "_"}}
         ],
         "options": {
@@ -224,4 +235,4 @@ def test_run_request():
     }
 
     result = serving.run_request(request, preprocess, translate, postprocess, config=config)
-    assert result == {'tgt': [[{'text': 'c b a'}], [{'text': 'z_y_x'}]]}
+    assert result == {'tgt': [[{'text': '1 2 c b a'}], [{'text': 'z_y_x'}]]}

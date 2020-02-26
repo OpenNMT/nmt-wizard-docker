@@ -77,10 +77,10 @@ class OpenNMTTFFramework(Framework):
         translate_fn = tf.saved_model.load(export_dir).signatures['serving_default']
         return None, translate_fn
 
-    def forward_request(self, batch_inputs, info, timeout=None):
-        translate_fn = info
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
+        translate_fn = model_info
 
-        tokens, lengths = utils.pad_lists(batch_inputs, padding_value='')
+        tokens, lengths = utils.pad_lists(inputs, padding_value='')
         outputs = translate_fn(
             tokens=tf.constant(tokens, dtype=tf.string),
             length=tf.constant(lengths, dtype=tf.int32))

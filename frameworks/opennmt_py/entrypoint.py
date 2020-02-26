@@ -104,13 +104,15 @@ class OpenNMTPYFramework(Framework):
         self._run_cmd(["python", "tools/release_model.py", "-m", model, "-o", released_model])
         return {_RELEASED_MODEL_NAME: released_model}
 
-    def forward_request(self, batch_inputs, info, timeout=None):
-        data = [{"src": " ".join(tokens), "id": 0} for tokens in batch_inputs]
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
+        if options is None:
+            options = {}
+        data = [{"src": " ".join(tokens), "id": 0} for tokens in inputs]
         try:
             result = requests.post(
-                "http://127.0.0.1:%d/translator-backend/translate" % info["port"],
+                "http://127.0.0.1:%d/translator-backend/translate" % model_info["port"],
                 json=data,
-                timeout=timeout)
+                timeout=options.get("timeout"))
             return [
                 [serving.TranslationOutput(r["tgt"].split(), score=r["pred_score"])]
                 for r in result.json()[0]]
