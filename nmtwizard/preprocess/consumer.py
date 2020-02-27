@@ -289,17 +289,21 @@ class SamplerFileWriter(Consumer):
         tu_list, _ = tu_batch
         # Write lines to file from TUs
         for tu in tu_list :
+            src_tokens = tu.src_tok.tokens
+            if src_tokens :
+                for part in src_tokens :
+                    part = " ".join(part)
+                    self._files["src"].write("%s\n" % part)
+            else:
+                self._files["src"].write("%s\n" % tu.src_detok)
 
-            src = tu.src_tok.tokens
-            for part in src:
-                part = " ".join(part)
-                self._files["src"].write("%s\n" % part)
-
-            tgt = tu.tgt_tok.tokens
-            for part in tgt:
-                part = " ".join(part)
-                self._files["tgt"].write("%s\n" % part)
-
+            tgt_tokens = tu.tgt_tok.tokens
+            if tgt_tokens :
+                for part in tgt_tokens :
+                    part = " ".join(part)
+                    self._files["tgt"].write("%s\n" % part)
+            else :
+                self._files["tgt"].write("%s\n" % tu.tgt_detok)
 
 def make_consumer(config, result_dir, result, tok_step):
 

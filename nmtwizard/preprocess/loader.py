@@ -122,9 +122,9 @@ class SamplerFileLoader(Loader):
             if not tu_list:
                 return
 
-            meta = self._file.weight.copy()
-            meta["base_name"] = self._file.base_name
-            meta["root"] = self._file.root
-            meta["no_preprocess"] = self._file.no_preprocess
+            batch_meta = self._file.weight.copy()
+            batch_meta["base_name"] = self._file.base_name
+            batch_meta["root"] = self._file.root
+            batch_meta["no_preprocess"] = self._file.no_preprocess
 
-            yield tu_list, meta
+            yield tu_list, batch_meta

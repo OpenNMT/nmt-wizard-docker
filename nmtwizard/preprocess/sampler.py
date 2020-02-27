@@ -110,13 +110,14 @@ def sample(config, source_dir):
             annotations = d_item.get('annotations', {})
             if not isinstance(annotations, dict):
                 raise ValueError("invalid type for 'annotations' field")
-            for key in annotations:
-                if not isinstance(annotations[key], str):
+            for key, annot in annotations.items():
+                if not isinstance(annot, str):
                     raise ValueError("innvalid type for 'annotations' value")
-                if not os.path.isabs(annotations[key]):
-                    annotations[key]=os.path.join(source_dir, annotations[key])
-                if not os.path.exists(annotations[key]):
-                    raise RuntimeError('annotation path %s does not exist' % annotations[key])
+                if not os.path.isabs(annot):
+                    annot=os.path.join(source_dir, annot)
+                    annotations[key] = annot
+                if not os.path.exists(annot):
+                    raise RuntimeError('annotation path %s does not exist' % annot)
 
             # walk over all files in path
             for root, _, files in os.walk(d_item['path']):
@@ -307,11 +308,15 @@ def sample(config, source_dir):
                     lines_kept += 1
 
             f.lines_kept = lines_kept
+
         summary[f.base_name] = {
             "lines_count" : f.lines_count,
             "lines_sampled" : f.lines_kept,
             "pattern" : pattern
         }
+        if 'annotations' in f.files:
+            summary[f.base_name]['annotations'] = f.files['annotations'].keys()
+
         metadata[f.base_name] = extra
 
         _select_lines(f)

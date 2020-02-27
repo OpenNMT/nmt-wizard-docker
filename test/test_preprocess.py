@@ -2,6 +2,7 @@
 
 import pytest
 import shutil
+import os
 
 from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor, TrainingProcessor
 
@@ -99,6 +100,45 @@ def test_sampler(tmpdir):
     assert summary['corpus_specific1']['lines_sampled'] == 0
     assert summary['corpus_specific2']['lines_sampled'] == 0
     assert summary['IT']['lines_sampled'] == 0
+
+
+def test_sampler_with_annotations(tmpdir):
+
+    with open(str(tmpdir.join("train.en")), "w") as en:
+        en.write("\n".join(["1", "2", "3", "4", "5", "6"]))
+    with open(str(tmpdir.join("train.fr")), "w") as fr:
+        fr.write("\n".join(["1", "2", "3", "4", "5", "6"]))
+
+    annot_dir = tmpdir.join("train_enfr_annot")
+    os.makedirs(str(annot_dir))
+    with open(str(annot_dir.join("train")), "w") as annot:
+        annot.write("\n".join(["0.0274","-0.1201", "0.2499", "0.8566", "-0.8025", "0.0892"]))
+
+    from_dir = str(tmpdir)
+    to_dir = str(tmpdir.join("output"))
+    os.makedirs(to_dir)
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "data": {
+            "sample_dist": [
+                {
+                    "path": from_dir,
+                    "distribution" : [ ["train", "*"] ],
+                    "annotations":{
+                        "similarity": "train_enfr_annot"
+                    }
+                }
+            ]
+        }
+    }
+
+    preprocessor = TrainingProcessor(config, from_dir, to_dir)
+    data_path, train_dir, num_samples, summary, metadata = preprocessor.generate_preprocessed_data()
+
+    assert 'annotations' in summary['train'] and summary['train']['annotations'] == ['similarity']
+
 
 # TODO : test generate vocabularies with several tokenizations
 def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_config=None, multi=False):

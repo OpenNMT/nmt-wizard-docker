@@ -150,10 +150,10 @@ class TUOperator(Operator):
     def _preprocess(self, tu_batch, training):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
-        tu_list, meta = tu_batch
+        tu_list, meta_batch = tu_batch
         tu_list = list(chain.from_iterable(self._preprocess_tu(tu, training) for tu in tu_list))
 
-        return tu_list, meta
+        return tu_list, meta_batch
 
 
     @abc.abstractmethod
@@ -213,15 +213,15 @@ class Tokenizer(Operator):
 
 
     def _preprocess(self, tu_batch, training=True):
-        tu_list, meta = tu_batch
+        tu_list, meta_batch = tu_batch
         tu_list = self._set_tokenizers(tu_list, self._src_tok_config, self._tgt_tok_config)
-        return tu_list, meta
+        return tu_list, meta_batch
 
 
     def _postprocess(self, tu_batch):
-        tu_list, meta = tu_batch
+        tu_list, meta_batch = tu_batch
         tu_list = self._set_tokenizers(tu_list, self._src_tok_config_prev, self._tgt_tok_config_prev)
-        return tu_list, meta
+        return tu_list, meta_batch
 
 
     def _set_tokenizers(self, tu_list, src_tok_config, tgt_tok_config):
