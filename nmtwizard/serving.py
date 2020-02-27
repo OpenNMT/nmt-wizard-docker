@@ -232,12 +232,12 @@ def preprocess_examples(raw_examples, func, config=None):
         text = raw_example.get('text')
         if text is None:
             raise ValueError('missing text field in example %d' % i)
-        output_prefix = raw_example.get('output_prefix')
+        target_prefix = raw_example.get('target_prefix')
         example_config = finalize_config(
             config,
             override=raw_example.get('config'),
             options=raw_example.get('options'))
-        example = preprocess_text(func, text, output_prefix, example_config)
+        example = preprocess_text(func, text, target_prefix, example_config)
         examples.append(example)
     return examples
 

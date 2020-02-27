@@ -226,7 +226,7 @@ def test_run_request():
     config = {"separator": "-"}
     request = {
         "src": [
-            {"text": "a b c", "output_prefix": "1 2"},
+            {"text": "a b c", "target_prefix": "1 2"},
             {"text": "x_y_z", "config": {"separator": "_"}}
         ],
         "options": {
