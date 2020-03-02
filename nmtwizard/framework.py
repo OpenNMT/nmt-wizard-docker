@@ -848,13 +848,20 @@ class Framework(utility.Utility):
             state['postprocessor'] = preprocess.Postprocessor(config)
         return state
 
-    def _preprocess_input(self, state, input, config):
-        if isinstance(input, list):
-            return input
-        preprocessor = state.get('preprocessor')
-        if preprocessor is None:
-            return input.split()
-        return preprocessor.process_input(input)
+    def _preprocess_input(self, state, source, target, config):
+        if not isinstance(source, list) and not isinstance(target, list):
+            preprocessor = state.get('preprocessor')
+            if preprocessor is None:
+                source = source.split()
+                if target is not None:
+                    target = target.split()
+            else:
+                if target is not None:
+                    input = (source, target)
+                else :
+                    input = source
+                source, target = preprocessor.process_input(input)
+        return source, target
 
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):

@@ -195,6 +195,7 @@ class TrainingProcessor(Processor):
 class InferenceProcessor(Processor):
 
     def __init__(self, config):
+        self._postprocess = False
         self._pipeline = prepoperator.InferencePipeline(config)
 
 
@@ -202,15 +203,15 @@ class InferenceProcessor(Processor):
         """Processes one translation example at inference.
 
               In preprocess:
-                 input is one single-part source as raw string
-                 output is one (source, metadata), where source is tokenized and possibly multipart.
+                 input is source or (source, target), single-part and raw string, with incomplete translation in target (if any).
+                 output is ((source, metadata), target), tokenized and possibly multipart, where target can be None.
 
              In postprocess:
-                 input is ((source, metadata), target), where source and target are tokenized and possibly multipart
-                 outputs is one single-part postprocessed target."""
+                 input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
+                 output is single-part postprocessed target."""
 
         basic_loader = loader.BasicLoader(input, self._pipeline.start_state)
-        basic_writer = consumer.BasicWriter()
+        basic_writer = consumer.BasicWriter(self._postprocess)
         self.process(basic_loader,
                      basic_writer)
 
@@ -250,4 +251,5 @@ class InferenceProcessor(Processor):
 class Postprocessor(InferenceProcessor):
 
     def __init__(self, config):
+        self._postprocess = True
         self._pipeline = prepoperator.PostprocessPipeline(config)

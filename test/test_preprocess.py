@@ -303,9 +303,15 @@ def test_preprocess_pipeline(tmpdir):
         preprocessor.generate_preprocessed_data()
 
     prep = InferenceProcessor(config)
-    res, _ = prep.process_input("This is a test.")
-    assert res[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
+    source, target = prep.process_input("This is a test.")
+    source_no_meta = source[0]
+    assert source_no_meta[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
+    assert target == None
+
+    source2, target = prep.process_input(("This is a test.", "Das ist..."))
+    assert source2 == source
+    assert target[0] == ['Das', 'ist', '￭.', '￭.', '￭.']
 
     post = Postprocessor(config)
-    res = post.process_input((res, res))
-    assert res == "This is a test."
+    target_postprocessed = post.process_input((source, target))
+    assert target_postprocessed == "Das ist..."

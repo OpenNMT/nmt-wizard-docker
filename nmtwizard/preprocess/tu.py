@@ -67,7 +67,7 @@ class TranslationUnit(object):
 
         if isinstance(input, tuple):
             # We have both source and target.
-            # Can be raw (in training) or tokenized and in parts (in postprocess).
+            # Can be raw (in training, in inference with incomplete target) or tokenized and in parts (in postprocess).
             source, target = input
             self.__target = TranslationSide()
             if isinstance(source, tuple):
@@ -83,13 +83,13 @@ class TranslationUnit(object):
                 self.__source.tok = (src_tokenizer, source)
                 self.__target.tok = (tgt_tokenizer, target)
             else:
-                # Preprocess in training.
+                # Preprocess in training or in inference with incomplete target.
                 self.__source.raw = source.strip()
                 self.__target.raw = target.strip()
                 self.__source.detok = self.__source.raw
                 self.__target.detok = self.__target.raw
         else:
-            # We have source only: preprocess at inferences.
+            # We have source only: preprocess in inference with source only.
             self.__source.raw = input.strip()
             self.__source.detok = self.__source.raw
 

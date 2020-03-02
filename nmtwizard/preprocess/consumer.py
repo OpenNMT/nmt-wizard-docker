@@ -221,17 +221,23 @@ class VocabularyBuilder(Consumer):
 class BasicWriter(Consumer):
     """BasicWriter writes one pre/postprocessed TU at inference."""
 
+    def __init__(self, postprocess):
+        self._postprocess = postprocess
+
     def __call__(self, tu_batch):
-        """ In preprocess, output is (source, metadata), where source is tokenized and possibly multipart.
+        """ In preprocess, output is ((source, metadata), target), tokenized and possibly multipart, where target is either None or incomplete translation.
+
             In postprocess, output is postprocessed target, untokenized and one-part."""
 
         tu_list, _ = tu_batch
         tu = tu_list[0]
         # Postprocess.
-        if tu.tgt_detok:
+        if self._postprocess:
             self.output = tu.tgt_detok
+        # Preprocess in inference.
         else:
-            self.output = (tu.src_tok.tokens, tu.metadata)
+            target = tu.tgt_tok.tokens if tu.tgt_tok else None
+            self.output = ((tu.src_tok.tokens, tu.metadata), target)
 
 
 class FileWriter(Consumer):
