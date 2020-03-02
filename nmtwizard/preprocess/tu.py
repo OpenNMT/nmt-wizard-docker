@@ -62,7 +62,7 @@ class TranslationUnit(object):
 
         self.__source = TranslationSide()
         self.__target = None
-        self.__metadata = [1] #TODO: proper metadata
+        self.__metadata = [None] #TODO: proper metadata
         self.__annotations = annotations
 
         if isinstance(input, tuple):
@@ -136,6 +136,10 @@ class TranslationUnit(object):
     @property
     def metadata(self):
         return self.__metadata
+
+    @metadata.setter
+    def metadata(self, metadata):
+        self.__metadata = metadata
 
     @property
     def annotations(self):
