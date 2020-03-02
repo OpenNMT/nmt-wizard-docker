@@ -5,40 +5,69 @@ from nmtwizard import serving
 def _make_output(tokens, score=None, attention=None):
     return serving.TranslationOutput(tokens, score=score, attention=attention)
 
-def _make_example(tokens, metadata=None):
+def _make_example(tokens, index=0, metadata=None, mode="default"):
     if metadata is None:
         metadata = [None]
     return serving.TranslationExample(
+        index=index,
         config=None,
         source_tokens=tokens,
-        target_tokens=[None],
+        target_tokens=[None] * len(tokens),
+        mode=mode,
         metadata=metadata)
 
 def test_batch_iterator():
-    examples = [_make_example([1]), _make_example([2]), _make_example([3])]
-    assert (list(serving.batch_iterator(examples))
-            == [([1, 2, 3], [None, None, None])])
-    assert (list(serving.batch_iterator(examples, max_batch_size=4))
-            == [([1, 2, 3], [None, None, None])])
-    assert (list(serving.batch_iterator(examples, max_batch_size=2))
-            == [([1, 2], [None, None]), ([3], [None])])
+    examples = [
+        _make_example([1], index=0),
+        _make_example([2], index=1, mode="alternatives"),
+        _make_example([3, 4], index=2),
+        _make_example([5], index=3, mode="alternatives"),
+    ]
 
-def test_preprocess_text():
+    sorted_batches = list(sorted(
+        serving.batch_iterator(examples, max_batch_size=2),
+        key=lambda batch: batch.mode))
+    assert sorted_batches == [
+        serving.TranslationBatch(
+            indices=[1, 3],
+            source_tokens=[2, 5],
+            target_tokens=[None, None],
+            mode="alternatives"),
+        serving.TranslationBatch(
+            indices=[0, 2],
+            source_tokens=[1, 3],
+            target_tokens=[None, None],
+            mode="default"),
+        serving.TranslationBatch(
+            indices=[2],
+            source_tokens=[4],
+            target_tokens=[None],
+            mode="default"),
+    ]
+
+def test_preprocess_example():
     func = lambda *args: (args[0].split(), None)
-    example = serving.preprocess_text(func, "a b c")
+    example = serving.preprocess_example(func, 1, {"text": "a b c"})
+    assert example.index == 1
     assert example.source_tokens == [["a", "b", "c"]]
     assert example.metadata == [None]
+    assert example.mode == "default"
 
     func = lambda *args: (args[0].split(), args[1].split(), len(args[0]))
-    example = serving.preprocess_text(func, "a b c", target_text="d e")
+    raw_example = {"text": "a b c", "target_prefix": "d e", "mode": "alternatives"}
+    example = serving.preprocess_example(func, 2, raw_example)
+    assert example.index == 2
     assert example.source_tokens == [["a", "b", "c"]]
     assert example.target_tokens == [["d", "e"]]
     assert example.metadata == [5]
+    assert example.mode == "alternatives"
 
     func = lambda *args: ([args[0].split()[:2], args[0].split()[2:]], None, [1, 2])
-    example = serving.preprocess_text(func, "a b c d")
+    example = serving.preprocess_example(func, 3, {"text": "a b c d"})
+    assert example.index == 3
     assert example.source_tokens == [["a", "b"], ["c", "d"]]
     assert example.metadata == [1, 2]
+    assert example.mode == "default"
 
 def test_preprocess_examples():
     def func(*args):
@@ -184,8 +213,8 @@ def test_translate_examples():
             for element in source_tokens]
 
     examples = [
-        _make_example([["a", "b"], ["c", "d"]], metadata=[3, 2]),
-        _make_example([["e", "f", "g"]], metadata=[4])
+        _make_example([["a", "b"], ["c", "d"]], index=0, metadata=[3, 2]),
+        _make_example([["e", "f", "g"]], index=1, metadata=[4])
     ]
 
     outputs = serving.translate_examples(examples, func)
@@ -216,7 +245,9 @@ def test_run_request():
             tgt = tgt.split(sep)
         return src, tgt
     def translate(source_tokens, target_tokens, options=None):
-        assert options is not None and "config" in options  # Request options are fowarded.
+        assert options is not None
+        assert "config" in options  # Request options are fowarded.
+        assert "mode" in options
         return [
             [_make_output((target if target is not None else []) + list(reversed(source)))]
             for source, target in zip(source_tokens, target_tokens)]
@@ -226,7 +257,7 @@ def test_run_request():
     config = {"separator": "-"}
     request = {
         "src": [
-            {"text": "a b c", "target_prefix": "1 2"},
+            {"text": "a b c", "target_prefix": "1 2", "mode": "alternatives"},
             {"text": "x_y_z", "config": {"separator": "_"}}
         ],
         "options": {

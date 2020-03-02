@@ -27,11 +27,29 @@ class TranslationOutput(object):
 
 class TranslationExample(
         collections.namedtuple("TranslationExample",
-                               ("config", "source_tokens", "target_tokens", "metadata"))):
+                               (
+                                   "index",
+                                   "config",
+                                   "source_tokens",
+                                   "target_tokens",
+                                   "mode",
+                                   "metadata",
+                               ))):
 
     @property
     def num_parts(self):
         return len(self.source_tokens)
+
+class TranslationBatch(
+        collections.namedtuple("TranslationBatch",
+                               (
+                                   "indices",
+                                   "source_tokens",
+                                   "target_tokens",
+                                   "mode",
+                               ))):
+    pass
+
 
 def pick_free_port():
     """Selects an available port."""
@@ -202,8 +220,20 @@ def finalize_config(config, override=None, options=None):
             config_util.update_config_with_options(config, options)
     return config
 
-def preprocess_text(func, source_text, target_text=None, config=None):
-    """Applies preprocessing function on text."""
+def preprocess_example(func, index, raw_example, config=None):
+    """Applies preprocessing function on example."""
+    if not isinstance(raw_example, dict):
+        raise ValueError('example %d is not a JSON object' % index)
+    source_text = raw_example.get('text')
+    if source_text is None:
+        raise ValueError('missing text field in example %d' % index)
+    target_text = raw_example.get('target_prefix')
+    mode = raw_example.get('mode', 'default')
+    config = finalize_config(
+        config,
+        override=raw_example.get('config'),
+        options=raw_example.get('options'))
+
     result = func(source_text, target_text, config)
 
     source_tokens = result[0]
@@ -218,26 +248,18 @@ def preprocess_text(func, source_text, target_text=None, config=None):
         metadata = [metadata]
 
     return TranslationExample(
+        index=index,
         config=config,
         source_tokens=source_tokens,
         target_tokens=target_tokens,
+        mode=mode,
         metadata=metadata)
 
 def preprocess_examples(raw_examples, func, config=None):
     """Applies preprocessing on a list of example structures."""
     examples = []
     for i, raw_example in enumerate(raw_examples):
-        if not isinstance(raw_example, dict):
-            raise ValueError('example %d is not a JSON object' % i)
-        text = raw_example.get('text')
-        if text is None:
-            raise ValueError('missing text field in example %d' % i)
-        target_prefix = raw_example.get('target_prefix')
-        example_config = finalize_config(
-            config,
-            override=raw_example.get('config'),
-            options=raw_example.get('options'))
-        example = preprocess_text(func, text, target_prefix, example_config)
+        example = preprocess_example(func, i, raw_example, config=config)
         examples.append(example)
     return examples
 
@@ -298,46 +320,62 @@ def align_tokens(src_tokens, tgt_tokens, attention):
 
 def translate_examples(examples, func, max_batch_size=None, options=None):
     """Translates examples."""
-    flat_outputs = []
-    for source_tokens, target_tokens in batch_iterator(examples, max_batch_size=max_batch_size):
-        hypotheses = func(source_tokens, target_tokens, options)
-        if hypotheses is None:
-            raise RuntimeError('translation request timed out')
-        flat_outputs.extend(hypotheses)
-    return unflatten_outputs(flat_outputs, examples)
+    if options is None:
+        options = {}
+    hypotheses_per_example = collections.defaultdict(list)
+    for batch in batch_iterator(examples, max_batch_size=max_batch_size):
+        batch_options = options.copy()
+        batch_options['mode'] = batch.mode
+        batch_hypotheses = func(batch.source_tokens, batch.target_tokens, batch_options)
+        if batch_hypotheses is None:
+            raise RuntimeError('translation failed or timed out')
+
+        # Gather hypotheses by example id.
+        for index, hypotheses in zip(batch.indices, batch_hypotheses):
+            hypotheses_per_example[index].append(hypotheses)
+
+    # Merge multi-part hypotheses.
+    outputs = []
+    for index, hypotheses in six.iteritems(hypotheses_per_example):
+        num_hypotheses = len(hypotheses[0])
+        outputs.insert(
+            index,
+            [merge_translation_outputs(part[h] for part in hypotheses)
+             for h in range(num_hypotheses)])
+
+    return outputs
 
 def batch_iterator(examples, max_batch_size=None):
     """Yields batch of tokens not larger than max_batch_size."""
-    source_tokens = []
-    target_tokens = []
+    examples_per_mode = collections.defaultdict(list)
     for example in examples:
-        source_tokens.extend(example.source_tokens)
-        target_tokens.extend(example.target_tokens)
-    batch_size = len(source_tokens)
-    if max_batch_size is None or batch_size <= max_batch_size:
-        yield source_tokens, target_tokens
-    else:
-        offset = 0
-        while offset < batch_size:
-            lower_bound = offset
-            upper_bound = min(offset + max_batch_size, batch_size)
-            yield source_tokens[lower_bound:upper_bound], target_tokens[lower_bound:upper_bound]
-            offset = upper_bound
-
-def unflatten_outputs(flat_outputs, examples):
-    """Unflattens outputs according to examples parts."""
-    outputs = []
-    offset = 0
-    for example in examples:
-        num_parts = example.num_parts
-        hypotheses = flat_outputs[offset:offset + num_parts]
-        offset += num_parts
-        # Extract and merge parts of each hypothesis.
-        num_hypotheses = len(hypotheses[0])
-        outputs.append([
-            merge_translation_outputs([part[h] for part in hypotheses])
-            for h in range(num_hypotheses)])
-    return outputs
+        examples_per_mode[example.mode].append(example)
+    for mode, examples in six.iteritems(examples_per_mode):
+        indices = []
+        source_tokens = []
+        target_tokens = []
+        for example in examples:
+            indices.extend(example.index for _ in range(example.num_parts))
+            source_tokens.extend(example.source_tokens)
+            target_tokens.extend(example.target_tokens)
+        batch_size = len(source_tokens)
+        if max_batch_size is None or batch_size <= max_batch_size:
+            yield TranslationBatch(
+                indices=indices,
+                source_tokens=source_tokens,
+                target_tokens=target_tokens,
+                mode=mode)
+        else:
+            offset = 0
+            while offset < batch_size:
+                lower_bound = offset
+                upper_bound = min(offset + max_batch_size, batch_size)
+                yield TranslationBatch(
+                    indices=indices[lower_bound:upper_bound],
+                    source_tokens=source_tokens[lower_bound:upper_bound],
+                    target_tokens=target_tokens[lower_bound:upper_bound],
+                    mode=mode)
+                offset = upper_bound
 
 def merge_translation_outputs(parts):
     """Merges multiple translation outputs in a single one."""
