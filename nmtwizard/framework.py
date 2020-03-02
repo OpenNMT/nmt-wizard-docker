@@ -138,7 +138,9 @@ class Framework(utility.Utility):
 
     @abc.abstractmethod
     def serve(self, config, model_path, gpuid=0):
-        """Start a framework dependent serving service in the background.
+        """Loads the model for serving.
+
+        Frameworks could start a backend server or simply load the model from Python.
 
         Args:
           config: The run configuration.
@@ -146,19 +148,20 @@ class Framework(utility.Utility):
           gpuid: The GPU identifier.
 
         Returns:
-          A tuple with the created process and a dictionary containing
-          information to reach the backend service (e.g. port number).
+          A tuple with the created process (if any) and a dictionary containing
+          information to use the model (e.g. port number for a backend server).
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def forward_request(self, batch_inputs, info, timeout=None):
-        """Forward a frontend translation request to the framework serving service.
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
+        """Forwards a translation request to the model.
 
         Args:
-          batch_inputs: A list of inputs (usually tokens).
-          info: The backend service information returned by serve().
-          timeout: Timeout in seconds for the translation request.
+          model_info: The information to reach the model, as returned by serve().
+          inputs: A list of inputs.
+          outputs: A list of (possibly partial) outputs.
+          options: Additional translation options.
 
         Returns:
           A list of list (batch x num. hypotheses) of serving.TranslationOutput.
@@ -847,23 +850,27 @@ class Framework(utility.Utility):
             state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
         return state
 
-    def _preprocess_input(self, state, input, config):
-        if isinstance(input, list):
-            tokens = input
-        elif 'src_tokenizer' in state:
-            tokens, _ = state['src_tokenizer'].tokenize(input)
-        else:
-            tokens = input.split()
-        return tokens
+    def _preprocess_input(self, state, source, target, config):
+
+        def _maybe_tokenize(tokenizer, text):
+            if isinstance(text, list):
+                return text
+            if tokenizer is None:
+                return text.split()
+            return tokenizer.tokenize(text)[0]
+
+        source = _maybe_tokenize(state.get('src_tokenizer'), source)
+        if target is not None:
+            target = _maybe_tokenize(state.get('tgt_tokenizer'), target)
+        return source, target
 
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
-            text = target
-        elif 'tgt_tokenizer' in state:
-            text = state['tgt_tokenizer'].detokenize(target)
-        else:
-            text = ' '.join(target)
-        return text
+            return target
+        tokenizer = state.get('tgt_tokenizer')
+        if tokenizer is None:
+            return ' '.join(target)
+        return tokenizer.detokenize(target)
 
     def _preprocess_file(self, config, input):
         if 'tokenization' in config:
