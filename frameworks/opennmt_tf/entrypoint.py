@@ -129,9 +129,9 @@ class OpenNMTTFFramework(Framework):
 
         # Prepare vocabulary if not already done.
         if src_vocab is None:
-            src_vocab = self._convert_vocab(config['tokenization']['source']['vocabulary'])
+            src_vocab = self._convert_vocab(config['vocabulary']['source']['path'])
         if tgt_vocab is None:
-            tgt_vocab = self._convert_vocab(config['tokenization']['target']['vocabulary'])
+            tgt_vocab = self._convert_vocab(config['vocabulary']['target']['path'])
 
         options = config['options']
         run_config = _build_run_config(

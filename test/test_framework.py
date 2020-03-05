@@ -374,12 +374,10 @@ def test_train_with_sampling_v2(tmpdir):
             {
                 "op":"tokenization",
                 "source": {
-                    "vocabulary": "${DATA_DIR}/vocab/en-vocab.txt",
                     "mode": "aggressive",
                     "joiner_annotate": True
                 },
                 "target": {
-                    "vocabulary": "${DATA_TRAIN_DIR}/vocab/de-vocab.txt",
                     "mode": "aggressive",
                     "joiner_annotate": True
                 }
@@ -445,15 +443,15 @@ def test_release_change_file(tmpdir):
     new_vocab = "vocab.src"
     with open(str(tmpdir.join(new_vocab)), "w") as vocab_src:
         vocab_src.write("0\n")
-    override = {"tokenization": {"source": {"vocabulary": "${TMP_DIR}/%s" % new_vocab}}}
+    override = {"vocabulary": {"source": {"path": "${TMP_DIR}/%s" % new_vocab}}}
     _run_framework(tmpdir, "release0", "release",
                    parent="model0", config=override,
                    env={"TMP_DIR": str(tmpdir)})
     model_dir = str(tmpdir.join("models").join("model0_release"))
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_vocab
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % new_vocab
     assert os.path.isfile(
-        os.path.join(model_dir, os.path.basename(config["tokenization"]["source"]["vocabulary"])))
+        os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
 
 def test_release_with_inference_options(tmpdir):
     config = copy.deepcopy(config_base)

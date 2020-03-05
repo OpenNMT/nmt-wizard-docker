@@ -1,16 +1,25 @@
 {
     "source": "en",
     "target": "de",
-    "tokenization": {
+    "preprocess":[
+        {
+            "op":"tokenization",
+            "source": {
+                "mode": "aggressive",
+                "joiner_annotate": true
+            },
+            "target": {
+                "mode": "aggressive",
+                "joiner_annotate": true
+            }
+        }
+    ],
+    "vocabulary":{
         "source": {
-            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
-            "mode": "aggressive",
-            "joiner_annotate": true
+            "path": "${CORPUS_DIR}/vocab/en-vocab.txt"
         },
         "target": {
-            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
-            "mode": "aggressive",
-            "joiner_annotate": true
+            "path": "${CORPUS_DIR}/vocab/de-vocab.txt"
         }
     },
     "options": {

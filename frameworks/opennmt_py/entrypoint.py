@@ -31,9 +31,9 @@ class OpenNMTPYFramework(Framework):
         # Preprocess training files.
         options_preprocess = copy.deepcopy(config['options']['config']['preprocess'])
         options_preprocess['src_vocab'] = self._convert_vocab(
-            config['tokenization']['source']['vocabulary'])
+            config['vocabulary']['source']['path'])
         options_preprocess['tgt_vocab'] = self._convert_vocab(
-            config['tokenization']['target']['vocabulary'])
+            config['vocabulary']['target']['path'])
         bin_file = os.path.join(self._data_dir, "bin")
         cmd = ["python", "preprocess.py",
                "-train_src", src_file,
