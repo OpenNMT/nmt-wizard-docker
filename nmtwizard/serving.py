@@ -93,6 +93,8 @@ def start_server(host,
         def do_POST(self):
             if self.path == '/translate':
                 self.translate()
+            elif self.path == '/status':
+                self.send_response(200)
             elif self.path == '/unload_model':
                 self.unload_model()
             elif self.path == '/reload_model':
