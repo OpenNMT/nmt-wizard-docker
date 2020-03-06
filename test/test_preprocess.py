@@ -261,6 +261,7 @@ def test_generate_vocabularies(tmpdir):
 
     _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_bpe, True)
 
+
 def test_preprocess_pipeline(tmpdir):
 
     config = {

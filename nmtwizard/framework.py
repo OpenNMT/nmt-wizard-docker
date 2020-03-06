@@ -460,9 +460,17 @@ class Framework(utility.Utility):
         objects, preprocess_config, vocab_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
-        local_config["preprocess"] = utility.resolve_environment_variables(preprocess_config)
+        # Old tokenization configuration
+        if isinstance(preprocess_config, dict):
+            local_config["tokenization"] = utility.resolve_environment_variables(preprocess_config)
+            config["tokenization"] = preprocess_config
+        elif isinstance(preprocess_config, list):
+            local_config["preprocess"] = utility.resolve_environment_variables(preprocess_config)
+            config["preprocess"] = preprocess_config
+        else:
+            raise RuntimeError("Unknown preprocess configuration after buildvocab: \"{}\"".format(preprocess_config))
+
         local_config["vocabulary"] = utility.resolve_environment_variables(vocab_config)
-        config["preprocess"] = preprocess_config
         config["vocabulary"] = vocab_config
         config['model'] = model_id
         config['modelType'] = 'base'
