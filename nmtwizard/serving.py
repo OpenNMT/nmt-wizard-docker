@@ -97,6 +97,8 @@ def start_server(host,
                 self.unload_model()
             elif self.path == '/reload_model':
                 self.reload_model()
+            elif self.path == '/status':
+                self.send_response(200)
             else:
                 self.send_error(404, 'invalid route %s' % self.path)
 
