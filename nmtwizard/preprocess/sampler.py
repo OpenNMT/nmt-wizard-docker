@@ -315,7 +315,7 @@ def sample(config, source_dir):
             "pattern" : pattern
         }
         if 'annotations' in f.files:
-            summary[f.base_name]['annotations'] = f.files['annotations'].keys()
+            summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
 
         metadata[f.base_name] = extra
 
