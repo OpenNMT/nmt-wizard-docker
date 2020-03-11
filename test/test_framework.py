@@ -224,6 +224,25 @@ config_base = {
     "options": {}
 }
 
+config_base_old = {
+    "source": "en",
+    "target": "de",
+    "tokenization" : {
+        "source": {
+            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": True
+        },
+        "target": {
+            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": True
+        }
+    },
+    "options": {}
+}
+
+
 def _clear_workspace(tmpdir):
     tmpdir = str(tmpdir)
     workspace_dir = os.path.join(tmpdir, "workspace")
@@ -291,6 +310,14 @@ def test_train(tmpdir):
         os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["vocabulary"]["target"]["path"])))
+
+    model_dir_old = _run_framework(tmpdir, "model1", "train", config=config_base_old)
+    config = _read_config(model_dir_old)
+    assert os.path.isfile(
+        os.path.join(model_dir_old, os.path.basename(config["vocabulary"]["source"]["path"])))
+    assert os.path.isfile(
+        os.path.join(model_dir_old, os.path.basename(config["vocabulary"]["target"]["path"])))
+
     assert DummyCheckpoint(model_dir).index() == 0
 
 def test_train_with_storage_in_config(tmpdir):

@@ -951,7 +951,9 @@ class Framework(utility.Utility):
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
 
+
     def _finalize_config(self, config, training=True):
+        config_util.old_to_new_config(config)
         config = utility.resolve_environment_variables(config, training=training)
         config = self._upgrade_data_config(config, training=training)
         config = utility.resolve_remote_files(config, self._shared_dir, self._storage)

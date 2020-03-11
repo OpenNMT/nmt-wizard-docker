@@ -100,3 +100,28 @@ def update_config_with_options(config, options):
             continue  # Option not passed for this request.
         dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
         dst_config[dst_key] = option_value
+
+
+def old_to_new_config(config):
+    # old configurations
+    if not config:
+        return
+    tok_config = config.get("tokenization")
+    if tok_config:
+        vocab_src = tok_config["source"].pop("vocabulary", None)
+        vocab_tgt = tok_config["target"].pop("vocabulary", None)
+        if not "vocabulary" in config and (vocab_src or vocab_tgt):
+            config["vocabulary"] = {}
+            if vocab_src:
+                config["vocabulary"]["source"] = { "path": vocab_src }
+            if vocab_tgt:
+                config["vocabulary"]["target"] = { "path": vocab_tgt }
+
+        if not "preprocess" in config:
+            config["preprocess"] = [
+                {
+                    "op":"tokenization",
+                    "source": tok_config["source"],
+                    "target": tok_config["target"]
+                }
+            ]
