@@ -72,9 +72,9 @@ class CloudTranslationFramework(Framework):
         self._check_lang(config['target'])
         return None, {'source': config['source'], 'target': config['target']}
 
-    def forward_request(self, batch_inputs, info, timeout=None):
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
         return [[TranslationOutput(translation)] for translation in self.translate_batch(
-            batch_inputs, info['source'], info['target'])]
+            inputs, model_info['source'], model_info['target'])]
 
     def _preprocess_input(self, state, input):
         return input

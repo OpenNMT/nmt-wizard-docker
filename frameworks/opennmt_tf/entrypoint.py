@@ -74,13 +74,23 @@ class OpenNMTTFFramework(Framework):
                              'TensorFlow 2.x binaries. To upgrade automatically, you can release '
                              'or serve from a OpenNMT-tf 1.x training checkpoint.')
         export_dir = os.path.join(model_path, _SAVED_MODEL_DIR)
+
+        # TensorFlow Addons lazily loads custom ops. So we call the op with invalid inputs
+        # just to trigger the registration.
+        # See also: https://github.com/tensorflow/addons/issues/1151.
+        import tensorflow_addons as tfa
+        try:
+            tfa.seq2seq.gather_tree(0, 0, 0, 0)
+        except tf.errors.InvalidArgumentError:
+            pass
+
         translate_fn = tf.saved_model.load(export_dir).signatures['serving_default']
         return None, translate_fn
 
-    def forward_request(self, batch_inputs, info, timeout=None):
-        translate_fn = info
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
+        translate_fn = model_info
 
-        tokens, lengths = utils.pad_lists(batch_inputs, padding_value='')
+        tokens, lengths = utils.pad_lists(inputs, padding_value='')
         outputs = translate_fn(
             tokens=tf.constant(tokens, dtype=tf.string),
             length=tf.constant(lengths, dtype=tf.int32))
@@ -191,6 +201,8 @@ def _build_run_config(config,
 def _list_checkpoint_files(model_dir):
     """Lists the checkpoint files that should be bundled in the model package."""
     latest = tf.train.latest_checkpoint(model_dir)
+    if latest is None:
+        return {}
     objects = {
         'checkpoint': os.path.join(model_dir, 'checkpoint'),  # Checkpoint state file.
     }

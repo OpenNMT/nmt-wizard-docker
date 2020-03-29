@@ -137,7 +137,9 @@ class Framework(utility.Utility):
 
     @abc.abstractmethod
     def serve(self, config, model_path, gpuid=0):
-        """Start a framework dependent serving service in the background.
+        """Loads the model for serving.
+
+        Frameworks could start a backend server or simply load the model from Python.
 
         Args:
           config: The run configuration.
@@ -145,19 +147,20 @@ class Framework(utility.Utility):
           gpuid: The GPU identifier.
 
         Returns:
-          A tuple with the created process and a dictionary containing
-          information to reach the backend service (e.g. port number).
+          A tuple with the created process (if any) and a dictionary containing
+          information to use the model (e.g. port number for a backend server).
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def forward_request(self, batch_inputs, info, timeout=None):
-        """Forward a frontend translation request to the framework serving service.
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
+        """Forwards a translation request to the model.
 
         Args:
-          batch_inputs: A list of inputs (usually tokens).
-          info: The backend service information returned by serve().
-          timeout: Timeout in seconds for the translation request.
+          model_info: The information to reach the model, as returned by serve().
+          inputs: A list of inputs.
+          outputs: A list of (possibly partial) outputs.
+          options: Additional translation options.
 
         Returns:
           A list of list (batch x num. hypotheses) of serving.TranslationOutput.
@@ -277,7 +280,8 @@ class Framework(utility.Utility):
                     model_config['modelType'] = 'release'
                 else:
                     model_config['modelType'] = 'checkpoint'
-            config = config_util.merge_config(copy.deepcopy(model_config), config)
+            config = config_util.update_config(
+                copy.deepcopy(model_config), config, mode=args.config_update_mode)
         else:
             model_path = None
             model_config = None

@@ -1,9 +1,13 @@
-FROM nvidia/cuda:10.0-cudnn7-runtime-ubuntu16.04
+FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 
 WORKDIR /root
 
+ENV PYTHONDONTWRITEBYTECODE=1
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        libnvinfer6=6.0.1-1+cuda10.1 \
+        libnvinfer-plugin6=6.0.1-1+cuda10.1 \
         python3 \
         wget \
         && \
