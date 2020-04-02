@@ -307,7 +307,7 @@ def test_preprocess_pipeline(tmpdir):
     source, target = prep.process_input("This is a test.")
     source_no_meta = source[0]
     assert source_no_meta[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
-    assert target == None
+    assert target == [None]
 
     source2, target = prep.process_input(("This is a test.", "Das ist..."))
     assert source2 == source

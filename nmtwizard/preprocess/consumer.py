@@ -236,7 +236,7 @@ class BasicWriter(Consumer):
             self.output = tu.tgt_detok
         # Preprocess in inference.
         else:
-            target = tu.tgt_tok.tokens if tu.tgt_tok else None
+            target = tu.tgt_tok.tokens if tu.tgt_tok else [None]
             self.output = ((tu.src_tok.tokens, tu.metadata), target)
 
 

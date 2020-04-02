@@ -267,21 +267,17 @@ def preprocess_examples(raw_examples, func, config=None):
 
 def postprocess_output(output, example, func):
     """Applies postprocessing function on a translation output."""
-    if example.num_parts > 1:
-        # For multi parts inputs, send all parts to the postprocessing.
-        tgt_tokens = output.output
-        src_context = (example.source_tokens, example.metadata)
-        score = sum(output.score) if all(s is not None for s in output.score) else None
-        align = None
-    else:
-        # Otherwise just take the first element and pass metadata only if defined.
-        tgt_tokens = output.output[0]
-        src_tokens = example.source_tokens[0]
-        src_metadata = example.metadata[0]
-        src_context = src_tokens if src_metadata is None else (src_tokens, src_metadata)
-        score = output.score[0]
-        attention = output.attention[0]
+
+    # Send all parts to the postprocessing.
+    tgt_tokens = output.output
+    src_context = (example.source_tokens, example.metadata)
+    score = sum(output.score) if all(s is not None for s in output.score) else None
+    attention = output.attention
+    if attention and len(attention) == 1:
+        attention = attention[0]
         align = align_tokens(src_tokens, tgt_tokens, attention) if attention else None
+    else:
+        align = None
 
     text = func(src_context, tgt_tokens, example.config)
     result = {'text': text}

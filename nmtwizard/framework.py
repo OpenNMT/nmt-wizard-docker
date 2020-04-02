@@ -872,8 +872,8 @@ class Framework(utility.Utility):
                     input = (source, target)
                 else :
                     input = source
-                source, target = preprocessor.process_input(input)
-        return source, target
+                (source, metadata), target = preprocessor.process_input(input)
+        return source, target, metadata
 
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
