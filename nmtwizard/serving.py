@@ -90,6 +90,12 @@ def start_server(host,
         global_max_batch_size = config.get('max_batch_size')
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/status':
+                self.send_response(200)
+            else:
+                self.send_error(404, 'invalid route %s' % self.path)
+
         def do_POST(self):
             if self.path == '/translate':
                 self.translate()
@@ -97,8 +103,6 @@ def start_server(host,
                 self.unload_model()
             elif self.path == '/reload_model':
                 self.reload_model()
-            elif self.path == '/status':
-                self.send_response(200)
             else:
                 self.send_error(404, 'invalid route %s' % self.path)
 

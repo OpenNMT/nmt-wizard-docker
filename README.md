@@ -43,11 +43,11 @@ $ tree data/
 where:
 
 * `train.de` and `train.en` are tokenized training files
-* `shared-vocab.txt` contains one token per line and no special tokens (see [Vocabulary](#vocabulary))
+* `shared-vocab.txt` contains one token per line and no special tokens
 
 **2\. Define the configuration.**
 
-The JSON configuration file is used to describe where to read the data (`data`) and how to transform it (`tokenization`). The `options` block is specific to each framework and define the model and training hyperparameters. See [Configuration](#configuration) for more details.
+The JSON configuration file is used to describe where to read the data (`data`) and how to transform it (`tokenization`). The `options` block is **specific to each framework** and define the model and training hyperparameters. See [Configuration](#configuration) for more details.
 
 ```json
 {
@@ -124,10 +124,10 @@ docker run -p 4000:4000 --gpus all -v $PWD/models:/models nmtwizard/opennmt-tf \
 This command starts a translation server that accepts HTTP requests:
 
 ```bash
-curl -X POST http://localhost:4000/translate -d '{"src":[{"text": "Hello world!"}]}'
+curl -X POST http://localhost:4000/translate -d '{"src":[{"text": "Hello world !"}]}'
 ```
 
-See [Serving](#serving) for more details.
+See the [REST translation API](docs/rest_api.md) for more details.
 
 To optimize the model size and loading latency, you can also `release` the model before serving. It will remove training-only information and possibly run additional optimizations:
 
@@ -198,24 +198,18 @@ The JSON configuration file contains all parameters necessary to train and run m
 }
 ```
 
-where:
+### Description
 
-* `source` and `target` define the source and target languages (e.g. "en", "de", etc.)
-* `data` defines the data source and distribution (see [Data sampling](#data-sampling))
-* `tokenization` defines the source and target vocabulary (see [Vocabulary](#vocabulary)) and tokenization options (see [OpenNMT/Tokenizer](https://github.com/OpenNMT/Tokenizer/blob/master/docs/options.md) for all available options)
-* `options` are the parameters that are specific to the selected framework (see the file `frameworks/./README.md` of the selected framework for more information)
-* `serving` are serving specific parameters (see [Serving](#serving))
+#### `source` and `target`
 
-**Note:** when both `--model` and `--config` are set on the command line, the configuration passed to `--config` is merged with the configuration saved in the model.
+They define the source and target languages (e.g. "en", "de", etc.).
 
-### Data sampling
+#### `data`
 
 The `data` section of the JSON configuration can be used to select data based on file patterns. The distribution is a list where each element contains:
 
 * `path`: path to a directory where the distribution applies
 * `distribution`: a list of filename patterns and weights
-
-The training will use all data configured in this section.
 
 For example the configuration below, will randomly select 10,000 training examples in the directory `data/en_nl/train` from files that have `News`, `IT`, or `Dialog` in their name:
 
@@ -240,22 +234,26 @@ For example the configuration below, will randomly select 10,000 training exampl
 
 Weights define the relative proportion that each pattern should take in the final sampling. They do not need to sum to 1. The special weight `"*"` can be used to force using all the examples associated with the pattern.
 
-### Vocabulary
+**Source and target files should have the same name and be suffixed by the language code.**
 
-The vocabulary defined in the `tokenization` section of the configuration must have the following format:
+#### `tokenization`
+
+This block accepts any tokenization options from [OpenNMT/Tokenizer](https://github.com/OpenNMT/Tokenizer/blob/master/docs/options.md).
+
+The vocabulary file must have the following format:
 
 * one token par line
 * no special tokens (such as `<s>`, `</s>`, `<blank>`, `<unk>`, etc.)
 
 We plan to add a `buildvocab` command to automatically generate it from the data.
 
-### Environment variables
+#### `options`
 
-Values in the configuration can use environment variables with the syntax `${VARIABLE_NAME}`.
+This block contains the parameters that are **specific to the selected framework**: the model architecture, the training parameters, etc.
 
-This is especially useful to avoid hardcoding a remote storage identifier in the configuration. For example, one can define a data path as `${DATA_DIR}/en_de/corpus` in the configuration and then configure the storage identifer when running the Docker image with `-e DATA_DIR=storage_id_1:`.
+See the file `frameworks/./README.md` of the selected framework for more information.
 
-## Serving
+#### `serving`
 
 Serving reads additional values from the JSON configuration:
 
@@ -271,99 +269,17 @@ where:
 
 * `max_batch_size` is the maximum batch size to execute at once
 
-These values can be overriden for each request (see below).
+These values can be overriden for [each request](docs/rest_api.md).
 
-### Interface
+### Overriding model configuration
 
-#### `POST /translate`
+When a model is set on the command line with `--model`, its configuration will be used. You can pass a partial configuration to `--config` in order to override some fields from the model configuration.
 
-**Input (minimum required):**
+### Environment variables
 
-```json
-{
-    "src": [
-        {"text": "Source sentence 1"},
-        {"text": "Source sentence 2"}
-    ]
-}
-```
+Values in the configuration can use environment variables with the syntax `${VARIABLE_NAME}`.
 
-**Input (with optional fields):**
-
-```json
-{
-    "options": {
-        "timeout": 10.0,
-        "max_batch_size": 32,
-        "config": {}
-    },
-    "src": [
-        {"text": "Source sentence 1", "config": {}, "options": {}},
-        {"text": "Source sentence 2", "config": {}, "options": {}}
-    ]
-}
-```
-
-* The `config` fields define request-specific and sentence-specific overrides to the global JSON configuration file.
-* The `options` fields (in `src`) define [inference options](docs/inference_options.md) to be mapped to the global configuration file.
-
-**Output:**
-
-```json
-{
-    "tgt": [
-        [{
-            "text": "Phrase cible 1",
-            "score": -2.16,
-            "align": [
-                {"tgt": [ {"range": [0, 5], "id": 0} ],
-                 "src": [ {"range": [9, 14], "id": 1} ]},
-                {"tgt": [ {"range": [7, 11], "id": 1} ],
-                 "src": [ {"range": [0, 5], "id": 0} ]},
-                {"tgt": [ {"range": [13, 13], "id": 2} ],
-                 "src": [ {"range": [16, 16], "id": 2} ]}
-             ]
-        }],
-        [{
-            "text": "Phrase cible 2",
-            "score": -2.17,
-            "align": [
-                {"tgt": [ {"range": [0, 5], "id": 0} ],
-                 "src": [ {"range": [9, 14], "id": 1} ]},
-                {"tgt": [ {"range": [7, 11], "id": 1} ],
-                 "src": [ {"range": [0, 5], "id": 0} ]},
-                {"tgt": [ {"range": [13, 13], "id": 2} ],
-                 "src": [ {"range": [16, 16], "id": 2} ]}
-             ]
-        }]
-    ]
-}
-```
-
-The `tgt` field is a list the size of the batch where each entry is a list listing all hypotheses (the N best list) ordered from best to worst (higher score means better prediction).
-
-Note that the `score` and `align` fields might not be set by all frameworks and model types.
-
-**Errors:**
-
-* **HTTP 400**
-  * The input data is missing.
-  * The input data is not a JSON object.
-  * The input data does not contain the `src` field.
-  * The `src` field is not a list.
-  * The inference option is unexpected or invalid
-* **HTTP 503**
-  * The backend service is unavailable.
-* **HTTP 504**
-  * The translation request timed out.
-
-#### `POST /unload_model`
-
-Unload the model from the reserved resource. In its simplest form, this route will terminate the backend translation service.
-
-#### `POST /reload_model`
-
-Reload the model on the reserved resource. In its simplest form, this route will terminate the backend translation service if it is still running and start a new instance.
+This is especially useful to avoid hardcoding a remote storage identifier in the configuration. For example, one can define a data path as `${DATA_DIR}/en_de/corpus` in the configuration and then configure the storage identifer when running the Docker image with `-e DATA_DIR=storage_id_1:`.
 
 ## Add or extend frameworks
 
