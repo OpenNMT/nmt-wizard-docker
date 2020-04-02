@@ -1,6 +1,0 @@
-{
-    "source": "en",
-    "target": "de",
-    "model": "sogou-translate",
-    "name": "Sogou DeepI"
-}

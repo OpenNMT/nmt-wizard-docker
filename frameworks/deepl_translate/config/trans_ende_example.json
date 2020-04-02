@@ -1,6 +1,0 @@
-{
-    "source": "en",
-    "target": "de",
-    "model": "deepl-translate",
-    "name": "DeepL Pro API"
-}
