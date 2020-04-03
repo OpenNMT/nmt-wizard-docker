@@ -1,11 +1,11 @@
 # nmt-wizard-docker
 
-The goal of this project is to encapsulate MT frameworks in Docker containers and expose a single interface for preprocessing, training, translating, and serving models.
+The goal of this project is to encapsulate MT frameworks in Docker containers and expose a single interface for preprocessing, training, translating, and serving models. 
 
 The [available Docker images](https://hub.docker.com/u/nmtwizard) extend the original frameworks with the following features:
 
 * Data weighting and sampling from raw training files.
-* Data and models synchronization from remote storages such as Amazon S3, Swift, or SSH.
+* Data and models synchronization from remote storages such as Amazon S3, Swift, or any server via SSH.
 * Metadata on model history such as parent model, training data that was used, training time, etc.
 * Regular HTTP request to an URL to declare running status.
 
@@ -15,7 +15,7 @@ It supports [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py/) and [OpenNMT-tf
 
 We recommend using the Docker images that are available on [Docker Hub](https://hub.docker.com/u/nmtwizard).
 
-The Docker image entrypoint is a Python script that exposes the same command line interface for all frameworks. For example, run the command below to list available options:
+The Docker image entrypoint is a Python script that exposes the same command line interface for all frameworks. For example, run the commands below to download the latest OpenNMT-tf image and list the available options:
 
 ```bash
 docker pull nmtwizard/opennmt-tf
@@ -47,7 +47,7 @@ where:
 
 **2\. Define the configuration.**
 
-The JSON configuration file is used to describe where to read the data (`data`) and how to transform it (`tokenization`). The `options` block is **specific to each framework** and define the model and training hyperparameters. See [Configuration](#configuration) for more details.
+The JSON configuration file is used to describe where to read the data (`data`) and how to transform it (`tokenization`). The `options` block is **specific to each framework** and defines the model and training hyperparameters. See [Configuration](#configuration) for more details.
 
 ```json
 {
@@ -140,7 +140,7 @@ This command produces the serving-only model `models/my_model_2_release`.
 
 ## Remote storages
 
-Files and directories can be automatically downloaded from remote storages such as Amazon S3, Swift, or SSH. This includes training data, models, and resources used in the configuration.
+Files and directories can be automatically downloaded from remote storages such as Amazon S3, Swift, or any server via SSH. This includes training data, models, and resources used in the configuration.
 
 Remote storages should be configured in a JSON file and passed to the  `--storage_config` command line option:
 
@@ -211,7 +211,7 @@ The `data` section of the JSON configuration can be used to select data based on
 * `path`: path to a directory where the distribution applies
 * `distribution`: a list of filename patterns and weights
 
-For example the configuration below, will randomly select 10,000 training examples in the directory `data/en_nl/train` from files that have `News`, `IT`, or `Dialog` in their name:
+For example, the configuration below will randomly select 10,000 training examples in the directory `data/en_nl/train` from files that have `News`, `IT`, or `Dialog` in their name:
 
 
 ```json
@@ -271,7 +271,7 @@ where:
 
 These values can be overriden for [each request](docs/rest_api.md).
 
-### Overriding model configuration
+### Overriding the model configuration
 
 When a model is set on the command line with `--model`, its configuration will be used. You can pass a partial configuration to `--config` in order to override some fields from the model configuration.
 
