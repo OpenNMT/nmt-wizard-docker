@@ -25,15 +25,11 @@ def _get_tok_configs(config):
 class Processor(object):
 
     def process(self, loader, consumer):
-        lines_num = 0
 
         # TODO V2 : parallelization
         for tu_batch in loader():
             tu_batch = self._pipeline(tu_batch)
             consumer(tu_batch)
-            lines_num += len(tu_batch[0])
-
-        return lines_num
 
 
 class TrainingProcessor(Processor):
@@ -81,8 +77,6 @@ class TrainingProcessor(Processor):
             # Sample files and write information to a special file structure.
             all_files, summary, metadata = sampler.sample(self._config, data_path)
 
-            num_samples = 0
-
             # Default batch size is the whole sample size.
             batch_size = sys.maxsize
             if 'preprocess' in self._config and 'batch_size' in self._config['preprocess'] :
@@ -92,25 +86,19 @@ class TrainingProcessor(Processor):
             self._set_pipeline(preprocess_exit_step)
 
             for f in all_files:
-                lines_filtered = 0
                 if f.lines_kept :
                     sampler_loader=loader.SamplerFileLoader(f, batch_size)
                     if hasattr(sampler_consumer, "open_files"):
                         sampler_consumer.open_files(f)
-                    lines_filtered = self.process(sampler_loader, sampler_consumer)
+                    self.process(sampler_loader, sampler_consumer)
                     sampler_loader.close_files()
                     if hasattr(sampler_consumer, "close_files"):
                         sampler_consumer.close_files()
 
-                    if lines_filtered != f.lines_kept:
-                        num_samples += lines_filtered
-                        summary[f.base_name]["lines_filtered"] = lines_filtered
-                    else:
-                        num_samples += f.lines_kept
-                        summary[f.base_name]["lines_filtered"] = f.lines_kept
+                    sampler_consumer.finalize(self._config, summary)
 
-                    if hasattr(sampler_consumer, "finalize"):
-                        sampler_consumer.finalize(self._config)
+            if hasattr(sampler_consumer, "num_samples"):
+                num_samples = sampler_consumer.num_samples
 
             data_path = result_dir
 

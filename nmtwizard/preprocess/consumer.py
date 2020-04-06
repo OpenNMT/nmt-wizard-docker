@@ -55,7 +55,7 @@ class SubwordLearner(Consumer):
                 self._subword_learners['multi']['learner'].ingest(tu.tgt_detok)
 
 
-    def finalize(self, config):
+    def finalize(self, config, summary=None):
 
         tok_config = config['preprocess'][self._tok_step]
 
@@ -145,7 +145,7 @@ class VocabularyBuilder(Consumer):
         return min(real_size, size)
 
 
-    def finalize(self, config):
+    def finalize(self, config, summary=None):
 
         tok_config = config['preprocess'][self._tok_step]
 
@@ -277,10 +277,14 @@ class SamplerFileWriter(Consumer):
 
     def __init__(self, result_dir):
         self._result_dir = result_dir
+        self._tokens_to_add = {'source':[], 'target':[]}
+        self.num_samples = 0
 
     def open_files(self, f):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
+        self._lines_filtered = 0
+        self._f = f
         self._files = {}
         src = os.path.join(self._result_dir, os.path.basename(f.files["src"].name))
         self._files["src"] = open(src, 'w')
@@ -292,7 +296,12 @@ class SamplerFileWriter(Consumer):
             f.close()
 
     def __call__(self, tu_batch):
-        tu_list, _ = tu_batch
+        tu_list, meta = tu_batch
+        if 'tokens_to_add' in meta:
+            if 'source' in meta['tokens_to_add']:
+                self._tokens_to_add['source'].extend(meta['tokens_to_add']['source'])
+            if 'target' in meta['tokens_to_add']:
+                self._tokens_to_add['target'].extend(meta['tokens_to_add']['target'])
         # Write lines to file from TUs
         for tu in tu_list :
             src_tokens = tu.src_tok.tokens
@@ -310,6 +319,27 @@ class SamplerFileWriter(Consumer):
                     self._files["tgt"].write("%s\n" % part)
             else :
                 self._files["tgt"].write("%s\n" % tu.tgt_detok)
+        self._lines_filtered += len(tu_list)
+
+
+    def finalize(self, config, summary=None):
+        if self._lines_filtered != self._f.lines_kept:
+            self.num_samples += self._lines_filtered
+            summary[self._f.base_name]["lines_filtered"] = self._lines_filtered
+        else:
+            self.num_samples += self._f.lines_kept
+            summary[self._f.base_name]["lines_filtered"] = self._f.lines_kept
+
+        if self._tokens_to_add['source'] or self._tokens_to_add['target'] :
+            if 'tokens_to_add' not in summary:
+                summary['tokens_to_add'] = {}
+            if 'source' not in summary['tokens_to_add']:
+                summary['tokens_to_add']['source'] = []
+            if 'target' not in summary['tokens_to_add']:
+                summary['tokens_to_add']['target'] = []
+            summary['tokens_to_add']['source'].extend(self._tokens_to_add['source'])
+            summary['tokens_to_add']['target'].extend(self._tokens_to_add['target'])
+
 
 def make_consumer(config, result_dir, result, tok_step):
 
