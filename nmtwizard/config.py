@@ -121,8 +121,8 @@ def old_to_new_config(config):
         return
     tok_config = config.get("tokenization")
     if tok_config:
-        vocab_src = tok_config["source"].pop("vocabulary", None)
-        vocab_tgt = tok_config["target"].pop("vocabulary", None)
+        vocab_src = tok_config["source"].get("vocabulary", None)
+        vocab_tgt = tok_config["target"].get("vocabulary", None)
         if not "vocabulary" in config and (vocab_src or vocab_tgt):
             config["vocabulary"] = {}
             if vocab_src:

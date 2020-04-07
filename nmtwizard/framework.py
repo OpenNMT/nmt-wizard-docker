@@ -739,6 +739,9 @@ class Framework(utility.Utility):
             tokens_to_add = {}
         vocab_config = config.get('vocabulary', {})
         vocab_local_config = local_config.get('vocabulary', {})
+        # For compatibility with old configurations
+        tok_config = config.get('tokenization', {})
+        tok_local_config = local_config.get('tokenization', {})
         joint_vocab = is_joint_vocab(vocab_config)
         parent_dependencies = {}
         if model_config:
@@ -765,6 +768,8 @@ class Framework(utility.Utility):
             'source',
             vocab_config,
             vocab_local_config,
+            tok_config,
+            tok_local_config,
             model_config=model_vocab_config,
             local_model_config=model_vocab_local_config,
             tokens_to_add=source_tokens_to_add,
@@ -774,17 +779,22 @@ class Framework(utility.Utility):
             'target',
             vocab_config,
             vocab_local_config,
+            tok_config,
+            tok_local_config,
             model_config=model_vocab_config,
             local_model_config=model_vocab_local_config,
             tokens_to_add=target_tokens_to_add,
             keep_previous=keep_previous,
             joint_vocab=joint_vocab)
+
         return src_info, tgt_info, parent_dependencies
 
     def _get_vocab_info(self,
                         side,
                         config,
                         local_config,
+                        tok_config,
+                        tok_local_config,
                         model_config=None,
                         local_model_config=None,
                         tokens_to_add=None,
@@ -848,6 +858,12 @@ class Framework(utility.Utility):
                 new_vocab, basename="updated-%s-vocab.txt" % vocab_name)
             opt["path"] = new_vocab
             local_opt["path"] = new_vocab
+
+            # For compatibility with old configurations
+            if tok_config:
+                tok_config[side]['vocabulary'] = new_vocab
+            if tok_local_config:
+                tok_local_config[side]['vocabulary'] = new_vocab
 
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
