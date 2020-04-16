@@ -277,7 +277,7 @@ class SamplerFileWriter(Consumer):
 
     def __init__(self, result_dir):
         self._result_dir = result_dir
-        self._tokens_to_add = {'source':[], 'target':[]}
+        self._tokens_to_add = {'source':set(), 'target':set()}
         self.num_samples = 0
 
     def open_files(self, f):
@@ -286,9 +286,9 @@ class SamplerFileWriter(Consumer):
         self._lines_filtered = 0
         self._f = f
         self._files = {}
-        src = os.path.join(self._result_dir, os.path.basename(f.files["src"].name))
+        src = os.path.join(self._result_dir, f.base_name + "." + f.src_suffix)
         self._files["src"] = open(src, 'w')
-        tgt = os.path.join(self._result_dir, os.path.basename(f.files["tgt"].name))
+        tgt = os.path.join(self._result_dir, f.base_name + "." + f.tgt_suffix)
         self._files["tgt"] = open(tgt, 'w')
 
     def close_files(self):
@@ -299,9 +299,9 @@ class SamplerFileWriter(Consumer):
         tu_list, meta = tu_batch
         if 'tokens_to_add' in meta:
             if 'source' in meta['tokens_to_add']:
-                self._tokens_to_add['source'].extend(meta['tokens_to_add']['source'])
+                self._tokens_to_add['source'].update(meta['tokens_to_add']['source'])
             if 'target' in meta['tokens_to_add']:
-                self._tokens_to_add['target'].extend(meta['tokens_to_add']['target'])
+                self._tokens_to_add['target'].update(meta['tokens_to_add']['target'])
         # Write lines to file from TUs
         for tu in tu_list :
             src_tokens = tu.src_tok.tokens
@@ -337,8 +337,12 @@ class SamplerFileWriter(Consumer):
                 summary['tokens_to_add']['source'] = []
             if 'target' not in summary['tokens_to_add']:
                 summary['tokens_to_add']['target'] = []
-            summary['tokens_to_add']['source'].extend(self._tokens_to_add['source'])
-            summary['tokens_to_add']['target'].extend(self._tokens_to_add['target'])
+            source_set = set(summary['tokens_to_add']['source'])
+            source_set.update(self._tokens_to_add['source'])
+            summary['tokens_to_add']['source'] = list(source_set)
+            target_set = set(summary['tokens_to_add']['target'])
+            target_set.update(self._tokens_to_add['target'])
+            summary['tokens_to_add']['target'] = list(target_set)
 
 
 def make_consumer(config, result_dir, result, tok_step):
