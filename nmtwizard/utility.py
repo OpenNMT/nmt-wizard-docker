@@ -161,7 +161,7 @@ class Utility(object):
         parser.add_argument('-m', '--model', default=None,
                             help='Model to load.')
         parser.add_argument('-g', '--gpuid', default="0",
-                            help="Comma-separated list of 1-indexed GPU identifiers (0 for CPU).")
+                            help="Comma-separated list of 0-indexed GPU identifiers.")
         parser.add_argument('--no_push', default=False, action='store_true',
                             help='Do not push model.')
 

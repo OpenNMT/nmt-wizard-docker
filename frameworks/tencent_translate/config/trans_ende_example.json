@@ -1,6 +1,0 @@
-{
-    "source": "en",
-    "target": "de",
-    "model": "tencent-translate",
-    "name": "Tencent Cloud"
-}

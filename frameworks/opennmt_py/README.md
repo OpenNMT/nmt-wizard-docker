@@ -1,30 +1,35 @@
 # OpenNMT-py framework
 
-## Direct run
+This framework is based on [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py/).
 
-1\. Install dependencies:
+[Preprocessing](https://opennmt.net/OpenNMT-py/options/preprocess.html), [training](https://opennmt.net/OpenNMT-py/options/train.html), and [translation](https://opennmt.net/OpenNMT-py/options/translate.html) options specific to OpenNMT-py can be configured in the `options` block of the configuration.
 
-```bash
-virtualenv frameworks/opennmt_py/env
-source frameworks/opennmt_py/env/bin/activate
-pip install -r frameworks/opennmt_py/requirements.txt
-```
+Example:
 
-2\. Define local environment:
-
-```bash
-export OPENNMT_PY_DIR=$HOME/dev/OpenNMT-py
-export MODELS_DIR=/tmp/models
-export WORKSPACE_DIR=/tmp/workspace
-export CORPUS_DIR=$PWD/test/corpus/
-export PYTHONPATH=$PWD:$PYTHONPATH
-```
-
-3\. Run:
-
-### Training
-
-```bash
-python frameworks/opennmt_py/entrypoint.py --model_storage /tmp/saved-models \
-    --config frameworks/opennmt_py/config/train_ende_example.json train
+```json
+{
+    "options": {
+        "config": {
+            "preprocess": {
+            },
+            "train": {
+                "batch_size": 64,
+                "optim": "sgd",
+                "dropout": 0.3,
+                "learning_rate": 1.0,
+                "src_word_vec_size": 512,
+                "tgt_word_vec_size": 512,
+                "encoder_type": "rnn",
+                "decoder_type": "rnn",
+                "layers": 2,
+                "enc_layers": 2,
+                "dec_layers": 2,
+                "rnn_size": 512
+            },
+            "trans": {
+                "replace_unk": true
+            }
+        }
+    }
+}
 ```

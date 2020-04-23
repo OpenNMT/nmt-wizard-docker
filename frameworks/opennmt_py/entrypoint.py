@@ -1,5 +1,4 @@
 import os
-import copy
 import six
 import json
 import requests
@@ -15,9 +14,6 @@ _RELEASED_MODEL_NAME = "model_released.pt"
 
 
 class OpenNMTPYFramework(Framework):
-    def __init__(self):
-        super(OpenNMTPYFramework, self).__init__()
-        self._onmt_py_dir = os.getenv('OPENNMT_PY_DIR', '/root/OpenNMT-py')
 
     def train(self,
               config,
@@ -29,21 +25,22 @@ class OpenNMTPYFramework(Framework):
               model_path=None,
               gpuid=0):
         # Preprocess training files.
-        options_preprocess = copy.deepcopy(config['options']['config']['preprocess'])
+        options = config['options'].get('config', {})
+        options_preprocess = options.get('preprocess', {}).copy()
         options_preprocess['src_vocab'] = self._convert_vocab(
             config['vocabulary']['source']['path'])
         options_preprocess['tgt_vocab'] = self._convert_vocab(
             config['vocabulary']['target']['path'])
         bin_file = os.path.join(self._data_dir, "bin")
-        cmd = ["python", "preprocess.py",
+        cmd = ["onmt_preprocess",
                "-train_src", src_file,
                "-train_tgt", tgt_file,
                "-save_data", bin_file]
         cmd += _build_cmd(options_preprocess)
-        self._run_cmd(cmd)
+        utils.run_cmd(cmd)
 
         # Train.
-        options_train = copy.deepcopy(config['options']['config']['train'])
+        options_train = options.get('train', {}).copy()
         if "train_steps" not in options_train:
             options_train["single_pass"] = True
             options_train["train_steps"] = 0
@@ -57,7 +54,7 @@ class OpenNMTPYFramework(Framework):
             options_train["gpu_ranks"] = gpuid - 1
         if model_path is not None:
             options_train["train_from"] = os.path.join(model_path, _MODEL_NAME)
-        self._run_cmd(["python", "train.py"] + _build_cmd(options_train))
+        utils.run_cmd(["onmt_train"] + _build_cmd(options_train))
 
         # Select model.
         models = os.listdir(self._output_dir)
@@ -73,7 +70,7 @@ class OpenNMTPYFramework(Framework):
         options_trans["model"] = os.path.join(model_path, _MODEL_NAME)
         options_trans["src"] = input
         options_trans["output"] = output
-        self._run_cmd(["python", " translate.py"] + _build_cmd(options_trans))
+        utils.run_cmd(["onmt_translate"] + _build_cmd(options_trans))
 
     def serve(self, config, model_path, gpuid=0):
         server_config_path = os.path.join(self._output_dir, "conf.json")
@@ -89,8 +86,8 @@ class OpenNMTPYFramework(Framework):
                 ]
             }, server_config_file)
         port = serving.pick_free_port()
-        process = self._run_cmd([
-            "python", "server.py",
+        process = utils.run_cmd([
+            "onmt_server",
             "--ip", "127.0.0.1",
             "--port", str(port),
             "--url_root", "/translator-backend",
@@ -101,7 +98,7 @@ class OpenNMTPYFramework(Framework):
     def release(self, config, model_path, gpuid=0):
         model = os.path.join(model_path, _MODEL_NAME)
         released_model = os.path.join(self._output_dir, _RELEASED_MODEL_NAME)
-        self._run_cmd(["python", "tools/release_model.py", "-m", model, "-o", released_model])
+        utils.run_cmd(["onmt_release_model", "-m", model, "-o", released_model])
         return {_RELEASED_MODEL_NAME: released_model}
 
     def forward_request(self, model_info, inputs, outputs=None, options=None):
@@ -128,12 +125,10 @@ class OpenNMTPYFramework(Framework):
             vocab.write(b"</s>\n")
         vocab.write(b"%s\n" % token)
 
-    def _run_cmd(self, cmd, background=False):
-        return utils.run_cmd(cmd, cwd=self._onmt_py_dir, background=background)
-
 
 def _trans_options(config, gpuid):
-    opt = copy.deepcopy(config['options']['config']['trans'])
+    options = config['options'].get('config', {})
+    opt = options.get('trans', {}).copy()
     if gpuid > 0:
         opt["gpu"] = gpuid - 1
     return opt

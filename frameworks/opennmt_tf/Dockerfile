@@ -3,6 +3,7 @@ FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 WORKDIR /root
 
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV LANG=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
