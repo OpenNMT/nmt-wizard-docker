@@ -55,7 +55,9 @@ class Pipeline(object):
         if op == "length_filter":
             operator = LengthFilter(params)
         elif op == "tokenization":
-            operator =  Tokenizer(params, self._build_state)
+            operator = Tokenizer(params, self._build_state)
+        elif op == "alignment":
+            operator = Aligner(params)
         # TODO : all other operators
         else:
             # TODO : warning or error ?
@@ -237,4 +239,30 @@ class Tokenizer(Operator):
             tu.src_tok = (self._src_tokenizer, None)
             tu.tgt_tok = (self._tgt_tokenizer, None)
 
+        return tu_list
+
+
+class Aligner(Operator):
+
+    def __init__(self, align_config):
+        self._align_config = align_config
+        self._aligner = None
+
+
+    def _preprocess(self, tu_batch, training=True):
+        tu_list, meta_batch = tu_batch
+        self._build_aligner()
+        tu_list = self._set_aligner(tu_list)
+        return tu_list, meta_batch
+
+
+    def _build_aligner(self):
+        if not self._aligner and self._align_config:
+            self._aligner = None # TODO : should alignment be opensource ?
+
+
+    def _set_aligner(self, tu_list):
+        # Set aligner for TUs.
+        for tu in tu_list :
+            tu.set_aligner(self._aligner)
         return tu_list

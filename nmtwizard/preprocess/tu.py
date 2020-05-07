@@ -5,6 +5,16 @@ from nmtwizard.preprocess import tokenizer
 class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens"))):
     """Tuple structure to keep tokenizer and tokens together."""
 
+class Alignment(object):
+
+    def __init__(self, aligner=None):
+        self.align_dict = None
+        self.aligner = aligner
+
+    def align(src_tok, tgt_tok):
+        if not self.align_dict:
+            if self.aligner:
+                self.align_dict = self.aligner.align(src_tok, tgt_tok)
 
 class TranslationSide(object):
 
@@ -64,6 +74,7 @@ class TranslationUnit(object):
         self.__target = None
         self.__metadata = [None] #TODO: proper metadata
         self.__annotations = annotations
+        self.__alignment = None
 
         if isinstance(input, tuple):
             # We have both source and target.
@@ -107,12 +118,28 @@ class TranslationUnit(object):
     @src_tok.setter
     def src_tok(self, tok):
         self.__source.tok = tok
+        self.__alignment = None
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
         if self.__target:
             self.__target.tok = tok
+            self.__alignment = None
 
+    @property
+    def alignment(self):
+        if not self.__alignment.align_dict:
+            self.__alignment.align(self.src_tok, self.tgt_tok)
+        return copy.deepcopy(self.__alignment.align_dict)
+
+    def set_aligner(self, aligner):
+        if not self.src_tok or not self.tgt_tok:
+            raise RuntimeError('Cannot set aligner if not tokenization is set.')
+        if self.__alignment:
+            self.__alignment.aligner = aligner
+        else:
+            self.__alignment = Alignment(aligner)
+        self.__alignment.align_dict = None
 
     @property
     def src_detok(self):
@@ -127,11 +154,13 @@ class TranslationUnit(object):
     @src_detok.setter
     def src_detok(self, detok):
         self.__source.detok = detok
+        self.__alignment = None
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
         if self.__target:
             self.__target.detok = detok
+            self.__alignment = None
 
     @property
     def metadata(self):

@@ -870,10 +870,11 @@ class Framework(utility.Utility):
 
     def _serving_state(self, config):
         state = {}
+        self._set_preprocessor('inference', config)
         if 'preprocess' in config:
-            state['preprocessor'] = preprocess.InferenceProcessor(config)
+            state['preprocessor'] = self._preprocessor
         if 'preprocess' in config or 'postprocess' in config:
-            state['postprocessor'] = preprocess.Postprocessor(config)
+            state['postprocessor'] = self._postprocessor
         return state
 
     def _preprocess_input(self, state, source, target, config):
@@ -900,16 +901,12 @@ class Framework(utility.Utility):
         return postprocessor.process_input((source,target))
 
     def _preprocess_file(self, config, input):
-        if 'preprocess' in config:
-            preprocessor = preprocess.InferenceProcessor(config)
-            return preprocessor.process_file(input)
-        return input
+        self._set_preprocessor('inference', config)
+        return self._preprocessor.process_file(input)
 
     def _postprocess_file(self, config, source, target):
-        if 'preprocess' in config or 'postprocess' in config:
-            postprocessor = preprocess.Postprocessor(config)
-            return postprocessor.process_file((source, target))
-        return target
+        self._set_preprocessor('inference', config)
+        return self._postprocessor.process_file((source, target))
 
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:
@@ -951,13 +948,22 @@ class Framework(utility.Utility):
         data_util.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
+    def _set_preprocessor(self, cmd, config):
+        self._preprocessor = None
+        self._postprocessor = None
+        if cmd == 'train':
+            self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
+        elif cmd == 'inference':
+            self._preprocessor = preprocess.InferenceProcessor(config)
+            self._postprocessor = preprocess.Postprocessor(config)
+
     def _generate_training_data(self, config):
-        preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
-        return preprocessor.generate_preprocessed_data()
+        self._set_preprocessor('train', config)
+        return self._preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
-        return preprocessor.generate_vocabularies()
+        self._set_preprocessor('train', config)
+        return self._preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution
