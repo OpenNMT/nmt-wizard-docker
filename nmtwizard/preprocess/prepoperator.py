@@ -39,13 +39,48 @@ class ProcessType(object):
 class Pipeline(object):
     """Pipeline for building and applying pre/postprocess operators in order."""
 
-    def _build_pipeline(self, op_list_config, exit_step=None):
+    def __init__(self, config, process_type, preprocess_exit_step=None):
+        self._process_type = process_type
+
+        # Start state is used in loader, to inform it about input tokenization.
+        # TODO: can we do it better ?
+        self.start_state = { "src_tok_config" : None,
+                             "tgt_tok_config" : None }
+
+        # Current state of pipeline.
+        # Passed to and modified by operator initializers if necessary.
+        self._build_state = dict(self.start_state)
+
+        self._build_pipeline(config, preprocess_exit_step)
+
+
+    def _add_op_list(self, op_list_config, exit_step=None):
         for i, op in enumerate(op_list_config):
             operator = self._build_operator(op)
             if operator and operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
                 break
+
+
+    def _build_pipeline(self, config, exit_step=None):
+        self._ops = []
+        preprocess_config = config.get("preprocess")
+        if preprocess_config:
+            self._add_op_list(preprocess_config)
+
+        if self._process_type == ProcessType.POSTPROCESS:
+            # Reverse preprocessing operators.
+            # TODO : reverse individual operators ?
+            self._ops = reversed(self._ops)
+
+            # Reverse start and build states.
+            self.start_state, self._build_state = self._build_state, self.start_state
+
+            # Add pure postprocessing operators.
+            postprocess_config = config.get("postprocess")
+            if postprocess_config:
+                self._add_op_list(postprocess_config)
 
 
     def _build_operator(self, operator_config):
@@ -69,53 +104,6 @@ class Pipeline(object):
         for op in self._ops:
             tu_batch = op(tu_batch, self._process_type)
         return tu_batch
-
-
-class TrainingPipeline(Pipeline):
-
-    def __init__(self, config, preprocess_exit_step):
-        self._build_state = None
-        self._process_type = ProcessType.TRAINING
-        self._ops = []
-
-        preprocess_config = config.get("preprocess")
-        if preprocess_config:
-            self._build_pipeline(preprocess_config, preprocess_exit_step)
-
-
-class InferencePipeline(Pipeline):
-
-    def __init__(self, config, process_type=ProcessType.INFERENCE):
-        self._process_type = process_type
-        self._ops = []
-
-        # TODO : do we really need those now ?
-        self.start_state = { "src_tok_config" : None,
-                             "tgt_tok_config" : None }
-
-        # Current state of pipeline.
-        # Passed to and modified by operator initializers if necessary.
-        self._build_state = dict(self.start_state)
-
-        preprocess_config = config.get("preprocess")
-        if preprocess_config:
-            self._build_pipeline(preprocess_config)
-
-
-class PostprocessPipeline(InferencePipeline):
-
-    def __init__(self, config):
-        super(PostprocessPipeline, self).__init__(config, ProcessType.POSTPROCESS)
-
-        # Reverse preprocessing operators.
-        self._ops = reversed(self._ops)
-
-        # TODO
-        self.start_state, self._build_state = self._build_state, self.start_state
-        # Add pure postprocessing operators.
-        postprocess_config = config.get("postprocess")
-        if postprocess_config:
-            self._build_pipeline(postprocess_config)
 
 
 @six.add_metaclass(abc.ABCMeta)

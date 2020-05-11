@@ -515,6 +515,9 @@ class Framework(utility.Utility):
                 return self.trans(*args, **kwargs)
 
         local_config = self._finalize_config(config, training=False)
+
+        self._set_preprocessor('inference', local_config)
+
         failed_translation = 0
         translated_lines = 0
         generated_tokens = 0
@@ -539,7 +542,7 @@ class Framework(utility.Utility):
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input_preprocessed = self._preprocess_file(local_config, path_input_unzipped)
+                path_input_preprocessed = self._preprocess_file(path_input_unzipped)
                 metadata = None
                 if isinstance(path_input_preprocessed, tuple):
                     path_input_preprocessed, metadata = path_input_preprocessed
@@ -555,8 +558,7 @@ class Framework(utility.Utility):
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 if not no_postprocess:
-                    path_output = self._postprocess_file(
-                        local_config, path_postprocess_input, path_output)
+                    path_output = self._postprocess_file(path_postprocess_input, path_output)
 
                 if copy_source:
                     copied_input = output
@@ -871,10 +873,8 @@ class Framework(utility.Utility):
     def _serving_state(self, config):
         state = {}
         self._set_preprocessor('inference', config)
-        if 'preprocess' in config:
-            state['preprocessor'] = self._preprocessor
-        if 'preprocess' in config or 'postprocess' in config:
-            state['postprocessor'] = self._postprocessor
+        state['preprocessor'] = self._preprocessor
+        state['postprocessor'] = self._postprocessor
         return state
 
     def _preprocess_input(self, state, source, target, config):
@@ -900,13 +900,15 @@ class Framework(utility.Utility):
             return ' '.join(target)
         return postprocessor.process_input((source,target))
 
-    def _preprocess_file(self, config, input):
-        self._set_preprocessor('inference', config)
-        return self._preprocessor.process_file(input)
+    def _preprocess_file(self, input):
+        if self._preprocessor:
+            return self._preprocessor.process_file(input)
+        return input
 
-    def _postprocess_file(self, config, source, target):
-        self._set_preprocessor('inference', config)
-        return self._postprocessor.process_file((source, target))
+    def _postprocess_file(self, source, target):
+        if self._postprocessor:
+            return self._postprocessor.process_file((source, target))
+        return target
 
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:
@@ -954,8 +956,12 @@ class Framework(utility.Utility):
         if cmd == 'train':
             self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
         elif cmd == 'inference':
-            self._preprocessor = preprocess.InferenceProcessor(config)
-            self._postprocessor = preprocess.Postprocessor(config)
+            if 'preprocess' in config:
+                self._preprocessor = preprocess.InferenceProcessor(config)
+            if 'preprocess' in config or 'postprocess' in config:
+                self._postprocessor = preprocess.Postprocessor(config)
+        else:
+            raise RuntimeError('Invalid preprocess type: %s.' % cmd)
 
     def _generate_training_data(self, config):
         self._set_preprocessor('train', config)

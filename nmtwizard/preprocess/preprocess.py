@@ -40,7 +40,7 @@ class TrainingProcessor(Processor):
         self._data_dir = data_dir
 
     def _set_pipeline(self, preprocess_exit_step=None):
-        self._pipeline = prepoperator.TrainingPipeline(self._config, preprocess_exit_step)
+        self._pipeline = prepoperator.Pipeline(self._config, prepoperator.ProcessType.TRAINING, preprocess_exit_step)
 
 
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
@@ -184,7 +184,7 @@ class InferenceProcessor(Processor):
 
     def __init__(self, config):
         self._postprocess = False
-        self._pipeline = prepoperator.InferencePipeline(config)
+        self._pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
 
 
     def process_input(self, input):
@@ -217,15 +217,10 @@ class InferenceProcessor(Processor):
                  output is a file with postprocessed single-part targets."""
 
         # TODO :  can this file be compressed ?
-        input_file = input_files
         if isinstance(input_files, tuple):
-            input_file = input_files[-1]
-            output_file = "%s.detok" % input_file
+            output_file = "%s.detok" % input_files[-1]
         else:
-            output_file = "%s.tok" % input_file
-
-        if not self._pipeline:
-            return input_file
+            output_file = "%s.tok" % input_files
 
         file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
         file_consumer = consumer.FileWriter(output_file)
@@ -245,4 +240,4 @@ class Postprocessor(InferenceProcessor):
 
     def __init__(self, config):
         self._postprocess = True
-        self._pipeline = prepoperator.PostprocessPipeline(config)
+        self._pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType.POSTPROCESS)

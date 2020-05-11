@@ -1,4 +1,5 @@
 import collections
+import copy
 
 from nmtwizard.preprocess import tokenizer
 
@@ -8,13 +9,14 @@ class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens"
 class Alignment(object):
 
     def __init__(self, aligner=None):
-        self.align_dict = None
+        # A list of alignments, one for each part
+        self.alignments = None
         self.aligner = aligner
 
-    def align(src_tok, tgt_tok):
-        if not self.align_dict:
-            if self.aligner:
-                self.align_dict = self.aligner.align(src_tok, tgt_tok)
+    def align(self, src_tok, tgt_tok):
+        if not self.alignments and self.aligner:
+            for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
+                self.alignments = self.aligner.align(src_tok_part, tgt_tok_part)
 
 class TranslationSide(object):
 
@@ -128,18 +130,18 @@ class TranslationUnit(object):
 
     @property
     def alignment(self):
-        if not self.__alignment.align_dict:
-            self.__alignment.align(self.src_tok, self.tgt_tok)
-        return copy.deepcopy(self.__alignment.align_dict)
+        if not self.__alignment.alignments:
+            self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
+        return copy.deepcopy(self.__alignment.alignments)
 
     def set_aligner(self, aligner):
-        if not self.src_tok or not self.tgt_tok:
+        if not self.src_tok.tokenizer or not self.tgt_tok.tokenizer:
             raise RuntimeError('Cannot set aligner if not tokenization is set.')
         if self.__alignment:
             self.__alignment.aligner = aligner
         else:
             self.__alignment = Alignment(aligner)
-        self.__alignment.align_dict = None
+        self.__alignment.alignments = None
 
     @property
     def src_detok(self):
