@@ -957,7 +957,7 @@ class Framework(utility.Utility):
             self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
         elif cmd == 'inference':
             self._preprocessor = preprocess.InferenceProcessor(config)
-            self._postprocessor = preprocess.Postprocessor(config)
+            self._postprocessor = preprocess.InferenceProcessor(config, postprocess=True)
         else:
             raise RuntimeError('Invalid preprocess type: %s.' % cmd)
 

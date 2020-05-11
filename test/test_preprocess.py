@@ -4,7 +4,7 @@ import pytest
 import shutil
 import os
 
-from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor, TrainingProcessor
+from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 
 def test_sampler(tmpdir):
 
@@ -313,6 +313,6 @@ def test_preprocess_pipeline(tmpdir):
     assert source2 == source
     assert target[0] == ['Das', 'ist', '￭.', '￭.', '￭.']
 
-    post = Postprocessor(config)
+    post = InferenceProcessor(config, postprocess=True)
     target_postprocessed = post.process_input((source, target))
     assert target_postprocessed == "Das ist..."

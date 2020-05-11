@@ -24,6 +24,9 @@ def _get_tok_configs(config):
 
 class Processor(object):
 
+    def _set_pipeline(self, preprocess_exit_step=None):
+        self._pipeline = prepoperator.Pipeline(self._config, self._pipeline_type, preprocess_exit_step)
+
     def process(self, loader, consumer):
 
         # TODO V2 : parallelization
@@ -38,10 +41,7 @@ class TrainingProcessor(Processor):
         self._config = config
         self._corpus_dir = corpus_dir
         self._data_dir = data_dir
-
-    def _set_pipeline(self, preprocess_exit_step=None):
-        self._pipeline = prepoperator.Pipeline(self._config, prepoperator.ProcessType.TRAINING, preprocess_exit_step)
-
+        self._pipeline_type = prepoperator.ProcessType.TRAINING
 
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
 
@@ -182,10 +182,11 @@ class TrainingProcessor(Processor):
 
 class InferenceProcessor(Processor):
 
-    def __init__(self, config):
-        self._postprocess = False
-        self._pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
-
+    def __init__(self, config, postprocess=False):
+        self._config = config
+        self._postprocess = postprocess
+        self._pipeline_type = prepoperator.ProcessType.POSTPROCESS if self._postprocess else prepoperator.ProcessType.INFERENCE
+        self._set_pipeline()
 
     def process_input(self, input):
         """Processes one translation example at inference.
@@ -242,10 +243,3 @@ class InferenceProcessor(Processor):
             output_file = (output_file, file_consumer.metadata)
 
         return output_file
-
-
-class Postprocessor(InferenceProcessor):
-
-    def __init__(self, config):
-        self._postprocess = True
-        self._pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType.POSTPROCESS)
