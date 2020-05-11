@@ -198,6 +198,9 @@ class InferenceProcessor(Processor):
                  input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
                  output is single-part postprocessed target."""
 
+        if not self._pipeline:
+            return input
+
         basic_loader = loader.BasicLoader(input, self._pipeline.start_state)
         basic_writer = consumer.BasicWriter(self._postprocess)
         self.process(basic_loader,
@@ -217,10 +220,15 @@ class InferenceProcessor(Processor):
                  output is a file with postprocessed single-part targets."""
 
         # TODO :  can this file be compressed ?
+        input_file = input_files
         if isinstance(input_files, tuple):
-            output_file = "%s.detok" % input_files[-1]
+            input_file = input_files[-1]
+            output_file = "%s.detok" % input_file
         else:
-            output_file = "%s.tok" % input_files
+            output_file = "%s.tok" % input_file
+
+        if not self._pipeline:
+            return input_file
 
         file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
         file_consumer = consumer.FileWriter(output_file)

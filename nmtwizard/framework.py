@@ -878,37 +878,39 @@ class Framework(utility.Utility):
         return state
 
     def _preprocess_input(self, state, source, target, config):
+        metadata = None
         if not isinstance(source, list) and not isinstance(target, list):
             preprocessor = state.get('preprocessor')
-            if preprocessor is None:
+
+            if target is not None:
+                input = (source, target)
+            else :
+                input = source
+
+            output = preprocessor.process_input(input)
+            if output == input: # no preprocess is done
+                (source, metadata), target = output
+            else:
                 source = source.split()
                 if target is not None:
                     target = target.split()
-            else:
-                if target is not None:
-                    input = (source, target)
-                else :
-                    input = source
-                (source, metadata), target = preprocessor.process_input(input)
+
         return source, target, metadata
 
     def _postprocess_output(self, state, source, target, config):
         if not isinstance(target, list):
             return target
         postprocessor = state.get('postprocessor')
-        if postprocessor is None:
+        output = postprocessor.process_input((source,target))
+        if output == input: # no postprocess is done
             return ' '.join(target)
-        return postprocessor.process_input((source,target))
+        return output
 
     def _preprocess_file(self, input):
-        if self._preprocessor:
-            return self._preprocessor.process_file(input)
-        return input
+        return self._preprocessor.process_file(input)
 
     def _postprocess_file(self, source, target):
-        if self._postprocessor:
-            return self._postprocessor.process_file((source, target))
-        return target
+        return self._postprocessor.process_file((source, target))
 
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:
@@ -951,15 +953,11 @@ class Framework(utility.Utility):
         return merged_path
 
     def _set_preprocessor(self, cmd, config):
-        self._preprocessor = None
-        self._postprocessor = None
         if cmd == 'train':
             self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
         elif cmd == 'inference':
-            if 'preprocess' in config:
-                self._preprocessor = preprocess.InferenceProcessor(config)
-            if 'preprocess' in config or 'postprocess' in config:
-                self._postprocessor = preprocess.Postprocessor(config)
+            self._preprocessor = preprocess.InferenceProcessor(config)
+            self._postprocessor = preprocess.Postprocessor(config)
         else:
             raise RuntimeError('Invalid preprocess type: %s.' % cmd)
 
