@@ -188,7 +188,7 @@ class InferenceProcessor(Processor):
         self._pipeline_type = prepoperator.ProcessType.POSTPROCESS if self._postprocess else prepoperator.ProcessType.INFERENCE
         self._set_pipeline()
 
-    def process_input(self, input):
+    def process_input(self, process_input):
         """Processes one translation example at inference.
 
               In preprocess:
@@ -200,9 +200,9 @@ class InferenceProcessor(Processor):
                  output is single-part postprocessed target."""
 
         if not self._pipeline:
-            return input
+            return process_input
 
-        basic_loader = loader.BasicLoader(input, self._pipeline.start_state)
+        basic_loader = loader.BasicLoader(process_input, self._pipeline.start_state)
         basic_writer = consumer.BasicWriter(self._postprocess)
         self.process(basic_loader,
                      basic_writer)

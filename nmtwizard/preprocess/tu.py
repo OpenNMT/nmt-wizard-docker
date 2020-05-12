@@ -70,7 +70,7 @@ class TranslationSide(object):
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
-    def __init__(self, input, start_state=None, annotations=None):
+    def __init__(self, tu_input, start_state=None, annotations=None):
 
         self.__source = TranslationSide()
         self.__target = None
@@ -78,10 +78,10 @@ class TranslationUnit(object):
         self.__annotations = annotations
         self.__alignment = None
 
-        if isinstance(input, tuple):
+        if isinstance(tu_input, tuple):
             # We have both source and target.
             # Can be raw (in training, in inference with incomplete target) or tokenized and in parts (in postprocess).
-            source, target = input
+            source, target = tu_input
             self.__target = TranslationSide()
             if isinstance(source, tuple):
                 source, self.__metadata = source
@@ -103,7 +103,7 @@ class TranslationUnit(object):
                 self.__target.detok = self.__target.raw
         else:
             # We have source only: preprocess in inference with source only.
-            self.__source.raw = input.strip()
+            self.__source.raw = tu_input.strip()
             self.__source.detok = self.__source.raw
 
     @property

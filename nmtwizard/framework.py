@@ -883,12 +883,12 @@ class Framework(utility.Utility):
             preprocessor = state.get('preprocessor')
 
             if target is not None:
-                input = (source, target)
+                preprocess_input = (source, target)
             else :
-                input = source
+                preprocess_input = source
 
-            output = preprocessor.process_input(input)
-            if output == input: # no preprocess is done
+            preprocess_output = preprocessor.process_input(preprocess_input)
+            if preprocess_output == preprocess_input: # no preprocess is done
                 (source, metadata), target = output
             else:
                 source = source.split()
@@ -901,13 +901,14 @@ class Framework(utility.Utility):
         if not isinstance(target, list):
             return target
         postprocessor = state.get('postprocessor')
-        output = postprocessor.process_input((source,target))
-        if output == input: # no postprocess is done
+        postprocess_input = (source,target)
+        postprocess_output = postprocessor.process_input(postprocess_input)
+        if postprocess_output == postprocess_input: # no postprocess is done
             return ' '.join(target)
-        return output
+        return postprocess_output
 
-    def _preprocess_file(self, input):
-        return self._preprocessor.process_file(input)
+    def _preprocess_file(self, preprocess_input):
+        return self._preprocessor.process_file(preprocess_input)
 
     def _postprocess_file(self, source, target):
         return self._postprocessor.process_file((source, target))

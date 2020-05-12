@@ -17,16 +17,18 @@ class Loader(object):
 class BasicLoader(Loader):
     """BasicLoader class creates a one-TU batch at inference."""
 
-    def __init__(self, input, start_state):
+    def __init__(self, basic_input, start_state):
 
         """ In preprocess, input is one source, untokenized and one-part.
             In postprocess, input is ((source, metadata), target), tokenized and possibly multipart."""
-        self._input = input
+        self._input = basic_input
         self._start_state = start_state
 
     def __call__(self):
         tu_list = []
-        if input:
+        print ('HERE')
+        if self._input:
+            print('THERE')
             tu_list.append(tu.TranslationUnit(self._input, self._start_state))
         yield tu_list, {}
         return
