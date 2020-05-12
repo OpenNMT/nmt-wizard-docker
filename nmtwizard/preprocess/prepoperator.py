@@ -45,7 +45,8 @@ class Pipeline(object):
         # Start state is used in loader, to inform it about input tokenization.
         # TODO: can we do it better ?
         self.start_state = { "src_tok_config" : None,
-                             "tgt_tok_config" : None }
+                             "tgt_tok_config" : None,
+                             "postprocess_only" : False }
 
         # Current state of pipeline.
         # Passed to and modified by operator initializers if necessary.
@@ -63,19 +64,22 @@ class Pipeline(object):
                 break
 
 
-    def _build_pipeline(self, config, exit_step=None):
+    def _build_pipeline(self, config, preprocess_exit_step=None):
         self._ops = []
         preprocess_config = config.get("preprocess")
         if preprocess_config:
-            self._add_op_list(preprocess_config)
+            self._add_op_list(preprocess_config, exit_step=preprocess_exit_step)
 
         if self._process_type == ProcessType.POSTPROCESS:
             # Reverse preprocessing operators.
-            # TODO : reverse individual operators ?
             self._ops = reversed(self._ops)
 
             # Reverse start and build states.
             self.start_state, self._build_state = self._build_state, self.start_state
+
+            # Flag current pipeline state as 'postprocess_only'.
+            # Subsequent operators may need to be aware that they come from 'postprocess' configuration.
+            self._build_state['postprocess_only'] = True
 
             # Add pure postprocessing operators.
             postprocess_config = config.get("postprocess")
@@ -198,24 +202,32 @@ class Tokenizer(Operator):
             state["src_tok_config"] = self._src_tok_config
             state["tgt_tok_config"] = self._tgt_tok_config
 
+        self._postprocess_only = state['postprocess_only']
+
         self._src_tokenizer = None
         self._tgt_tokenizer = None
 
 
     def _preprocess(self, tu_batch, training=True):
-        tu_list, meta_batch = tu_batch
-        tu_list = self._set_tokenizers(tu_list, self._src_tok_config, self._tgt_tok_config)
-        return tu_list, meta_batch
+        tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config, self._tgt_tok_config)
+        return tu_batch
 
 
     def _postprocess(self, tu_batch):
+        # Tokenization from 'postprocess' field applies current tokenization in postprocess.
+        if self._postprocess_only:
+            src_tok_config = self._src_tok_config
+            tgt_tok_config = self._tgt_tok_config
+        # Tokenization from 'preprocess' field applies previous tokenization in postprocess.
+        else:
+            src_tok_config = self._src_tok_config_prev
+            tgt_tok_config = self._tgt_tok_config_prev
+        tu_batch = self._set_tokenizers(tu_batch, src_tok_config, tgt_tok_config)
+        return tu_batch
+
+
+    def _set_tokenizers(self, tu_batch, src_tok_config, tgt_tok_config):
         tu_list, meta_batch = tu_batch
-        tu_list = self._set_tokenizers(tu_list, self._src_tok_config_prev, self._tgt_tok_config_prev)
-        return tu_list, meta_batch
-
-
-    def _set_tokenizers(self, tu_list, src_tok_config, tgt_tok_config):
-
         if not self._src_tokenizer and src_tok_config:
             self._src_tokenizer = tokenizer.build_tokenizer(src_tok_config)
 
@@ -227,7 +239,7 @@ class Tokenizer(Operator):
             tu.src_tok = (self._src_tokenizer, None)
             tu.tgt_tok = (self._tgt_tokenizer, None)
 
-        return tu_list
+        return tu_list, meta_batch
 
 
 class Aligner(Operator):
@@ -246,7 +258,10 @@ class Aligner(Operator):
 
     def _build_aligner(self):
         if not self._aligner and self._align_config:
-            self._aligner = None # TODO : should alignment be opensource ?
+            self._aligner = None
+            # TODO : should alignment be opensource ?
+            # Include an opensource version of Fast Align ?
+            # Or should it be PN9-only operator ?
 
 
     def _set_aligner(self, tu_list):
