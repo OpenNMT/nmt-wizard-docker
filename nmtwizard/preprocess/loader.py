@@ -26,9 +26,7 @@ class BasicLoader(Loader):
 
     def __call__(self):
         tu_list = []
-        print ('HERE')
         if self._input:
-            print('THERE')
             tu_list.append(tu.TranslationUnit(self._input, self._start_state))
         yield tu_list, {}
         return
