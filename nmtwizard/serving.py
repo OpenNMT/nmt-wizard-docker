@@ -90,9 +90,15 @@ def start_server(host,
         global_max_batch_size = config.get('max_batch_size')
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+        def _send_response(self, data):
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(six.ensure_binary(json.dumps(data)))
+
         def do_GET(self):
             if self.path == '/status':
-                self.send_response(200)
+                self.status()
             else:
                 self.send_error(404, 'invalid route %s' % self.path)
 
@@ -107,8 +113,8 @@ def start_server(host,
                 self.send_error(404, 'invalid route %s' % self.path)
 
         def translate(self):
-            global backend_process
-            if backend_process is not None and not _process_is_running(backend_process):
+            if (backend_info is None or
+                (backend_process is not None and not _process_is_running(backend_process))):
                 self.send_error(503, 'backend service is unavailable')
                 return
             header_fn = (
@@ -133,10 +139,14 @@ def start_server(host,
             except RuntimeError as e:
                 self.send_error(504, str(e))
             else:
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(six.ensure_binary(json.dumps(result)))
+                self._send_response(result)
+
+        def status(self):
+            if backend_info is None:
+                status = "unloaded"
+            else:
+                status = "ready"
+            self._send_response({"status": status})
 
         def unload_model(self):
             global backend_process
@@ -145,7 +155,7 @@ def start_server(host,
                 backend_process.terminate()
             backend_process = None
             backend_info = None
-            self.send_response(200)
+            self.status()
 
         def reload_model(self):
             global backend_process
@@ -153,7 +163,7 @@ def start_server(host,
             if backend_process is not None and _process_is_running(backend_process):
                 backend_process.terminate()
             backend_process, backend_info = backend_service_fn()
-            self.send_response(200)
+            self.status()
 
     try:
         frontend_server = socketserver.ThreadingTCPServer((host, port), ServerHandler)
