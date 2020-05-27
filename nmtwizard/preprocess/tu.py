@@ -8,15 +8,35 @@ class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens"
 
 class Alignment(object):
 
-    def __init__(self, aligner=None):
+    def __init__(self, aligner=None, alignments=None):
+        if not aligner and not alignments:
+            raise RuntimeError('Cannot set an empty alignment.')
         # A list of alignments, one for each part
-        self.alignments = None
+        self.alignments = alignments
         self.aligner = aligner
+
+    @property
+    def alignments(self):
+        return self.__alignments
+
+    @alignments.setter
+    def alignments(self, alignments):
+        self.__alignments = alignments
+        if isinstance(self.__alignments, list):
+            for i,part in enumerate(self.__alignments):
+                if isinstance(part, str):
+                    # Initialize from pharaoh format
+                    # TODO : add checks.
+                    self.__alignments[i] = [tuple(al.split('-')) for al in part.split()]
+                else:
+                    break
 
     def align(self, src_tok, tgt_tok):
         if not self.alignments and self.aligner:
+            alignments = []
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
-                self.alignments = self.aligner.align(src_tok_part, tgt_tok_part)
+                alignments.append(self.aligner.align(src_tok_part, tgt_tok_part))
+            self.alignments = alignments
 
 class TranslationSide(object):
 
@@ -70,7 +90,7 @@ class TranslationSide(object):
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
-    def __init__(self, tu_input, start_state=None, annotations=None):
+    def __init__(self, tu_input, start_state=None, annotations=None, alignment=None):
 
         self.__source = TranslationSide()
         self.__target = None
@@ -95,6 +115,8 @@ class TranslationUnit(object):
                     tgt_tokenizer = tokenizer.build_tokenizer(start_state["tgt_tok_config"])
                 self.__source.tok = (src_tokenizer, source)
                 self.__target.tok = (tgt_tokenizer, target)
+                if alignment:
+                    self.__alignment = Alignment(alignments=alignment)
             else:
                 # Preprocess in training or in inference with incomplete target.
                 self.__source.raw = source.strip()
@@ -130,6 +152,8 @@ class TranslationUnit(object):
 
     @property
     def alignment(self):
+        if not self.__alignment:
+            return None
         if not self.__alignment.alignments:
             self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
         return copy.deepcopy(self.__alignment.alignments)

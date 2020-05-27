@@ -290,6 +290,8 @@ class SamplerFileWriter(Consumer):
         self._files["src"] = open(src, 'w')
         tgt = os.path.join(self._result_dir, f.base_name + "." + f.tgt_suffix)
         self._files["tgt"] = open(tgt, 'w')
+        align = os.path.join(self._result_dir, f.base_name + ".align")
+        self._files["align"] = open(align, 'w')
 
     def close_files(self):
         for f in self._files.values():
@@ -319,6 +321,12 @@ class SamplerFileWriter(Consumer):
                     self._files["tgt"].write("%s\n" % part)
             else :
                 self._files["tgt"].write("%s\n" % tu.tgt_detok)
+
+            alignment = tu.alignment
+            if alignment :
+                for part in alignment:
+                    part = " ".join("%s-%s" % tup for tup in part)
+                    self._files["align"].write("%s\n" % part)
         self._lines_filtered += len(tu_list)
 
 
