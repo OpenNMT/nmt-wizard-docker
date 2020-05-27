@@ -60,7 +60,6 @@ def pick_free_port():
 def start_server(host,
                  port,
                  config,
-                 serving_state,
                  backend_service_fn,
                  preprocess_fn,
                  translate_fn,
@@ -72,11 +71,10 @@ def start_server(host,
     Args:
       host: The hostname of the service.
       port: The port used by the service.
-      serving_state: The framework state to propagate to pre/postprocessing callbacks.
       backend_service_fn: A callable to start the framework dependent backend service.
-      preprocess_fn: A callable taking (serving_state, text, config) and returning tokens.
+      preprocess_fn: A callable taking (text, config) and returning tokens.
       translation_fn: A callable that forwards the request to the translation backend.
-      postprocess_fn: A callable taking (serving_state, src_tokens, tgt_tokens, config)
+      postprocess_fn: A callable taking (src_tokens, tgt_tokens, config)
         and returning text.
     """
     global backend_process
@@ -122,9 +120,9 @@ def start_server(host,
             try:
                 result = run_request(
                     json.loads(six.ensure_str(post_body)),
-                    functools.partial(preprocess_fn, serving_state),
+                    preprocess_fn,
                     functools.partial(translate_fn, backend_info),
-                    functools.partial(postprocess_fn, serving_state),
+                    postprocess_fn,
                     config=config,
                     max_batch_size=global_max_batch_size,
                     timeout=global_timeout)

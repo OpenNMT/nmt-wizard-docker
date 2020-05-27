@@ -516,7 +516,8 @@ class Framework(utility.Utility):
 
         local_config = self._finalize_config(config, training=False)
 
-        self._set_preprocessor('inference', local_config)
+        self._set_preprocessor(local_config, train=False)
+        self._set_postprocessor(local_config)
 
         failed_translation = 0
         translated_lines = 0
@@ -650,7 +651,6 @@ class Framework(utility.Utility):
             host,
             port,
             local_config,
-            self._serving_state(local_config),
             lambda: self.serve(local_config, model_path, gpuid=gpuid),
             self._preprocess_input,
             self.forward_request,
@@ -870,24 +870,17 @@ class Framework(utility.Utility):
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
 
-    def _serving_state(self, config):
-        state = {}
-        self._set_preprocessor('inference', config)
-        state['preprocessor'] = self._preprocessor
-        state['postprocessor'] = self._postprocessor
-        return state
-
-    def _preprocess_input(self, state, source, target, config):
+    def _preprocess_input(self, source, target, config):
         metadata = None
         if not isinstance(source, list) and not isinstance(target, list):
-            preprocessor = state.get('preprocessor')
+            self._set_preprocessor(config, train=False)
 
             if target is not None:
                 preprocess_input = (source, target)
             else :
                 preprocess_input = source
 
-            preprocess_output = preprocessor.process_input(preprocess_input)
+            preprocess_output = self._preprocessor.process_input(preprocess_input)
             if preprocess_output == preprocess_input: # no preprocess is done
                 (source, metadata), target = output
             else:
@@ -897,12 +890,12 @@ class Framework(utility.Utility):
 
         return source, target, metadata
 
-    def _postprocess_output(self, state, source, target, config):
+    def _postprocess_output(self, source, target, config):
         if not isinstance(target, list):
             return target
-        postprocessor = state.get('postprocessor')
+        self._set_postprocessor(config)
         postprocess_input = (source,target)
-        postprocess_output = postprocessor.process_input(postprocess_input)
+        postprocess_output = self._postprocessor.process_input(postprocess_input)
         if postprocess_output == postprocess_input: # no postprocess is done
             return ' '.join(target)
         return postprocess_output
@@ -953,21 +946,21 @@ class Framework(utility.Utility):
         data_util.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
-    def _set_preprocessor(self, cmd, config):
-        if cmd == 'train':
+    def _set_preprocessor(self, config, train=True):
+        if train:
             self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
-        elif cmd == 'inference':
-            self._preprocessor = preprocess.InferenceProcessor(config)
-            self._postprocessor = preprocess.InferenceProcessor(config, postprocess=True)
         else:
-            raise RuntimeError('Invalid preprocess type: %s.' % cmd)
+            self._preprocessor = preprocess.InferenceProcessor(config)
+
+    def _set_postprocessor(self, config):
+        self._postprocessor = preprocess.InferenceProcessor(config, postprocess=True)
 
     def _generate_training_data(self, config):
-        self._set_preprocessor('train', config)
+        self._set_preprocessor(config)
         return self._preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        self._set_preprocessor('train', config)
+        self._set_preprocessor(config)
         return self._preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
