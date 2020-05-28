@@ -35,7 +35,9 @@ class Alignment(object):
         if not self.alignments and self.aligner:
             alignments = []
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
-                alignments.append(self.aligner.align(src_tok_part, tgt_tok_part))
+                align_result = self.aligner.align(src_tok_part, tgt_tok_part)
+                # TODO : write fwd and bwd probs
+                alignments.append(align_result["alignments"])
             self.alignments = alignments
 
 class TranslationSide(object):

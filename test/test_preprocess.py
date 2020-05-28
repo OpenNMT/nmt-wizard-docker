@@ -316,3 +316,52 @@ def test_preprocess_pipeline(tmpdir):
     post = InferenceProcessor(config, postprocess=True)
     target_postprocessed = post.process_input((source, target))
     assert target_postprocessed == "Das ist..."
+
+
+def test_preprocess_align(tmpdir):
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 800,
+            "sample_dist": [
+                {
+                    "path": str(pytest.config.rootdir / "corpus" / "train"),
+                    "distribution": [
+                        ["europarl", 1]
+                    ]
+                }
+            ]
+        },
+        "preprocess": [
+            {
+                "op" : "tokenization",
+                "source": {
+                    "mode": "aggressive",
+                    "joiner_annotate": True
+                },
+                "target": {
+                    "mode": "aggressive",
+                    "joiner_annotate": True
+                }
+            },
+            {
+                "op": "alignment",
+                # "monotonic": True
+                "write_alignment": True,
+                "forward": {
+                    "probs": str(pytest.config.rootdir / "corpus" / "resources" / "alignment" / "ende_forward.probs")
+                },
+                "backward": {
+                    "probs": str(pytest.config.rootdir / "corpus" / "resources" / "alignment" / "ende_backward.probs")
+                }
+            }
+        ]
+    }
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, metadata = \
+        preprocessor.generate_preprocessed_data()
+
+    with open(os.path.join(str(tmpdir), "preprocess", "europarl-v7.de-en.10K.tok.align")) as align:
+        assert align.readline().strip() == "0-0 1-0 2-1 3-2"

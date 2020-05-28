@@ -89,7 +89,7 @@ class TrainingProcessor(Processor):
                 if f.lines_kept :
                     sampler_loader=loader.SamplerFileLoader(f, batch_size)
                     if hasattr(sampler_consumer, "open_files"):
-                        sampler_consumer.open_files(f)
+                        sampler_consumer.open_files(f, self._pipeline.build_state)
                     self.process(sampler_loader, sampler_consumer)
                     sampler_loader.close_files()
                     if hasattr(sampler_consumer, "close_files"):

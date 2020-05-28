@@ -280,7 +280,7 @@ class SamplerFileWriter(Consumer):
         self._tokens_to_add = {'source':set(), 'target':set()}
         self.num_samples = 0
 
-    def open_files(self, f):
+    def open_files(self, f, build_state):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
         self._lines_filtered = 0
@@ -290,8 +290,9 @@ class SamplerFileWriter(Consumer):
         self._files["src"] = open(src, 'w')
         tgt = os.path.join(self._result_dir, f.base_name + "." + f.tgt_suffix)
         self._files["tgt"] = open(tgt, 'w')
-        align = os.path.join(self._result_dir, f.base_name + ".align")
-        self._files["align"] = open(align, 'w')
+        if build_state.get('write_alignment', False):
+            align = os.path.join(self._result_dir, f.base_name + ".align")
+            self._files["align"] = open(align, 'w')
 
     def close_files(self):
         for f in self._files.values():
@@ -322,11 +323,13 @@ class SamplerFileWriter(Consumer):
             else :
                 self._files["tgt"].write("%s\n" % tu.tgt_detok)
 
-            alignment = tu.alignment
-            if alignment :
-                for part in alignment:
-                    part = " ".join("%s-%s" % tup for tup in part)
-                    self._files["align"].write("%s\n" % part)
+
+            if "align" in self._files:
+                alignment = tu.alignment
+                if alignment :
+                    for part in alignment:
+                        part = " ".join("%s-%s" % tup for tup in part)
+                        self._files["align"].write("%s\n" % part)
         self._lines_filtered += len(tu_list)
 
 

@@ -1,10 +1,13 @@
 # coding: utf-8
 import six
 import abc
+import os
 from itertools import chain
 
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import tokenizer
+
+import systran_align
 
 logger = get_logger(__name__)
 
@@ -50,7 +53,7 @@ class Pipeline(object):
 
         # Current state of pipeline.
         # Passed to and modified by operator initializers if necessary.
-        self._build_state = dict(self.start_state)
+        self.build_state = dict(self.start_state)
 
         self._build_pipeline(config, preprocess_exit_step)
 
@@ -75,11 +78,11 @@ class Pipeline(object):
             self._ops = reversed(self._ops)
 
             # Reverse start and build states.
-            self.start_state, self._build_state = self._build_state, self.start_state
+            self.start_state, self.build_state = self.build_state, self.start_state
 
             # Flag current pipeline state as 'postprocess_only'.
             # Subsequent operators may need to be aware that they come from 'postprocess' configuration.
-            self._build_state['postprocess_only'] = True
+            self.build_state['postprocess_only'] = True
 
             # Add pure postprocessing operators.
             postprocess_config = config.get("postprocess")
@@ -94,9 +97,9 @@ class Pipeline(object):
         if op == "length_filter":
             operator = LengthFilter(params)
         elif op == "tokenization":
-            operator = Tokenizer(params, self._build_state)
+            operator = Tokenizer(params, self.build_state)
         elif op == "alignment":
-            operator = Aligner(params)
+            operator = Aligner(params, self.build_state)
         # TODO : all other operators
         else:
             # TODO : warning or error ?
@@ -244,10 +247,10 @@ class Tokenizer(Operator):
 
 class Aligner(Operator):
 
-    def __init__(self, align_config):
+    def __init__(self, align_config, build_state):
         self._align_config = align_config
         self._aligner = None
-
+        build_state['write_alignment'] = self._align_config.get('write_alignment', False)
 
     def _preprocess(self, tu_batch, training=True):
         tu_list, meta_batch = tu_batch
@@ -258,11 +261,17 @@ class Aligner(Operator):
 
     def _build_aligner(self):
         if not self._aligner and self._align_config:
-            self._aligner = None
-            # TODO : should alignment be opensource ?
-            # Include an opensource version of Fast Align ?
-            # Or should it be PN9-only operator ?
-
+            # TODO : maybe add monotonic alignment ?
+            forward_probs_path=self._align_config.get('forward', {}).get('probs')
+            backward_probs_path=self._align_config.get('backward', {}).get('probs')
+            if forward_probs_path and backward_probs_path:
+                if not os.path.exists(forward_probs_path) or not os.path.isfile(forward_probs_path):
+                    raise ValueError("Forward probs file for alignment doesn't exist: %s" % forward_probs_path)
+                if not os.path.exists(backward_probs_path) or not os.path.isfile(backward_probs_path):
+                    raise ValueError("Backward probs file for alignment doesn't exist: %s" % backward_probs_path)
+                self._aligner = systran_align.Aligner(forward_probs_path, backward_probs_path)
+            else:
+                self._aligner = None
 
     def _set_aligner(self, tu_list):
         # Set aligner for TUs.
