@@ -747,8 +747,9 @@ class Framework(utility.Utility):
         joint_vocab = is_joint_vocab(vocab_config)
         parent_dependencies = {}
         if model_config:
+            model_local_config = self._finalize_config(model_config)
             model_vocab_config = model_config.get('vocabulary', {})
-            model_vocab_local_config = self._finalize_config(model_vocab_config)
+            model_vocab_local_config = model_local_config.get('vocabulary', {})
             model_joint_vocab = is_joint_vocab(model_vocab_config)
             if joint_vocab != model_joint_vocab:
                 raise ValueError("Changing joint vocabularies to split vocabularies "
