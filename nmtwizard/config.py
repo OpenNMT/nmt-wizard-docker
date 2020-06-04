@@ -123,18 +123,17 @@ def old_to_new_config(config):
     if tok_config:
         vocab_src = tok_config["source"].get("vocabulary", None)
         vocab_tgt = tok_config["target"].get("vocabulary", None)
-        if not "vocabulary" in config and (vocab_src or vocab_tgt):
+        if vocab_src or vocab_tgt:
             config["vocabulary"] = {}
             if vocab_src:
                 config["vocabulary"]["source"] = { "path": vocab_src }
             if vocab_tgt:
                 config["vocabulary"]["target"] = { "path": vocab_tgt }
 
-        if not "preprocess" in config:
-            config["preprocess"] = [
-                {
-                    "op":"tokenization",
-                    "source": tok_config["source"],
-                    "target": tok_config["target"]
-                }
-            ]
+        config["preprocess"] = [
+            {
+                "op":"tokenization",
+                "source": tok_config["source"],
+                "target": tok_config["target"]
+            }
+        ]

@@ -157,7 +157,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             "sample": 800,
             "sample_dist": [
                 {
-                    "path": str(pytest.config.rootdir / "corpus" / "train"),
+                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -180,7 +180,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             "size": size,
             "min-frequency": min_frequency,
             "add": ['mama', 'papa'],
-            "merge": str(pytest.config.rootdir / "corpus" / "vocab" / "vocab-extra.txt")
+            "merge": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "vocab", "vocab-extra.txt")
         }
         config['preprocess'][0][side]['build_subword'] = subword_config
 
@@ -271,7 +271,7 @@ def test_preprocess_pipeline(tmpdir):
             "sample": 800,
             "sample_dist": [
                 {
-                    "path": str(pytest.config.rootdir / "corpus" / "train"),
+                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -326,7 +326,7 @@ def test_preprocess_align(tmpdir):
             "sample": 800,
             "sample_dist": [
                 {
-                    "path": str(pytest.config.rootdir / "corpus" / "train"),
+                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -350,10 +350,10 @@ def test_preprocess_align(tmpdir):
                 # "monotonic": True
                 "write_alignment": True,
                 "forward": {
-                    "probs": str(pytest.config.rootdir / "corpus" / "resources" / "alignment" / "ende_forward.probs")
+                    "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_forward.probs")
                 },
                 "backward": {
-                    "probs": str(pytest.config.rootdir / "corpus" / "resources" / "alignment" / "ende_backward.probs")
+                    "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_backward.probs")
                 }
             }
         ]

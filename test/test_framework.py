@@ -255,7 +255,7 @@ def _read_config(model_dir):
         return json.load(config_file)
 
 def _test_dir():
-    return str(pytest.config.rootdir)
+    return os.path.dirname(os.path.realpath(__file__))
 
 def _run_framework(tmpdir,
                    task_id,
