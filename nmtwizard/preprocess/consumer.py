@@ -262,7 +262,7 @@ class FileWriter(Consumer):
         for tu in tu_list :
             tgt_detok = tu.tgt_detok
             # Postprocess.
-            if tgt_detok:
+            if tgt_detok is not None:
                 self._file.write("%s\n" % tgt_detok)
             # Preprocess.
             else:
