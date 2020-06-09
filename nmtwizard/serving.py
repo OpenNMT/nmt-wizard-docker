@@ -243,12 +243,28 @@ def preprocess_example(func, index, raw_example, config=None):
     source_text = raw_example.get('text')
     if source_text is None:
         raise ValueError('missing text field in example %d' % index)
-    target_text = raw_example.get('target_prefix')
     mode = raw_example.get('mode', 'default')
     config = finalize_config(
         config,
         override=raw_example.get('config'),
         options=raw_example.get('options'))
+
+    target_prefix = raw_example.get('target_prefix')
+    target_fuzzy = raw_example.get('fuzzy')
+    if target_prefix is not None and target_fuzzy is not None:
+        raise ValueError("Using both a target prefix and a fuzzy target is currently unsupported")
+    elif target_prefix is not None:
+        target_text = target_prefix
+        target_type = "prefix"
+    elif target_fuzzy is not None:
+        target_text = target_fuzzy
+        target_type = "fuzzy"
+    else:
+        target_text = None
+        target_type = None
+    if target_type is not None:
+        config = config.copy() if config is not None else {}
+        config["target_type"] = target_type
 
     result = func(source_text, target_text, config)
 
