@@ -253,7 +253,7 @@ def preprocess_example(func, index, raw_example, config=None):
     target_fuzzy = raw_example.get('fuzzy')
     if target_prefix is not None and target_fuzzy is not None:
         raise ValueError("Using both a target prefix and a fuzzy target is currently unsupported")
-    elif target_prefix is not None:
+    if target_prefix is not None:
         target_text = target_prefix
         target_type = "prefix"
     elif target_fuzzy is not None:
