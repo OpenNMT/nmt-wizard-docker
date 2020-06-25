@@ -124,11 +124,18 @@ def old_to_new_config(config):
         vocab_src = tok_config["source"].get("vocabulary", None)
         vocab_tgt = tok_config["target"].get("vocabulary", None)
         if vocab_src or vocab_tgt:
-            config["vocabulary"] = {}
+            if "vocabulary" not in config:
+                config["vocabulary"] = {}
             if vocab_src:
-                config["vocabulary"]["source"] = { "path": vocab_src }
+                if "source" not in config["vocabulary"]:
+                    config["vocabulary"]["source"] = { "path": vocab_src }
+                else:
+                    config["vocabulary"]["source"]["path"] = vocab_src
             if vocab_tgt:
-                config["vocabulary"]["target"] = { "path": vocab_tgt }
+                if "target" not in config["vocabulary"]:
+                    config["vocabulary"]["target"] = { "path": vocab_tgt }
+                else:
+                    config["vocabulary"]["target"]["path"] = vocab_tgt
 
         config["preprocess"] = [
             {
