@@ -882,9 +882,9 @@ class Framework(utility.Utility):
                 preprocess_input = source
 
             preprocess_output = self._preprocessor.process_input(preprocess_input)
-            if preprocess_output == preprocess_input: # no preprocess is done
-                (source, metadata), target = output
-            else:
+            if preprocess_output != preprocess_input:
+                (source, metadata), target = preprocess_output
+            else: # no preprocess is done
                 source = source.split()
                 if target is not None:
                     target = target.split()
