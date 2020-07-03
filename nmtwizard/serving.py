@@ -88,9 +88,15 @@ def start_server(host,
         global_max_batch_size = config.get('max_batch_size')
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+        def _send_response(self, data):
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(six.ensure_binary(json.dumps(data)))
+
         def do_GET(self):
             if self.path == '/status':
-                self.send_response(200)
+                self.status()
             else:
                 self.send_error(404, 'invalid route %s' % self.path)
 
@@ -105,8 +111,8 @@ def start_server(host,
                 self.send_error(404, 'invalid route %s' % self.path)
 
         def translate(self):
-            global backend_process
-            if backend_process is not None and not _process_is_running(backend_process):
+            if (backend_info is None or
+                (backend_process is not None and not _process_is_running(backend_process))):
                 self.send_error(503, 'backend service is unavailable')
                 return
             header_fn = (
@@ -131,10 +137,14 @@ def start_server(host,
             except RuntimeError as e:
                 self.send_error(504, str(e))
             else:
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(six.ensure_binary(json.dumps(result)))
+                self._send_response(result)
+
+        def status(self):
+            if backend_info is None:
+                status = "unloaded"
+            else:
+                status = "ready"
+            self._send_response({"status": status})
 
         def unload_model(self):
             global backend_process
@@ -143,7 +153,7 @@ def start_server(host,
                 backend_process.terminate()
             backend_process = None
             backend_info = None
-            self.send_response(200)
+            self.status()
 
         def reload_model(self):
             global backend_process
@@ -151,7 +161,7 @@ def start_server(host,
             if backend_process is not None and _process_is_running(backend_process):
                 backend_process.terminate()
             backend_process, backend_info = backend_service_fn()
-            self.send_response(200)
+            self.status()
 
     try:
         frontend_server = socketserver.ThreadingTCPServer((host, port), ServerHandler)
@@ -231,12 +241,28 @@ def preprocess_example(func, index, raw_example, config=None):
     source_text = raw_example.get('text')
     if source_text is None:
         raise ValueError('missing text field in example %d' % index)
-    target_text = raw_example.get('target_prefix')
     mode = raw_example.get('mode', 'default')
     config = finalize_config(
         config,
         override=raw_example.get('config'),
         options=raw_example.get('options'))
+
+    target_prefix = raw_example.get('target_prefix')
+    target_fuzzy = raw_example.get('fuzzy')
+    if target_prefix is not None and target_fuzzy is not None:
+        raise ValueError("Using both a target prefix and a fuzzy target is currently unsupported")
+    if target_prefix is not None:
+        target_text = target_prefix
+        target_type = "prefix"
+    elif target_fuzzy is not None:
+        target_text = target_fuzzy
+        target_type = "fuzzy"
+    else:
+        target_text = None
+        target_type = None
+    if target_type is not None:
+        config = config.copy() if config is not None else {}
+        config["target_type"] = target_type
 
     result = func(source_text, target_text, config)
 

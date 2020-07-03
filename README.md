@@ -1,15 +1,15 @@
 # nmt-wizard-docker
 
-The goal of this project is to encapsulate MT frameworks in Docker containers and expose a single interface for preprocessing, training, translating, and serving models. 
+The goal of this project is to encapsulate MT frameworks in Docker containers and expose a single interface for preprocessing, training, translating, and serving models. The project targets advanced users who are looking to automate the production and validation of translation models.
 
 The [available Docker images](https://hub.docker.com/u/nmtwizard) extend the original frameworks with the following features:
 
-* Data weighting and sampling from raw training files.
-* Data and models synchronization from remote storages such as Amazon S3, Swift, or any server via SSH.
+* Data weighting, sampling, and preprocessing from raw training files.
+* Files synchronization from and to remote storages such as Amazon S3, Swift, or any server via SSH.
 * Metadata on model history such as parent model, training data that was used, training time, etc.
 * Regular HTTP request to an URL to declare running status.
 
-It supports [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py/) and [OpenNMT-tf](https://github.com/OpenNMT/OpenNMT-tf/) training frameworks, and provides translate-only frameworks using online translation API from DeepL, Google, Baidu, and others.
+It supports the [OpenNMT-py](https://github.com/OpenNMT/OpenNMT-py/) and [OpenNMT-tf](https://github.com/OpenNMT/OpenNMT-tf/) training frameworks, and provides translate-only frameworks using online translation API from DeepL, Google, Baidu, and others.
 
 ## Usage
 

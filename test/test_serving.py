@@ -242,6 +242,7 @@ def test_run_request():
         sep = config["separator"]
         src = src.split(sep)
         if tgt is not None:
+            assert config.get("target_type") is not None
             tgt = tgt.split(sep)
         return src, tgt
     def translate(source_tokens, target_tokens, options=None):
