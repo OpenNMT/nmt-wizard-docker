@@ -28,6 +28,9 @@ def test_sampler(tmpdir):
     _generate_pseudo_corpus(200, "IT", "de")
     _generate_pseudo_corpus(3000, "news_pattern", "en")
     _generate_pseudo_corpus(3000, "news_pattern", "de")
+    _generate_pseudo_corpus(10, "unaligned", "en")
+    _generate_pseudo_corpus(10, "generic_to_ignore", "en")
+    _generate_pseudo_corpus(10, "generic_to_ignore", "de")
 
     config = {
         "source": "en",
@@ -38,10 +41,12 @@ def test_sampler(tmpdir):
                 {
                     "path": str(corpus_dir),
                     "distribution": [
+                        ["generic_to_ignore", 0],
                         ["generic", 1],
                         ["specific", 5.2],
                         ["news.*pattern", "*1"],
-                        [".*something", 1]
+                        [".*something", 1],
+                        ["unaligned", 1]
                     ]
                 }
             ]
@@ -58,6 +63,8 @@ def test_sampler(tmpdir):
     assert summary['corpus_specific1']['lines_sampled'] >= 479
     assert summary['corpus_specific2']['lines_sampled'] >= 1198
     assert summary['IT']['lines_sampled'] == 0
+    assert 'unaligned' not in summary
+    assert summary['generic_to_ignore']['lines_sampled'] == 0
 
     # check unique sampling with undersampling
     with open(str(tmpdir.join("preprocess/corpus_specific2.en")), 'rb') as f :

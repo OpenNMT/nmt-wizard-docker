@@ -28,21 +28,19 @@ class SamplerFile(object):
             if isinstance(v, dict):
                 self.close_files(v)
             else:
-                if not v.closed:
+                if hasattr(v, 'closed') and not v.closed:
                     v.close()
 
 
-def count_lines(path, skip_if_absent=False):
+def count_lines(path):
     f = None
     if os.path.isfile(path + ".gz"):
         f = gzip.open(path + ".gz", 'r')
     elif os.path.isfile(path):
         f = open(path, 'r')
     else:
-        if skip_if_absent:
-            return None, None
-        else:
-            raise ValueError("File %s not found" % path)
+        logger.warning("File %s not found", path)
+        return None, None
     i = 0
     for i, _ in enumerate(f):
         pass
@@ -65,7 +63,7 @@ def sample(config, source_dir):
             tgt_file, tgt_lines = count_lines(file_path + "." + tgt_suffix)
             files["tgt"] = tgt_file
             if src_lines != tgt_lines:
-                logger.warning('Target file %s is not aligned with source file %s. Files will be ignored in sampling.', file_path + tgt_suffix, file_path + src_suffix)
+                logger.warning('Target file %s is not aligned with source file %s. Files will be ignored in sampling.', file_path + "." + tgt_suffix, file_path + "." + src_suffix)
                 return files, 0
 
         files["annotations"] = {}
@@ -74,7 +72,7 @@ def sample(config, source_dir):
                 annot_file_path = os.path.join(annot_path, base_name)
                 if suffix :
                     annot_file_path += "." + suffix
-                annot_file, annot_lines = count_lines(annot_file_path, skip_if_absent=True)
+                annot_file, annot_lines = count_lines(annot_file_path)
                 if not annot_file :
                     continue
                 if suffix:
