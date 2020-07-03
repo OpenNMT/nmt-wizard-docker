@@ -28,6 +28,9 @@ class Alignment(object):
                     # Initialize from pharaoh format
                     # TODO : add checks.
                     self.__alignments[i] = [tuple(al.split('-')) for al in part.split()]
+                elif isinstance(part, list):
+                    # Initialize from a list of tuples
+                    self.__alignments[i] = [tuple(al) for al in part]
                 else:
                     break
 
