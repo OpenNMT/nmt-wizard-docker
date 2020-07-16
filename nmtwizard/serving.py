@@ -64,7 +64,8 @@ def start_server(host,
                  backend_service_fn,
                  preprocess_fn,
                  translate_fn,
-                 postprocess_fn):
+                 postprocess_fn,
+                 rebatch_request=True):
     """Start a serving service.
 
     This function will only return on SIGINT or SIGTERM signals.
@@ -78,6 +79,9 @@ def start_server(host,
       translation_fn: A callable that forwards the request to the translation backend.
       postprocess_fn: A callable taking (serving_state, src_tokens, tgt_tokens, config)
         and returning text.
+      rebatch_request: If True, incoming requests are rebatched according to
+        max_batch_size. Otherwise, max_batch_size is passed as a translation option
+        to translate_fn which takes responsibility over batching.
     """
     global backend_process
     global backend_info
@@ -86,8 +90,8 @@ def start_server(host,
     global_max_batch_size = None
     serving_config = config.get('serving')
     if serving_config is not None and isinstance(serving_config, dict):
-        global_timeout = config.get('timeout')
-        global_max_batch_size = config.get('max_batch_size')
+        global_timeout = serving_config.get('timeout')
+        global_max_batch_size = serving_config.get('max_batch_size')
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         def _send_response(self, data):
@@ -132,6 +136,7 @@ def start_server(host,
                     functools.partial(translate_fn, backend_info),
                     functools.partial(postprocess_fn, serving_state),
                     config=config,
+                    rebatch_request=rebatch_request,
                     max_batch_size=global_max_batch_size,
                     timeout=global_timeout)
             except ValueError as e:
@@ -193,6 +198,7 @@ def run_request(request,
                 translate_fn,
                 postprocess_fn,
                 config=None,
+                rebatch_request=True,
                 max_batch_size=None,
                 timeout=None):
     """Runs a translation request."""
@@ -214,7 +220,11 @@ def run_request(request,
         options = request.get('options', {})
         options.setdefault('timeout', timeout)
         config = finalize_config(config, override=options.get('config'))
-        max_batch_size = options.get('max_batch_size', max_batch_size)
+        if rebatch_request:
+            max_batch_size = options.get('max_batch_size', max_batch_size)
+        elif max_batch_size is not None:
+            options['max_batch_size'] = max_batch_size
+            max_batch_size = None
 
         examples = preprocess_examples(src, preprocess_fn, config=config)
         outputs = translate_examples(

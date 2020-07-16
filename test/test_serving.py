@@ -249,6 +249,7 @@ def test_run_request():
         assert options is not None
         assert "config" in options  # Request options are fowarded.
         assert "mode" in options
+        assert options["max_batch_size"] == 1
         return [
             [_make_output((target if target is not None else []) + list(reversed(source)))]
             for source, target in zip(source_tokens, target_tokens)]
@@ -266,5 +267,12 @@ def test_run_request():
         }
     }
 
-    result = serving.run_request(request, preprocess, translate, postprocess, config=config)
+    result = serving.run_request(
+        request,
+        preprocess,
+        translate,
+        postprocess,
+        config=config,
+        rebatch_request=False,
+        max_batch_size=1)
     assert result == {'tgt': [[{'text': '1 2 c b a'}], [{'text': 'z_y_x'}]]}
