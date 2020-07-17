@@ -220,9 +220,8 @@ def run_request(request,
         options = request.get('options', {})
         options.setdefault('timeout', timeout)
         config = finalize_config(config, override=options.get('config'))
-        if rebatch_request:
-            max_batch_size = options.get('max_batch_size', max_batch_size)
-        elif max_batch_size is not None:
+        max_batch_size = options.get('max_batch_size', max_batch_size)
+        if not rebatch_request and max_batch_size is not None:
             options['max_batch_size'] = max_batch_size
             max_batch_size = None
 
