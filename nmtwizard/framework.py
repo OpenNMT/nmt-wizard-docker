@@ -52,6 +52,11 @@ class Framework(utility.Utility):
     def name(self):
         return "NMT framework"
 
+    @property
+    def has_own_request_batching(self):
+        """Returns True if the framework applies its own batching logic during serving."""
+        return False
+
     @abc.abstractmethod
     def train(self,
               config,
@@ -654,7 +659,8 @@ class Framework(utility.Utility):
             lambda: self.serve(local_config, model_path, gpuid=gpuid),
             self._preprocess_input,
             self.forward_request,
-            self._postprocess_output)
+            self._postprocess_output,
+            rebatch_request=not self.has_own_request_batching)
 
     def preprocess(self, config, storage):
         logger.info('Starting preprocessing data ')
