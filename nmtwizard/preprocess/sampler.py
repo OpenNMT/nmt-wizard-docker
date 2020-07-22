@@ -281,7 +281,8 @@ def sample(config, source_dir):
                 pattern_weight = float(f.weight["weight"]) / pattern_weights_sum
                 f.weight["weight"] = file_weight * pattern_weight
                 weights_sum += f.weight["weight"]
-                weights_size += 1
+                if f.weight["weight"] != 0.0:
+                    weights_size += 1
         else:
             logger.debug('No rules matching %s', f.base_name)
 
@@ -297,19 +298,19 @@ def sample(config, source_dir):
             extra = f.weight["extra"]
             pattern = f.weight["pattern"]
             weight = f.weight["weight"]
-            lines_kept = f.lines_count * f.oversample
-            if gsample and not isinstance(weight, six.string_types):
-                weights_size -= 1
-                res = distribute * (weight / weights_sum)
-                leftover += res - int(res)
-                lines_kept = int(res)
-                if leftover > 1.0 :
-                    lines_kept += 1
-                    leftover -= 1.0
-                if weights_size == 0 and leftover > 0.5 :
-                    lines_kept += 1
-
-            f.lines_kept = lines_kept
+            if isinstance(weight, six.string_types) or weight != 0.0:
+                lines_kept = f.lines_count * f.oversample
+                if gsample and not isinstance(weight, six.string_types):
+                    weights_size -= 1
+                    res = distribute * (weight / weights_sum)
+                    leftover += res - int(res)
+                    lines_kept = int(res)
+                    if leftover > 1.0 :
+                        lines_kept += 1
+                        leftover -= 1.0
+                    if weights_size == 0 and leftover > 0.5 :
+                        lines_kept += 1
+                f.lines_kept = lines_kept
 
         summary[f.base_name] = {
             "lines_count" : f.lines_count,
