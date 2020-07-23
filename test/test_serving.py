@@ -105,9 +105,9 @@ def test_postprocess_output():
     example = _make_example([["x", "y"]], metadata=[None])
 
     def func(src, tgt, config=None):
-        assert src == ["x", "y"]
-        assert tgt == ["a", "b", "c"]
-        return " ".join(src + tgt)
+        assert src == ([["x", "y"]], [None])
+        assert tgt == [["a", "b", "c"]]
+        return " ".join(src[0][0] + tgt[0])
 
     result = serving.postprocess_output(output, example, func)
     assert result["text"] == "x y a b c"
@@ -119,9 +119,9 @@ def test_postprocess_output_with_metadata():
 
     def func(src, tgt, config=None):
         assert isinstance(src, tuple)
-        assert src[0] == ["x", "y"]
-        assert src[1] == 3
-        assert tgt == ["a", "b", "c"]
+        assert src[0] == [["x", "y"]]
+        assert src[1] == [3]
+        assert tgt == [["a", "b", "c"]]
         return ""
 
     result = serving.postprocess_output(output, example, func)
@@ -154,7 +154,7 @@ def test_postprocess_outputs():
     ]
 
     def func(src, tgt, config=None):
-        return " ".join(tgt)
+        return " ".join(tgt[0])
 
     results = serving.postprocess_outputs(outputs, examples, func)
     assert len(results) == 2
@@ -254,7 +254,7 @@ def test_run_request():
             [_make_output((target if target is not None else []) + list(reversed(source)))]
             for source, target in zip(source_tokens, target_tokens)]
     def postprocess(src, tgt, config):
-        return config["separator"].join(tgt)
+        return config["separator"].join(tgt[0])
 
     config = {"separator": "-"}
     request = {

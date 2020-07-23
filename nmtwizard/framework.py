@@ -18,8 +18,7 @@ from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
 from nmtwizard import serving
-from nmtwizard import tokenizer
-from nmtwizard import preprocess
+from nmtwizard.preprocess import preprocess
 from nmtwizard import utility
 
 
@@ -467,11 +466,21 @@ class Framework(utility.Utility):
                     push_model=True):
         start_time = time.time()
         local_config = self._finalize_config(config)
-        objects, tokenization_config = self._generate_vocabularies(local_config)
+        objects, preprocess_config, vocab_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
-        local_config['tokenization'] = utility.resolve_environment_variables(tokenization_config)
-        config['tokenization'] = tokenization_config
+        # Old tokenization configuration
+        if isinstance(preprocess_config, dict):
+            local_config["tokenization"] = utility.resolve_environment_variables(preprocess_config)
+            config["tokenization"] = preprocess_config
+        elif isinstance(preprocess_config, list):
+            local_config["preprocess"] = utility.resolve_environment_variables(preprocess_config)
+            config["preprocess"] = preprocess_config
+        else:
+            raise RuntimeError("Unknown preprocess configuration after buildvocab: \"{}\"".format(preprocess_config))
+
+        local_config["vocabulary"] = utility.resolve_environment_variables(vocab_config)
+        config["vocabulary"] = vocab_config
         config['model'] = model_id
         config['modelType'] = 'base'
         config['imageTag'] = image
@@ -511,6 +520,10 @@ class Framework(utility.Utility):
                 return self.trans(*args, **kwargs)
 
         local_config = self._finalize_config(config, training=False)
+
+        self._set_preprocessor(local_config, train=False)
+        self._set_postprocessor(local_config)
+
         failed_translation = 0
         translated_lines = 0
         generated_tokens = 0
@@ -535,7 +548,7 @@ class Framework(utility.Utility):
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input_preprocessed = self._preprocess_file(local_config, path_input_unzipped)
+                path_input_preprocessed = self._preprocess_file(path_input_unzipped)
                 metadata = None
                 if isinstance(path_input_preprocessed, tuple):
                     path_input_preprocessed, metadata = path_input_preprocessed
@@ -544,14 +557,14 @@ class Framework(utility.Utility):
                              path_input_preprocessed,
                              path_output,
                              gpuid=gpuid)
+                path_postprocess_input = path_input_preprocessed
                 if metadata is not None:
-                    path_input_preprocessed = (path_input_preprocessed, metadata)
+                    path_postprocess_input = (path_input_preprocessed, metadata)
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 if not no_postprocess:
-                    path_output = self._postprocess_file(
-                        local_config, path_input_preprocessed, path_output)
+                    path_output = self._postprocess_file(path_postprocess_input, path_output)
 
                 if copy_source:
                     copied_input = output
@@ -643,7 +656,6 @@ class Framework(utility.Utility):
             host,
             port,
             local_config,
-            self._serving_state(local_config),
             lambda: self.serve(local_config, model_path, gpuid=gpuid),
             self._preprocess_input,
             self.forward_request,
@@ -733,25 +745,29 @@ class Framework(utility.Utility):
                          keep_previous=False):
         if tokens_to_add is None:
             tokens_to_add = {}
+        vocab_config = config.get('vocabulary', {})
+        vocab_local_config = local_config.get('vocabulary', {})
+        # For compatibility with old configurations
         tok_config = config.get('tokenization', {})
         tok_local_config = local_config.get('tokenization', {})
-        joint_vocab = is_joint_vocab(tok_config)
+        joint_vocab = is_joint_vocab(vocab_config)
         parent_dependencies = {}
         if model_config:
-            model_tok_config = model_config.get('tokenization', {})
-            model_tok_local_config = self._finalize_config(model_tok_config)
-            model_joint_vocab = is_joint_vocab(model_tok_config)
+            model_local_config = self._finalize_config(model_config)
+            model_vocab_config = model_config.get('vocabulary', {})
+            model_vocab_local_config = model_local_config.get('vocabulary', {})
+            model_joint_vocab = is_joint_vocab(model_vocab_config)
             if joint_vocab != model_joint_vocab:
                 raise ValueError("Changing joint vocabularies to split vocabularies "
                                  "(or vice-versa) is currently not supported.")
             if keep_previous:
                 bundle_dependencies(
                     parent_dependencies,
-                    copy.deepcopy(model_tok_config),
-                    copy.deepcopy(model_tok_local_config))
+                    copy.deepcopy(model_vocab_config),
+                    copy.deepcopy(model_vocab_local_config))
         else:
-            model_tok_config = None
-            model_tok_local_config = None
+            model_vocab_config = None
+            model_vocab_local_config = None
         source_tokens_to_add = tokens_to_add.get('source') or []
         target_tokens_to_add = tokens_to_add.get('target') or []
         if joint_vocab:
@@ -759,28 +775,35 @@ class Framework(utility.Utility):
             target_tokens_to_add = source_tokens_to_add
         src_info = self._get_vocab_info(
             'source',
+            vocab_config,
+            vocab_local_config,
             tok_config,
             tok_local_config,
-            model_config=model_tok_config,
-            local_model_config=model_tok_local_config,
+            model_config=model_vocab_config,
+            local_model_config=model_vocab_local_config,
             tokens_to_add=source_tokens_to_add,
             keep_previous=keep_previous,
             joint_vocab=joint_vocab)
         tgt_info = self._get_vocab_info(
             'target',
+            vocab_config,
+            vocab_local_config,
             tok_config,
             tok_local_config,
-            model_config=model_tok_config,
-            local_model_config=model_tok_local_config,
+            model_config=model_vocab_config,
+            local_model_config=model_vocab_local_config,
             tokens_to_add=target_tokens_to_add,
             keep_previous=keep_previous,
             joint_vocab=joint_vocab)
+
         return src_info, tgt_info, parent_dependencies
 
     def _get_vocab_info(self,
                         side,
                         config,
                         local_config,
+                        tok_config,
+                        tok_local_config,
                         model_config=None,
                         local_model_config=None,
                         tokens_to_add=None,
@@ -789,14 +812,14 @@ class Framework(utility.Utility):
         if not config:
             return None
         opt = config.get(side)
-        if opt is None or 'vocabulary' not in opt:
+        if opt is None or 'path' not in opt:
             return None
         local_opt = local_config[side]
         vocab_name = side if not joint_vocab else 'joint'
 
         current_basename = '%s-vocab.txt' % vocab_name
         current_vocab = self._convert_vocab(
-            local_opt['vocabulary'], basename=current_basename)
+            local_opt['path'], basename=current_basename)
 
         # First read previous_vocabulary if given.
         previous_basename = 'previous-%s-vocab.txt' % vocab_name
@@ -811,7 +834,7 @@ class Framework(utility.Utility):
             model_opt = model_config[side]
             local_model_opt = local_model_config[side]
             previous_vocab = self._convert_vocab(
-                local_model_opt['vocabulary'], basename=previous_basename)
+                local_model_opt['path'], basename=previous_basename)
             vocab_changed = not filecmp.cmp(previous_vocab, current_vocab)
             if vocab_changed:
                 if not opt.get('replace_vocab', False):
@@ -819,7 +842,7 @@ class Framework(utility.Utility):
                                      % vocab_name.capitalize())
                 if keep_previous:
                     opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
-                    local_opt['previous_vocabulary'] = local_model_opt['vocabulary']
+                    local_opt['previous_vocabulary'] = local_model_opt['path']
             else:
                 os.remove(previous_vocab)
                 previous_vocab = None
@@ -829,72 +852,66 @@ class Framework(utility.Utility):
             del local_opt['replace_vocab']
 
         if tokens_to_add:
-            new_filename = next_filename_version(os.path.basename(local_opt["vocabulary"]))
+            new_filename = next_filename_version(os.path.basename(local_opt["path"]))
             new_vocab = os.path.join(self._data_dir, new_filename)
-            shutil.copy(local_opt["vocabulary"], new_vocab)
+            shutil.copy(local_opt["path"], new_vocab)
             with open(new_vocab, "a") as vocab:
                 for token in tokens_to_add:
                     vocab.write("%s\n" % token)
             if previous_vocab is None:
                 previous_vocab = current_vocab
                 if keep_previous:
-                    opt['previous_vocabulary'] = opt['vocabulary']
-                    local_opt['previous_vocabulary'] = local_opt['vocabulary']
+                    opt['previous_vocabulary'] = opt['path']
+                    local_opt['previous_vocabulary'] = local_opt['path']
             current_vocab = self._convert_vocab(
                 new_vocab, basename="updated-%s-vocab.txt" % vocab_name)
-            opt["vocabulary"] = new_vocab
-            local_opt["vocabulary"] = new_vocab
+            opt["path"] = new_vocab
+            local_opt["path"] = new_vocab
+
+            # For compatibility with old configurations
+            if tok_config:
+                tok_config[side]['vocabulary'] = new_vocab
+            if tok_local_config:
+                tok_local_config[side]['vocabulary'] = new_vocab
 
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
 
-    def _serving_state(self, config):
-        state = {}
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            state['src_tokenizer'] = tokenizer.build_tokenizer(tok_config['source'])
-            state['tgt_tokenizer'] = tokenizer.build_tokenizer(tok_config['target'])
-        return state
+    def _preprocess_input(self, source, target, config):
+        metadata = None
+        if not isinstance(source, list) and not isinstance(target, list):
+            self._set_preprocessor(config, train=False)
 
-    def _preprocess_input(self, state, source, target, config):
+            if target is not None:
+                preprocess_input = (source, target)
+            else :
+                preprocess_input = source
 
-        def _maybe_tokenize(tokenizer, text):
-            if isinstance(text, list):
-                return text
-            if tokenizer is None:
-                return text.split()
-            return tokenizer.tokenize(text)[0]
+            preprocess_output = self._preprocessor.process_input(preprocess_input)
+            if preprocess_output != preprocess_input:
+                (source, metadata), target = preprocess_output
+            else: # no preprocess is done
+                source = source.split()
+                if target is not None:
+                    target = target.split()
 
-        source = _maybe_tokenize(state.get('src_tokenizer'), source)
-        if target is not None:
-            target = _maybe_tokenize(state.get('tgt_tokenizer'), target)
-        return source, target
+        return source, target, metadata
 
-    def _postprocess_output(self, state, source, target, config):
+    def _postprocess_output(self, source, target, config):
         if not isinstance(target, list):
             return target
-        tokenizer = state.get('tgt_tokenizer')
-        if tokenizer is None:
+        self._set_postprocessor(config)
+        postprocess_input = (source,target)
+        postprocess_output = self._postprocessor.process_input(postprocess_input)
+        if postprocess_output == postprocess_input: # no postprocess is done
             return ' '.join(target)
-        return tokenizer.detokenize(target)
+        return postprocess_output
 
-    def _preprocess_file(self, config, input):
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            src_tokenizer = tokenizer.build_tokenizer(tok_config['source'])
-            output = "%s.tok" % input
-            tokenizer.tokenize_file(src_tokenizer, input, output)
-            return output
-        return input
+    def _preprocess_file(self, preprocess_input):
+        return self._preprocessor.process_file(preprocess_input)
 
-    def _postprocess_file(self, config, source, target):
-        if 'tokenization' in config:
-            tok_config = config['tokenization']
-            tgt_tokenizer = tokenizer.build_tokenizer(tok_config['target'])
-            output = "%s.detok" % target
-            tokenizer.detokenize_file(tgt_tokenizer, target, output)
-            return output
-        return target
+    def _postprocess_file(self, source, target):
+        return self._postprocessor.process_file((source, target))
 
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:
@@ -936,11 +953,22 @@ class Framework(utility.Utility):
         data_util.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
+    def _set_preprocessor(self, config, train=True):
+        if train:
+            self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
+        else:
+            self._preprocessor = preprocess.InferenceProcessor(config)
+
+    def _set_postprocessor(self, config):
+        self._postprocessor = preprocess.InferenceProcessor(config, postprocess=True)
+
     def _generate_training_data(self, config):
-        return preprocess.generate_preprocessed_data(config, self._corpus_dir, self._data_dir)
+        self._set_preprocessor(config)
+        return self._preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        return preprocess.generate_vocabularies(config, self._corpus_dir, self._data_dir)
+        self._set_preprocessor(config)
+        return self._preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution
@@ -954,7 +982,9 @@ class Framework(utility.Utility):
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
         return build_info
 
+
     def _finalize_config(self, config, training=True):
+        config_util.old_to_new_config(config)
         config = utility.resolve_environment_variables(config, training=training)
         config = self._upgrade_data_config(config, training=training)
         config = utility.resolve_remote_files(config, self._shared_dir, self._storage)
@@ -1056,7 +1086,7 @@ def next_filename_version(filename):
         version = 2
     return '%s.v%d' % (filename, version)
 
-def is_joint_vocab(tokenization_config):
-    source = tokenization_config.get('source', {})
-    target = tokenization_config.get('target', {})
-    return source.get('vocabulary') == target.get('vocabulary')
+def is_joint_vocab(vocabulary_config):
+    source = vocabulary_config.get('source', {})
+    target = vocabulary_config.get('target', {})
+    return source.get('path') == target.get('path')

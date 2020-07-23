@@ -12,19 +12,19 @@ def build_tokenizer(args):
     args.pop('build_vocabulary', None)
     return pyonmttok.Tokenizer(**args)
 
-def tokenize_file(tokenizer, input, output):
+def tokenize_file(tokenizer, input_file, output_file):
     """Tokenizes an input file."""
     if not tokenizer:
-        shutil.copy(input, output)
+        shutil.copy(input_file, output_file)
     else:
-        tokenizer.tokenize_file(input, output)
+        tokenizer.tokenize_file(input_file, output_file)
 
-def detokenize_file(tokenizer, input, output):
+def detokenize_file(tokenizer, input_file, output_file):
     """Detokenizes an input file."""
     if not tokenizer:
-        shutil.copy(input, output)
+        shutil.copy(input_file, output_file)
     else:
-        tokenizer.detokenize_file(input, output)
+        tokenizer.detokenize_file(input_file, output_file)
 
 def tokenize_directory(input_dir,
                        output_dir,

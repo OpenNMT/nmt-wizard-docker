@@ -60,7 +60,6 @@ def pick_free_port():
 def start_server(host,
                  port,
                  config,
-                 serving_state,
                  backend_service_fn,
                  preprocess_fn,
                  translate_fn,
@@ -73,11 +72,10 @@ def start_server(host,
     Args:
       host: The hostname of the service.
       port: The port used by the service.
-      serving_state: The framework state to propagate to pre/postprocessing callbacks.
       backend_service_fn: A callable to start the framework dependent backend service.
-      preprocess_fn: A callable taking (serving_state, text, config) and returning tokens.
+      preprocess_fn: A callable taking (text, config) and returning tokens.
       translation_fn: A callable that forwards the request to the translation backend.
-      postprocess_fn: A callable taking (serving_state, src_tokens, tgt_tokens, config)
+      postprocess_fn: A callable taking (src_tokens, tgt_tokens, config)
         and returning text.
       rebatch_request: If True, incoming requests are rebatched according to
         max_batch_size. Otherwise, max_batch_size is passed as a translation option
@@ -132,9 +130,9 @@ def start_server(host,
             try:
                 result = run_request(
                     json.loads(six.ensure_str(post_body)),
-                    functools.partial(preprocess_fn, serving_state),
+                    preprocess_fn,
                     functools.partial(translate_fn, backend_info),
-                    functools.partial(postprocess_fn, serving_state),
+                    postprocess_fn,
                     config=config,
                     rebatch_request=rebatch_request,
                     max_batch_size=global_max_batch_size,
@@ -306,21 +304,17 @@ def preprocess_examples(raw_examples, func, config=None):
 
 def postprocess_output(output, example, func):
     """Applies postprocessing function on a translation output."""
-    if example.num_parts > 1:
-        # For multi parts inputs, send all parts to the postprocessing.
-        tgt_tokens = output.output
-        src_context = (example.source_tokens, example.metadata)
-        score = sum(output.score) if all(s is not None for s in output.score) else None
-        align = None
-    else:
-        # Otherwise just take the first element and pass metadata only if defined.
-        tgt_tokens = output.output[0]
-        src_tokens = example.source_tokens[0]
-        src_metadata = example.metadata[0]
-        src_context = src_tokens if src_metadata is None else (src_tokens, src_metadata)
-        score = output.score[0]
-        attention = output.attention[0]
+
+    # Send all parts to the postprocessing.
+    tgt_tokens = output.output
+    src_context = (example.source_tokens, example.metadata)
+    score = sum(output.score) if all(s is not None for s in output.score) else None
+    attention = output.attention
+    if attention and len(attention) == 1:
+        attention = attention[0]
         align = align_tokens(src_tokens, tgt_tokens, attention) if attention else None
+    else:
+        align = None
 
     text = func(src_context, tgt_tokens, example.config)
     result = {'text': text}

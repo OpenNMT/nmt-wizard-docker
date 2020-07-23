@@ -22,7 +22,7 @@ docker pull nmtwizard/opennmt-tf
 docker run nmtwizard/opennmt-tf -h
 ```
 
-[JSON configuration files](#configuration) are used to define training data, tokenization, and framework specific options (model, hyperparameters, etc).
+[JSON configuration files](#configuration) are used to define training data, data preprocess, and framework specific options (model, hyperparameters, etc).
 
 As an example, let's train an English-German Transformer model with OpenNMT-tf.
 
@@ -47,7 +47,7 @@ where:
 
 **2\. Define the configuration.**
 
-The JSON configuration file is used to describe where to read the data (`data`) and how to transform it (`tokenization`). The `options` block is **specific to each framework** and defines the model and training hyperparameters. See [Configuration](#configuration) for more details.
+The JSON configuration file is used to describe where to read the data (`data`) and how to transform it (`preprocess`). The `options` block is **specific to each framework** and defines the model and training hyperparameters. See [Configuration](#configuration) for more details.
 
 ```json
 {
@@ -63,14 +63,23 @@ The JSON configuration file is used to describe where to read the data (`data`) 
             }
         ]
     },
-    "tokenization": {
+    "preprocess": [
+        {
+            "op":"tokenization",
+            "source": {
+                "mode": "space"
+            },
+            "target": {
+                "mode": "space"
+            }
+        }
+    ],
+    "vocabulary": {
         "source": {
-            "vocabulary": "/data/vocab/shared-vocab.txt",
-            "mode": "space"
+            "path": "/data/vocab/shared-vocab.txt"
         },
         "target": {
-            "vocabulary": "/data/vocab/shared-vocab.txt",
-            "mode": "space"
+            "path": "/data/vocab/shared-vocab.txt"
         }
     },
     "options": {
@@ -183,14 +192,23 @@ The JSON configuration file contains all parameters necessary to train and run m
     "source": "string",
     "target": "string",
     "data": {},
-    "tokenization": {
+    "preprocess": [
+        {
+            "op":"tokenization",
+            "source": {
+                "mode": "string"
+            },
+            "target": {
+                "mode": "string"
+            }
+        }
+    ],
+    "vocabulary": {
         "source": {
-            "vocabulary": "string",
-            "mode": "string",
+            "path": "string"
         },
         "target": {
-            "vocabulary": "string",
-            "mode": "string",
+            "path": "string"
         }
     },
     "options": {},
@@ -236,9 +254,15 @@ Weights define the relative proportion that each pattern should take in the fina
 
 **Source and target files should have the same name and be suffixed by the language code.**
 
-#### `tokenization`
+#### `preprocess`
 
-This block accepts any tokenization options from [OpenNMT/Tokenizer](https://github.com/OpenNMT/Tokenizer/blob/master/docs/options.md).
+This block applies preprocess operations, such as tokenization, to the data.
+
+Tokenization operator accepts any tokenization options from [OpenNMT/Tokenizer](https://github.com/OpenNMT/Tokenizer/blob/master/docs/options.md).
+
+#### `vocabulary`
+
+This block contains the vocabularies used by translation framework.
 
 The vocabulary file must have the following format:
 

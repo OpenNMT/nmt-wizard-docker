@@ -28,9 +28,9 @@ class OpenNMTPYFramework(Framework):
         options = config['options'].get('config', {})
         options_preprocess = options.get('preprocess', {}).copy()
         options_preprocess['src_vocab'] = self._convert_vocab(
-            config['tokenization']['source']['vocabulary'])
+            config['vocabulary']['source']['path'])
         options_preprocess['tgt_vocab'] = self._convert_vocab(
-            config['tokenization']['target']['vocabulary'])
+            config['vocabulary']['target']['path'])
         bin_file = os.path.join(self._data_dir, "bin")
         cmd = ["onmt_preprocess",
                "-train_src", src_file,
