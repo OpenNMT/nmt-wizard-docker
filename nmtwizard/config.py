@@ -17,6 +17,19 @@ def merge_config(a, b):
                 a[key] = b_value
     return a
 
+def replace_config(a, b):
+    """Updates fields in a by fields in b."""
+    a.update(b)
+    return a
+
+def update_config(a, b, mode='merge'):
+    """Update the configuration a with b."""
+    if mode == 'merge':
+        return merge_config(a, b)
+    if mode == 'replace':
+        return replace_config(a, b)
+    raise ValueError('Invalid configuration update mode: %s' % mode)
+
 def index_config(config, path, index_structure=True):
     """Index a configuration with a path-like string."""
     key = None
@@ -100,3 +113,34 @@ def update_config_with_options(config, options):
             continue  # Option not passed for this request.
         dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
         dst_config[dst_key] = option_value
+
+
+def old_to_new_config(config):
+    # old configurations
+    if not config:
+        return
+    tok_config = config.get("tokenization")
+    if tok_config:
+        vocab_src = tok_config["source"].get("vocabulary", None)
+        vocab_tgt = tok_config["target"].get("vocabulary", None)
+        if vocab_src or vocab_tgt:
+            if "vocabulary" not in config:
+                config["vocabulary"] = {}
+            if vocab_src:
+                if "source" not in config["vocabulary"]:
+                    config["vocabulary"]["source"] = { "path": vocab_src }
+                else:
+                    config["vocabulary"]["source"]["path"] = vocab_src
+            if vocab_tgt:
+                if "target" not in config["vocabulary"]:
+                    config["vocabulary"]["target"] = { "path": vocab_tgt }
+                else:
+                    config["vocabulary"]["target"]["path"] = vocab_tgt
+
+        config["preprocess"] = [
+            {
+                "op":"tokenization",
+                "source": tok_config["source"],
+                "target": tok_config["target"]
+            }
+        ]

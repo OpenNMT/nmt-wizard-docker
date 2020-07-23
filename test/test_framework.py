@@ -224,6 +224,25 @@ config_base = {
     "options": {}
 }
 
+config_base_old = {
+    "source": "en",
+    "target": "de",
+    "tokenization" : {
+        "source": {
+            "vocabulary": "${CORPUS_DIR}/vocab/en-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": True
+        },
+        "target": {
+            "vocabulary": "${CORPUS_DIR}/vocab/de-vocab.txt",
+            "mode": "aggressive",
+            "joiner_annotate": True
+        }
+    },
+    "options": {}
+}
+
+
 def _clear_workspace(tmpdir):
     tmpdir = str(tmpdir)
     workspace_dir = os.path.join(tmpdir, "workspace")
@@ -236,7 +255,7 @@ def _read_config(model_dir):
         return json.load(config_file)
 
 def _test_dir():
-    return str(pytest.config.rootdir)
+    return os.path.dirname(os.path.realpath(__file__))
 
 def _run_framework(tmpdir,
                    task_id,
@@ -291,6 +310,14 @@ def test_train(tmpdir):
         os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["vocabulary"]["target"]["path"])))
+
+    model_dir_old = _run_framework(tmpdir, "model1", "train", config=config_base_old)
+    config = _read_config(model_dir_old)
+    assert os.path.isfile(
+        os.path.join(model_dir_old, os.path.basename(config["vocabulary"]["source"]["path"])))
+    assert os.path.isfile(
+        os.path.join(model_dir_old, os.path.basename(config["vocabulary"]["target"]["path"])))
+
     assert DummyCheckpoint(model_dir).index() == 0
 
 def test_train_with_storage_in_config(tmpdir):
@@ -374,12 +401,10 @@ def test_train_with_sampling_v2(tmpdir):
             {
                 "op":"tokenization",
                 "source": {
-                    "vocabulary": "${DATA_DIR}/vocab/en-vocab.txt",
                     "mode": "aggressive",
                     "joiner_annotate": True
                 },
                 "target": {
-                    "vocabulary": "${DATA_TRAIN_DIR}/vocab/de-vocab.txt",
                     "mode": "aggressive",
                     "joiner_annotate": True
                 }
@@ -408,6 +433,20 @@ def test_train_chain(tmpdir):
     assert config["model"] == "model1"
     assert config["modelType"] == "checkpoint"
     assert DummyCheckpoint(model_dir).index() == 1
+
+def test_config_replace(tmpdir):
+    config = copy.deepcopy(config_base)
+    config["custom_field"] = {"a": 1, "b": 2}
+    _run_framework(tmpdir, "model0", "train", config=config)
+    new_config = {"custom_field": {"a": 3}}
+    model_dir = _run_framework(
+        tmpdir,
+        "model1",
+        ["--config_update_mode", "replace", "train"],
+        parent="model0",
+        config=new_config)
+    config = _read_config(model_dir)
+    assert config["custom_field"] == new_config["custom_field"]
 
 def test_model_storage(tmpdir):
     ms1 = tmpdir.join("ms1")
@@ -445,15 +484,15 @@ def test_release_change_file(tmpdir):
     new_vocab = "vocab.src"
     with open(str(tmpdir.join(new_vocab)), "w") as vocab_src:
         vocab_src.write("0\n")
-    override = {"tokenization": {"source": {"vocabulary": "${TMP_DIR}/%s" % new_vocab}}}
+    override = {"vocabulary": {"source": {"path": "${TMP_DIR}/%s" % new_vocab}}}
     _run_framework(tmpdir, "release0", "release",
                    parent="model0", config=override,
                    env={"TMP_DIR": str(tmpdir)})
     model_dir = str(tmpdir.join("models").join("model0_release"))
     config = _read_config(model_dir)
-    assert config["tokenization"]["source"]["vocabulary"] == "${MODEL_DIR}/%s" % new_vocab
+    assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % new_vocab
     assert os.path.isfile(
-        os.path.join(model_dir, os.path.basename(config["tokenization"]["source"]["vocabulary"])))
+        os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
 
 def test_release_with_inference_options(tmpdir):
     config = copy.deepcopy(config_base)

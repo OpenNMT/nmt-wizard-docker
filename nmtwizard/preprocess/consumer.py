@@ -44,7 +44,8 @@ class SubwordLearner(Consumer):
         # Feed lines to subword learners.
         # TODO V2 : feed tokenized lines, individual tokens ?
         # TODO V2 : undo all placeholder annotation for subword processing
-        for tu in tu_batch :
+        tu_list, _ = tu_batch
+        for tu in tu_list :
             if 'source' in self._subword_learners:
                 self._subword_learners['source']['learner'].ingest(tu.src_detok)
             if 'target' in self._subword_learners:
@@ -54,7 +55,7 @@ class SubwordLearner(Consumer):
                 self._subword_learners['multi']['learner'].ingest(tu.tgt_detok)
 
 
-    def finalize(self, config):
+    def finalize(self, config, summary=None):
 
         tok_config = config['preprocess'][self._tok_step]
 
@@ -111,8 +112,9 @@ class VocabularyBuilder(Consumer):
 
     def __call__(self, tu_batch):
 
+        tu_list, _ = tu_batch
         # TODO : remove value for placeholders
-        for tu in tu_batch :
+        for tu in tu_list :
             if 'source' in self._vocabularies:
                 for token in itertools.chain.from_iterable(tu.src_tok.tokens):
                     self._vocabularies['source'][token] += 1
@@ -143,7 +145,7 @@ class VocabularyBuilder(Consumer):
         return min(real_size, size)
 
 
-    def finalize(self, config):
+    def finalize(self, config, summary=None):
 
         tok_config = config['preprocess'][self._tok_step]
 
@@ -219,16 +221,24 @@ class VocabularyBuilder(Consumer):
 class BasicWriter(Consumer):
     """BasicWriter writes one pre/postprocessed TU at inference."""
 
+    def __init__(self, postprocess):
+        self._postprocess = postprocess
+
     def __call__(self, tu_batch):
-        """ In preprocess, output is (source, metadata), where source is tokenized and possibly multipart.
+        """ In preprocess, output is ((source, metadata), target), tokenized and possibly multipart, where target is either None or incomplete translation.
+
             In postprocess, output is postprocessed target, untokenized and one-part."""
 
-        tu = tu_batch[0]
+        tu_list, _ = tu_batch
+        tu = tu_list[0]
         # Postprocess.
-        if tu.tgt_detok:
+        if self._postprocess:
             self.output = tu.tgt_detok
+        # Preprocess in inference.
         else:
-            self.output = (tu.src_tok.tokens, tu.get_meta())
+            # target should contain as may parts as source
+            target = tu.tgt_tok.tokens if tu.tgt_tok else [None for _ in range(len(tu.src_tok.tokens))]
+            self.output = ((tu.src_tok.tokens, tu.metadata), target)
 
 
 class FileWriter(Consumer):
@@ -248,18 +258,19 @@ class FileWriter(Consumer):
 
 
     def __call__(self, tu_batch):
+        tu_list, _ = tu_batch
         # Write lines to files from TUs
-        for tu in tu_batch :
+        for tu in tu_list :
             tgt_detok = tu.tgt_detok
             # Postprocess.
-            if tgt_detok:
+            if tgt_detok is not None:
                 self._file.write("%s\n" % tgt_detok)
             # Preprocess.
             else:
                 for part in tu.src_tok.tokens:
                     part = " ".join(part)
                     self._file.write("%s\n" % part)
-                self.metadata.append(tu.get_meta())
+                self.metadata.append(tu.metadata)
 
 
 class SamplerFileWriter(Consumer):
@@ -267,33 +278,83 @@ class SamplerFileWriter(Consumer):
 
     def __init__(self, result_dir):
         self._result_dir = result_dir
+        self._tokens_to_add = {'source':set(), 'target':set()}
+        self.num_samples = 0
 
-    def open_files(self, f):
+    def open_files(self, f, build_state):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
-        self._file = []
-        src = os.path.join(self._result_dir, os.path.basename(f.files[0].name))
-        self._file.append(open(src, 'w'))
-        tgt = os.path.join(self._result_dir, os.path.basename(f.files[1].name))
-        self._file.append(open(tgt, 'w'))
+        self._lines_filtered = 0
+        self._f = f
+        self._files = {}
+        src = os.path.join(self._result_dir, f.base_name + "." + f.src_suffix)
+        self._files["src"] = open(src, 'w')
+        tgt = os.path.join(self._result_dir, f.base_name + "." + f.tgt_suffix)
+        self._files["tgt"] = open(tgt, 'w')
+        if build_state.get('write_alignment', False):
+            align = os.path.join(self._result_dir, f.base_name + ".align")
+            self._files["align"] = open(align, 'w')
 
     def close_files(self):
-        for f in self._file:
+        for f in self._files.values():
             f.close()
 
     def __call__(self, tu_batch):
+        tu_list, meta = tu_batch
+        if 'tokens_to_add' in meta:
+            if 'source' in meta['tokens_to_add']:
+                self._tokens_to_add['source'].update(meta['tokens_to_add']['source'])
+            if 'target' in meta['tokens_to_add']:
+                self._tokens_to_add['target'].update(meta['tokens_to_add']['target'])
         # Write lines to file from TUs
-        for tu in tu_batch :
+        for tu in tu_list :
+            src_tokens = tu.src_tok.tokens
+            if src_tokens :
+                for part in src_tokens :
+                    part = " ".join(part)
+                    self._files["src"].write("%s\n" % part)
+            else:
+                self._files["src"].write("%s\n" % tu.src_detok)
 
-            src = tu.src_tok.tokens
-            for part in src:
-                part = " ".join(part)
-                self._file[0].write("%s\n" % part)
+            tgt_tokens = tu.tgt_tok.tokens
+            if tgt_tokens :
+                for part in tgt_tokens :
+                    part = " ".join(part)
+                    self._files["tgt"].write("%s\n" % part)
+            else :
+                self._files["tgt"].write("%s\n" % tu.tgt_detok)
 
-            tgt = tu.tgt_tok.tokens
-            for part in tgt:
-                part = " ".join(part)
-                self._file[0].write("%s\n" % part)
+
+            if "align" in self._files:
+                alignment = tu.alignment
+                if alignment :
+                    for part in alignment:
+                        part = " ".join("%s-%s" % tup for tup in part)
+                        self._files["align"].write("%s\n" % part)
+        self._lines_filtered += len(tu_list)
+
+
+    def finalize(self, config, summary=None):
+        if self._lines_filtered != self._f.lines_kept:
+            self.num_samples += self._lines_filtered
+            summary[self._f.base_name]["lines_filtered"] = self._lines_filtered
+        else:
+            self.num_samples += self._f.lines_kept
+            summary[self._f.base_name]["lines_filtered"] = self._f.lines_kept
+
+        if self._tokens_to_add['source'] or self._tokens_to_add['target'] :
+            if 'tokens_to_add' not in summary:
+                summary['tokens_to_add'] = {}
+            if 'source' not in summary['tokens_to_add']:
+                summary['tokens_to_add']['source'] = []
+            if 'target' not in summary['tokens_to_add']:
+                summary['tokens_to_add']['target'] = []
+            source_set = set(summary['tokens_to_add']['source'])
+            source_set.update(self._tokens_to_add['source'])
+            summary['tokens_to_add']['source'] = list(source_set)
+            target_set = set(summary['tokens_to_add']['target'])
+            target_set.update(self._tokens_to_add['target'])
+            summary['tokens_to_add']['target'] = list(target_set)
 
 
 def make_consumer(config, result_dir, result, tok_step):

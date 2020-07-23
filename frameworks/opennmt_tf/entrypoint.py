@@ -5,6 +5,9 @@ import shutil
 from nmtwizard.logger import get_logger
 
 import tensorflow as tf
+import tensorflow_addons as tfa
+tfa.register_all()  # Register custom ops.
+
 import opennmt
 
 from nmtwizard.framework import Framework
@@ -77,10 +80,10 @@ class OpenNMTTFFramework(Framework):
         translate_fn = tf.saved_model.load(export_dir).signatures['serving_default']
         return None, translate_fn
 
-    def forward_request(self, batch_inputs, info, timeout=None):
-        translate_fn = info
+    def forward_request(self, model_info, inputs, outputs=None, options=None):
+        translate_fn = model_info
 
-        tokens, lengths = utils.pad_lists(batch_inputs, padding_value='')
+        tokens, lengths = utils.pad_lists(inputs, padding_value='')
         outputs = translate_fn(
             tokens=tf.constant(tokens, dtype=tf.string),
             length=tf.constant(lengths, dtype=tf.int32))
@@ -129,9 +132,9 @@ class OpenNMTTFFramework(Framework):
 
         # Prepare vocabulary if not already done.
         if src_vocab is None:
-            src_vocab = self._convert_vocab(config['tokenization']['source']['vocabulary'])
+            src_vocab = self._convert_vocab(config['vocabulary']['source']['path'])
         if tgt_vocab is None:
-            tgt_vocab = self._convert_vocab(config['tokenization']['target']['vocabulary'])
+            tgt_vocab = self._convert_vocab(config['vocabulary']['target']['path'])
 
         options = config['options']
         run_config = _build_run_config(
@@ -191,6 +194,8 @@ def _build_run_config(config,
 def _list_checkpoint_files(model_dir):
     """Lists the checkpoint files that should be bundled in the model package."""
     latest = tf.train.latest_checkpoint(model_dir)
+    if latest is None:
+        return {}
     objects = {
         'checkpoint': os.path.join(model_dir, 'checkpoint'),  # Checkpoint state file.
     }

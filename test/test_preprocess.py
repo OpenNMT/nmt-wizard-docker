@@ -2,8 +2,9 @@
 
 import pytest
 import shutil
+import os
 
-from nmtwizard.preprocess.preprocess import InferenceProcessor, Postprocessor, TrainingProcessor
+from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 
 def test_sampler(tmpdir):
 
@@ -27,6 +28,9 @@ def test_sampler(tmpdir):
     _generate_pseudo_corpus(200, "IT", "de")
     _generate_pseudo_corpus(3000, "news_pattern", "en")
     _generate_pseudo_corpus(3000, "news_pattern", "de")
+    _generate_pseudo_corpus(10, "unaligned", "en")
+    _generate_pseudo_corpus(10, "generic_to_ignore", "en")
+    _generate_pseudo_corpus(10, "generic_to_ignore", "de")
 
     config = {
         "source": "en",
@@ -37,10 +41,12 @@ def test_sampler(tmpdir):
                 {
                     "path": str(corpus_dir),
                     "distribution": [
+                        ["generic_to_ignore", 0],
                         ["generic", 1],
                         ["specific", 5.2],
                         ["news.*pattern", "*1"],
-                        [".*something", 1]
+                        [".*something", 1],
+                        ["unaligned", 1]
                     ]
                 }
             ]
@@ -51,12 +57,14 @@ def test_sampler(tmpdir):
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
     assert num_samples == 5000
-    assert summary['news_pattern.']['lines_sampled'] == 3000
-    assert summary['generic_corpus.']['lines_sampled'] >= 215
-    assert summary['generic_added.']['lines_sampled'] >= 107
-    assert summary['corpus_specific1.']['lines_sampled'] >= 479
-    assert summary['corpus_specific2.']['lines_sampled'] >= 1198
-    assert summary['IT.']['lines_sampled'] == 0
+    assert summary['news_pattern']['lines_sampled'] == 3000
+    assert summary['generic_corpus']['lines_sampled'] >= 215
+    assert summary['generic_added']['lines_sampled'] >= 107
+    assert summary['corpus_specific1']['lines_sampled'] >= 479
+    assert summary['corpus_specific2']['lines_sampled'] >= 1198
+    assert summary['IT']['lines_sampled'] == 0
+    assert 'unaligned' not in summary
+    assert summary['generic_to_ignore']['lines_sampled'] == 0
 
     # check unique sampling with undersampling
     with open(str(tmpdir.join("preprocess/corpus_specific2.en")), 'rb') as f :
@@ -93,12 +101,51 @@ def test_sampler(tmpdir):
         preprocessor.generate_preprocessed_data()
 
     assert num_samples == 6000
-    assert summary['news_pattern.']['lines_sampled'] == 6000
-    assert summary['generic_corpus.']['lines_sampled'] == 0
-    assert summary['generic_added.']['lines_sampled'] == 0
-    assert summary['corpus_specific1.']['lines_sampled'] == 0
-    assert summary['corpus_specific2.']['lines_sampled'] == 0
-    assert summary['IT.']['lines_sampled'] == 0
+    assert summary['news_pattern']['lines_sampled'] == 6000
+    assert summary['generic_corpus']['lines_sampled'] == 0
+    assert summary['generic_added']['lines_sampled'] == 0
+    assert summary['corpus_specific1']['lines_sampled'] == 0
+    assert summary['corpus_specific2']['lines_sampled'] == 0
+    assert summary['IT']['lines_sampled'] == 0
+
+
+def test_sampler_with_annotations(tmpdir):
+
+    with open(str(tmpdir.join("train.en")), "w") as en:
+        en.write("\n".join(["1", "2", "3", "4", "5", "6"]))
+    with open(str(tmpdir.join("train.fr")), "w") as fr:
+        fr.write("\n".join(["1", "2", "3", "4", "5", "6"]))
+
+    annot_dir = tmpdir.join("train_enfr_annot")
+    os.makedirs(str(annot_dir))
+    with open(str(annot_dir.join("train")), "w") as annot:
+        annot.write("\n".join(["0.0274","-0.1201", "0.2499", "0.8566", "-0.8025", "0.0892"]))
+
+    from_dir = str(tmpdir)
+    to_dir = str(tmpdir.join("output"))
+    os.makedirs(to_dir)
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "data": {
+            "sample_dist": [
+                {
+                    "path": from_dir,
+                    "distribution" : [ ["train", "*"] ],
+                    "annotations":{
+                        "similarity": "train_enfr_annot"
+                    }
+                }
+            ]
+        }
+    }
+
+    preprocessor = TrainingProcessor(config, from_dir, to_dir)
+    data_path, train_dir, num_samples, summary, metadata = preprocessor.generate_preprocessed_data()
+
+    assert 'annotations' in summary['train'] and summary['train']['annotations'] == ['similarity']
+
 
 # TODO : test generate vocabularies with several tokenizations
 def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_config=None, multi=False):
@@ -117,7 +164,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             "sample": 800,
             "sample_dist": [
                 {
-                    "path": str(pytest.config.rootdir / "corpus" / "train"),
+                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -140,7 +187,7 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
             "size": size,
             "min-frequency": min_frequency,
             "add": ['mama', 'papa'],
-            "merge": str(pytest.config.rootdir / "corpus" / "vocab" / "vocab-extra.txt")
+            "merge": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "vocab", "vocab-extra.txt")
         }
         config['preprocess'][0][side]['build_subword'] = subword_config
 
@@ -221,6 +268,7 @@ def test_generate_vocabularies(tmpdir):
 
     _test_generate_vocabularies(tmpdir, 50, 5, 50, config_subword_bpe, True)
 
+
 def test_preprocess_pipeline(tmpdir):
 
     config = {
@@ -230,7 +278,7 @@ def test_preprocess_pipeline(tmpdir):
             "sample": 800,
             "sample_dist": [
                 {
-                    "path": str(pytest.config.rootdir / "corpus" / "train"),
+                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
                     "distribution": [
                         ["europarl", 1]
                     ]
@@ -263,9 +311,64 @@ def test_preprocess_pipeline(tmpdir):
         preprocessor.generate_preprocessed_data()
 
     prep = InferenceProcessor(config)
-    res, _ = prep.process_input("This is a test.")
-    assert res[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
+    source, target = prep.process_input("This is a test.")
+    source_no_meta = source[0]
+    assert source_no_meta[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
+    assert target == [None]
 
-    post = Postprocessor(config)
-    res = post.process_input((res, res))
-    assert res == "This is a test."
+    source2, target = prep.process_input(("This is a test.", "Das ist..."))
+    assert source2 == source
+    assert target[0] == ['Das', 'ist', '￭.', '￭.', '￭.']
+
+    post = InferenceProcessor(config, postprocess=True)
+    target_postprocessed = post.process_input((source, target))
+    assert target_postprocessed == "Das ist..."
+
+
+def test_preprocess_align(tmpdir):
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 800,
+            "sample_dist": [
+                {
+                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
+                    "distribution": [
+                        ["europarl", 1]
+                    ]
+                }
+            ]
+        },
+        "preprocess": [
+            {
+                "op" : "tokenization",
+                "source": {
+                    "mode": "aggressive",
+                    "joiner_annotate": True
+                },
+                "target": {
+                    "mode": "aggressive",
+                    "joiner_annotate": True
+                }
+            },
+            {
+                "op": "alignment",
+                # "monotonic": True
+                "write_alignment": True,
+                "forward": {
+                    "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_forward.probs")
+                },
+                "backward": {
+                    "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_backward.probs")
+                }
+            }
+        ]
+    }
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, metadata = \
+        preprocessor.generate_preprocessed_data()
+
+    with open(os.path.join(str(tmpdir), "preprocess", "europarl-v7.de-en.10K.tok.align")) as align:
+        assert align.readline().strip() == "0-0 1-0 2-1 3-2"

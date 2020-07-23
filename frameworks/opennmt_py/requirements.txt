@@ -1,2 +1,1 @@
-flask
-pyyaml
+OpenNMT-py==1.1.1

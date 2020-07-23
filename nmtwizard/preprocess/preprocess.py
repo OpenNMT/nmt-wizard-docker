@@ -24,16 +24,15 @@ def _get_tok_configs(config):
 
 class Processor(object):
 
+    def _set_pipeline(self, preprocess_exit_step=None):
+        self._pipeline = prepoperator.Pipeline(self._config, self._pipeline_type, preprocess_exit_step)
+
     def process(self, loader, consumer):
-        lines_num = 0
 
         # TODO V2 : parallelization
         for tu_batch in loader():
             tu_batch = self._pipeline(tu_batch)
             consumer(tu_batch)
-            lines_num += len(tu_batch)
-
-        return lines_num
 
 
 class TrainingProcessor(Processor):
@@ -42,10 +41,7 @@ class TrainingProcessor(Processor):
         self._config = config
         self._corpus_dir = corpus_dir
         self._data_dir = data_dir
-
-    def _set_pipeline(self, preprocess_exit_step=None):
-        self._pipeline = prepoperator.TrainingPipeline(self._config, preprocess_exit_step)
-
+        self._pipeline_type = prepoperator.ProcessType.TRAINING
 
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
 
@@ -81,8 +77,6 @@ class TrainingProcessor(Processor):
             # Sample files and write information to a special file structure.
             all_files, summary, metadata = sampler.sample(self._config, data_path)
 
-            num_samples = 0
-
             # Default batch size is the whole sample size.
             batch_size = sys.maxsize
             if 'preprocess' in self._config and 'batch_size' in self._config['preprocess'] :
@@ -92,25 +86,19 @@ class TrainingProcessor(Processor):
             self._set_pipeline(preprocess_exit_step)
 
             for f in all_files:
-                lines_filtered = 0
                 if f.lines_kept :
                     sampler_loader=loader.SamplerFileLoader(f, batch_size)
                     if hasattr(sampler_consumer, "open_files"):
-                        sampler_consumer.open_files(f)
-                    lines_filtered = self.process(sampler_loader, sampler_consumer)
+                        sampler_consumer.open_files(f, self._pipeline.build_state)
+                    self.process(sampler_loader, sampler_consumer)
                     sampler_loader.close_files()
                     if hasattr(sampler_consumer, "close_files"):
                         sampler_consumer.close_files()
 
-                    if lines_filtered != f.lines_kept:
-                        num_samples += lines_filtered
-                        summary[f.base_name]["lines_filtered"] = lines_filtered
-                    else:
-                        num_samples += f.lines_kept
-                        summary[f.base_name]["lines_filtered"] = f.lines_kept
+                    sampler_consumer.finalize(self._config, summary)
 
-                    if hasattr(sampler_consumer, "finalize"):
-                        sampler_consumer.finalize(self._config)
+            if hasattr(sampler_consumer, "num_samples"):
+                num_samples = sampler_consumer.num_samples
 
             data_path = result_dir
 
@@ -194,23 +182,28 @@ class TrainingProcessor(Processor):
 
 class InferenceProcessor(Processor):
 
-    def __init__(self, config):
-        self._pipeline = prepoperator.InferencePipeline(config)
+    def __init__(self, config, postprocess=False):
+        self._config = config
+        self._postprocess = postprocess
+        self._pipeline_type = prepoperator.ProcessType.POSTPROCESS if self._postprocess else prepoperator.ProcessType.INFERENCE
+        self._set_pipeline()
 
-
-    def process_input(self, input):
+    def process_input(self, process_input):
         """Processes one translation example at inference.
 
               In preprocess:
-                 input is one single-part source as raw string
-                 output is one (source, metadata), where source is tokenized and possibly multipart.
+                 input is source or (source, target), single-part and raw string, with incomplete translation in target (if any).
+                 output is ((source, metadata), target), tokenized and possibly multipart, where target can be None.
 
              In postprocess:
-                 input is ((source, metadata), target), where source and target are tokenized and possibly multipart
-                 outputs is one single-part postprocessed target."""
+                 input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
+                 output is single-part postprocessed target."""
 
-        basic_loader = loader.BasicLoader(input, self._pipeline.start_state)
-        basic_writer = consumer.BasicWriter()
+        if not self._pipeline:
+            return process_input
+
+        basic_loader = loader.BasicLoader(process_input, self._pipeline.start_state)
+        basic_writer = consumer.BasicWriter(self._postprocess)
         self.process(basic_loader,
                      basic_writer)
 
@@ -228,10 +221,15 @@ class InferenceProcessor(Processor):
                  output is a file with postprocessed single-part targets."""
 
         # TODO :  can this file be compressed ?
+        input_file = input_files
         if isinstance(input_files, tuple):
-            output_file = "%s.detok" % input_files[-1]
+            input_file = input_files[-1]
+            output_file = "%s.detok" % input_file
         else:
-            output_file = "%s.tok" % input_files
+            output_file = "%s.tok" % input_file
+
+        if not self._pipeline:
+            return input_file
 
         file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
         file_consumer = consumer.FileWriter(output_file)
@@ -245,9 +243,3 @@ class InferenceProcessor(Processor):
             output_file = (output_file, file_consumer.metadata)
 
         return output_file
-
-
-class Postprocessor(InferenceProcessor):
-
-    def __init__(self, config):
-        self._pipeline = prepoperator.PostprocessPipeline(config)

@@ -12,15 +12,25 @@ logger = get_logger(__name__)
 
 class SamplerFile(object):
     """Class to store necessary information about the sampled files."""
-    def __init__(self, base_name, files, lines_count = 0):
+    def __init__(self, root, base_name, files, lines_count, no_preprocess, src_suffix, tgt_suffix):
+        self.root = root
         self.base_name = base_name
         self.lines_count = lines_count
         self.files = files
+        self.no_preprocess = no_preprocess
+        self.src_suffix = src_suffix
+        self.tgt_suffix = tgt_suffix
 
-    def close_files(self) :
-        for f in self.files :
-            if not f.closed:
-                f.close()
+    def close_files(self, f=None) :
+        if f is None:
+            f = self.files
+        for v in f.values():
+            if isinstance(v, dict):
+                self.close_files(v)
+            else:
+                if hasattr(v, 'closed') and not v.closed:
+                    v.close()
+
 
 def count_lines(path):
     f = None
@@ -29,7 +39,8 @@ def count_lines(path):
     elif os.path.isfile(path):
         f = open(path, 'r')
     else:
-        raise ValueError("File %s not found" % path)
+        logger.warning("File %s not found", path)
+        return None, None
     i = 0
     for i, _ in enumerate(f):
         pass
@@ -38,26 +49,44 @@ def count_lines(path):
 
 def sample(config, source_dir):
 
-    def _count_lines(file_path):
-        files = []
+    def _count_lines(root, base_name, annotations):
+        file_path = os.path.join(root, base_name)
+        files = {}
         logger.debug("Processing %s", file_path)
 
         # Check all directions are present and aligned, open files
-        src_file, src_lines = count_lines(file_path + src_suffix)
-        files.append(src_file)
+        src_file, src_lines = count_lines(file_path + "." + src_suffix)
+        files["src"] = src_file
 
         if src_file and src_lines :
             # TODO V2 : multiple sources and targets
-            tgt_file, tgt_lines = count_lines(file_path + tgt_suffix)
-            files.append(tgt_file)
+            tgt_file, tgt_lines = count_lines(file_path + "." + tgt_suffix)
+            files["tgt"] = tgt_file
             if src_lines != tgt_lines:
+                logger.warning('Target file %s is not aligned with source file %s. Files will be ignored in sampling.', file_path + "." + tgt_suffix, file_path + "." + src_suffix)
                 return files, 0
+
+        files["annotations"] = {}
+        for key, annot_path in annotations.items():
+            for suffix in ["", src_suffix, tgt_suffix]:
+                annot_file_path = os.path.join(annot_path, base_name)
+                if suffix :
+                    annot_file_path += "." + suffix
+                annot_file, annot_lines = count_lines(annot_file_path)
+                if not annot_file :
+                    continue
+                if suffix:
+                    key = key + ":" + suffix
+                files["annotations"][key] = annot_file
+                if src_lines != annot_lines:
+                    logger.warning('Annotation file %s is not aligned with source file %s. Files will be ignored in sampling.', annot_path, file_path + src_suffix)
+                    return files, 0
 
         return files, src_lines
 
     def _discover_files():
 
-        all_files = []
+        all_files = {}
         pattern_weights_sum = 0
         pattern_sizes = {}
 
@@ -72,8 +101,24 @@ def sample(config, source_dir):
                 if not os.path.exists(dpath) or not os.path.isdir(dpath):
                     raise RuntimeError('distribution path %s does not exist' % dpath)
                 d_item["path"] = dpath
+            else:
+                source_dir = d_item["path"]
 
             distribution = d_item['distribution']
+
+            # Get annotations
+            annotations = d_item.get('annotations', {})
+            if not isinstance(annotations, dict):
+                raise ValueError("invalid type for 'annotations' field")
+            for key, annot in annotations.items():
+                if not isinstance(annot, str):
+                    raise ValueError("innvalid type for 'annotations' value")
+                if not os.path.isabs(annot):
+                    annot=os.path.join(source_dir, annot)
+                    annotations[key] = annot
+                if not os.path.exists(annot):
+                    raise RuntimeError('annotation path %s does not exist' % annot)
+
             # walk over all files in path
             for root, _, files in os.walk(d_item['path']):
                 for f in files:
@@ -83,24 +128,25 @@ def sample(config, source_dir):
                     if (not (os.path.isfile(src_file))) :
                         continue
                     if f.endswith(src_suffix):
-                        base_name = f[:-len(src_suffix)]
+                        base_name = f[:-len(src_suffix) - 1]
                     elif f.endswith(src_suffix + ".gz"):
-                        base_name = f[:-len(src_suffix) - 3]
+                        base_name = f[:-len(src_suffix) - 4]
                     else:
                         continue
 
                     # Check all directions are present and aligned
                     # Return opened files and line count
-                    files, size = _count_lines(os.path.join(root, base_name))
-                    # Returns 0 if all files do not exist, cannot be aligned or empty
-                    if (size == 0) :
-                        for f in files :
-                            if not f.closed:
-                                f.close()
-                        continue
+                    opened_files, size = _count_lines(root, base_name, annotations)
+
+                    no_preprocess = d_item.get("no_preprocess", False)
 
                     # build file structure
-                    all_files.append(SamplerFile(base_name, files, size))
+                    sampler_file = SamplerFile(root, base_name, opened_files, size, no_preprocess, src_suffix, tgt_suffix)
+
+                    # Size is 0 if some files do not exist, cannot be aligned or empty
+                    if (size == 0) :
+                        sampler_file.close_files()
+                        continue
 
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
@@ -118,7 +164,7 @@ def sample(config, source_dir):
                         if pattern == '*' or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
-                            all_files[-1].weight = w
+                            sampler_file.weight = w
                             if not isinstance(weight, six.string_types):
                                 if d_idx_pattern not in pattern_sizes:
                                     pattern_weights_sum += float(weight)
@@ -126,6 +172,17 @@ def sample(config, source_dir):
                                 else:
                                     pattern_sizes[d_idx_pattern] += size
                             break
+
+                    # Check that the file has not been selected in another distribution
+                    if base_name in all_files and \
+                       hasattr(all_files[base_name], "weight") and \
+                       all_files[base_name].weight is not None:
+                            if hasattr(sampler_file, "weight") and sampler_file.weight is not None:
+                                # Different paths in distribution produced files with the same name.
+                                # This is not allowed since we write output files in the same folder.
+                                raise RuntimeError('Two files with the same name %s where sampled.' % base_name)
+                    else:
+                        all_files[base_name] = sampler_file
 
         return all_files, pattern_weights_sum, pattern_sizes
 
@@ -206,15 +263,8 @@ def sample(config, source_dir):
     weights_sum = 0
     weights_size = 0
     reserved_sample = 0
-    base_names = set()
-    for f in all_files:
+    for f in all_files.values():
         if hasattr(f, "weight") and f.weight is not None:
-            if f.base_name in base_names:
-                # Different paths in distribution produced files with the same name.
-                # This is not allowed since we write output files in the same folder.
-                raise RuntimeError('Two files with the same name %s where sampled.' % f.base_name)
-            else:
-                base_names.add(f.base_name)
             lines_count = f.lines_count
             pattern = f.weight["pattern"]
             weight = f.weight["weight"]
@@ -231,7 +281,8 @@ def sample(config, source_dir):
                 pattern_weight = float(f.weight["weight"]) / pattern_weights_sum
                 f.weight["weight"] = file_weight * pattern_weight
                 weights_sum += f.weight["weight"]
-                weights_size += 1
+                if f.weight["weight"] != 0.0:
+                    weights_size += 1
         else:
             logger.debug('No rules matching %s', f.base_name)
 
@@ -240,33 +291,37 @@ def sample(config, source_dir):
     metadata = {}
     summary = {}
     leftover = 0.0
-    for f in all_files:
+    for f in all_files.values():
         extra, pattern = None, None
         f.lines_kept = 0
         if hasattr(f, "weight") and f.weight is not None:
             extra = f.weight["extra"]
             pattern = f.weight["pattern"]
             weight = f.weight["weight"]
-            lines_kept = f.lines_count * f.oversample
-            if gsample and not isinstance(weight, six.string_types):
-                weights_size -= 1
-                res = distribute * (weight / weights_sum)
-                leftover += res - int(res)
-                lines_kept = int(res)
-                if leftover > 1.0 :
-                    lines_kept += 1
-                    leftover -= 1.0
-                if weights_size == 0 and leftover > 0.5 :
-                    lines_kept += 1
+            if isinstance(weight, six.string_types) or weight != 0.0:
+                lines_kept = f.lines_count * f.oversample
+                if gsample and not isinstance(weight, six.string_types):
+                    weights_size -= 1
+                    res = distribute * (weight / weights_sum)
+                    leftover += res - int(res)
+                    lines_kept = int(res)
+                    if leftover > 1.0 :
+                        lines_kept += 1
+                        leftover -= 1.0
+                    if weights_size == 0 and leftover > 0.5 :
+                        lines_kept += 1
+                f.lines_kept = lines_kept
 
-            f.lines_kept = lines_kept
         summary[f.base_name] = {
             "lines_count" : f.lines_count,
             "lines_sampled" : f.lines_kept,
             "pattern" : pattern
         }
+        if 'annotations' in f.files:
+            summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
+
         metadata[f.base_name] = extra
 
         _select_lines(f)
 
-    return all_files, summary, metadata
+    return all_files.values(), summary, metadata
