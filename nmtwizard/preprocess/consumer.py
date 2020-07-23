@@ -16,6 +16,15 @@ class Consumer(object):
         raise NotImplementedError()
 
 
+def _ingest_tokens(subword_learner, tu_side):
+    if not tu_side.tokens:
+        return
+    for part in tu_side.tokens:
+        for token in part:
+            # This method ignores annotations and placeholder tokens.
+            subword_learner.ingest_token(token)
+
+
 class SubwordLearner(Consumer):
     """SubwordLearner class stores, learns and writes subword models."""
 
@@ -23,36 +32,43 @@ class SubwordLearner(Consumer):
 
         self._result_dir = result_dir
 
+        self._subword_info = {}
         self._subword_learners = {}
 
         self._tok_step = tok_step
-        tok_config = config['preprocess'][tok_step]
 
-        opt_multi = tok_config.get('multi', {}).get('build_subword')
-        opt_source = tok_config.get('source', {}).get('build_subword')
-        opt_target = tok_config.get('target', {}).get('build_subword')
+        for side in ('multi', 'source', 'target'):
+            tokenization_config = config['preprocess'][tok_step].get(side)
+            if tokenization_config is None:
+                continue
+            subword_config = tokenization_config.get('build_subword')
+            if subword_config is None:
+                continue
+            # The subword learner needs to be aware of the tokenizer annotations
+            # to properly ignore them.
+            tokenizer = tokenizer.build_tokenizer(tokenization_config)
+            learner_info = tokenizer.make_subword_learner(
+                subword_config,
+                result_dir,
+                tokenizer=tokenizer)
+            self._subword_info[side] = learner_info
+            self._subword_learners[side] = learner_info['learner']
 
-        if opt_multi:
-            self._subword_learners['multi'] = tokenizer.make_subword_learner(opt_multi, result_dir)
-        if opt_source:
-            self._subword_learners['source'] = tokenizer.make_subword_learner(opt_source, result_dir)
-        if opt_target:
-            self._subword_learners['target'] = tokenizer.make_subword_learner(opt_target, result_dir)
+        self._source_learner = self._subword_learners.get('source')
+        self._target_learner = self._subword_learners.get('target')
+        self._multi_learner = self._subword_learners.get('multi')
 
 
     def __call__(self, tu_batch):
-        # Feed lines to subword learners.
-        # TODO V2 : feed tokenized lines, individual tokens ?
-        # TODO V2 : undo all placeholder annotation for subword processing
         tu_list, _ = tu_batch
         for tu in tu_list :
-            if 'source' in self._subword_learners:
-                self._subword_learners['source']['learner'].ingest(tu.src_detok)
-            if 'target' in self._subword_learners:
-                self._subword_learners['target']['learner'].ingest(tu.tgt_detok)
-            if 'multi' in self._subword_learners:
-                self._subword_learners['multi']['learner'].ingest(tu.src_detok)
-                self._subword_learners['multi']['learner'].ingest(tu.tgt_detok)
+            if self._source_learner is not None:
+                _ingest_tokens(self._source_learner, tu.src_tok)
+            if self._target_learner is not None:
+                _ingest_tokens(self._target_learner, tu.tgt_tok)
+            if self._multi_learner is not None:
+                _ingest_tokens(self._multi_learner, tu.src_tok)
+                _ingest_tokens(self._multi_learner, tu.tgt_tok)
 
 
     def finalize(self, config, summary=None):
@@ -60,13 +76,13 @@ class SubwordLearner(Consumer):
         tok_config = config['preprocess'][self._tok_step]
 
         # Learn subword models and write them to files.
-        for side, learner in self._subword_learners.items():
+        for side, subword_info in self._subword_info.items():
             name =  tok_config[side]['build_subword']['name'] \
                     if 'name' in tok_config[side]['build_subword'] \
                     else 'model'+str(self._tok_step)
 
-            subword_type = self._subword_learners[side]['subword_type']
-            size = self._subword_learners[side]['size']
+            subword_type = subword_info['subword_type']
+            size = subword_info['size']
 
             if side == 'multi' :
                 out_file = os.path.join(self._result_dir, \
@@ -79,7 +95,7 @@ class SubwordLearner(Consumer):
                                         "%s_%s-%d.%s" % (subword_type, name, size, config[side]))
                 tok_config[side][subword_type+"_model_path"] = out_file
 
-            self._subword_learners[side]['learner'].learn(out_file)
+            subword_info['learner'].learn(out_file)
 
 
 class VocabularyBuilder(Consumer):

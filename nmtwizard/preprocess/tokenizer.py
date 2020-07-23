@@ -10,6 +10,8 @@ def build_tokenizer(args):
     args.pop('vocabulary', None)
     args.pop('build_subword', None)
     args.pop('build_vocabulary', None)
+    if not args:
+        return None
     return pyonmttok.Tokenizer(**args)
 
 def tokenize_file(tokenizer, input_file, output_file):
@@ -53,7 +55,7 @@ def tokenize(tokenizer, text):
     output = " ".join(words)
     return output
 
-def make_subword_learner(subword_config, subword_dir):
+def make_subword_learner(subword_config, subword_dir, tokenizer=None):
     params = subword_config.get('params')
     if params is None:
         raise ValueError('\'params\' field should be specified for subword model learning.')
@@ -66,11 +68,12 @@ def make_subword_learner(subword_config, subword_dir):
 
     if subword_type == "bpe":
         learner = pyonmttok.BPELearner(
+            tokenizer=tokenizer,
             symbols=vocab_size,
             min_frequency=params.get('min-frequency', 0),
             total_symbols=params.get('total_symbols', False))
     elif subword_type == "sp":
-        learner = pyonmttok.SentencePieceLearner(**params)
+        learner = pyonmttok.SentencePieceLearner(tokenizer=tokenizer, **params)
     else:
         raise ValueError('Invalid subword type : \'%s\'.' % subword_type)
 
