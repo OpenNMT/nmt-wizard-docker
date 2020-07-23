@@ -46,11 +46,10 @@ class SubwordLearner(Consumer):
                 continue
             # The subword learner needs to be aware of the tokenizer annotations
             # to properly ignore them.
-            tokenizer = tokenizer.build_tokenizer(tokenization_config)
             learner_info = tokenizer.make_subword_learner(
                 subword_config,
                 result_dir,
-                tokenizer=tokenizer)
+                tokenizer=tokenizer.build_tokenizer(tokenization_config))
             self._subword_info[side] = learner_info
             self._subword_learners[side] = learner_info['learner']
 
