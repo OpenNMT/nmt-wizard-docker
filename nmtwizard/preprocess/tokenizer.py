@@ -1,8 +1,11 @@
+# coding: utf-8
 """Tokenization utilities."""
 
 import os
 import shutil
 import pyonmttok
+
+joiner_marker = "￭"
 
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""

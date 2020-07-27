@@ -344,7 +344,7 @@ class SamplerFileWriter(Consumer):
                 alignment = tu.alignment
                 if alignment :
                     for part in alignment:
-                        part = " ".join("%s-%s" % tup for tup in part)
+                        part = " ".join(sorted("%s-%s" % tup for tup in part))
                         self._files["align"].write("%s\n" % part)
         self._lines_filtered += len(tu_list)
 
