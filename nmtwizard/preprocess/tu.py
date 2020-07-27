@@ -142,7 +142,7 @@ class TranslationSide(object):
 
             end_idx = start_idx + tok_num
             if end_idx > len(self.__tok[part]):
-                raise RuntimeError('Too many tokens to delete.')
+                raise IndexError('Too many tokens to delete.')
 
             # If we replace some tokens, check if they start or end with a joiner.
             joiner_start = False
