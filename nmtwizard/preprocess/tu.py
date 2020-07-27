@@ -138,7 +138,7 @@ class TranslationSide(object):
         # check/initialize tokenization if not done already
         if self.tok.tokens:
             if start_idx > len(self.__tok[part]):
-                raise RuntimeError('Start index is too big for replacement.')
+                raise IndexError('Start index is too big for replacement.')
 
             end_idx = start_idx + tok_num
             if end_idx > len(self.__tok[part]):
@@ -312,18 +312,14 @@ class TranslationUnit(object):
 
     def replace_tokens_side(self, side, replacement, part=0):
 
-        if side == "source":
-            trans_side = self.__source
-        elif side == "target":
-            trans_side = self.__target
-
         # Initialize alignment
         alignment = self.alignment
 
-        # Replace tokens
-        trans_side.replace_tokens(*replacement, part=part)
-
-        # Adjust alignment
-        side_idx = 0 if side == "source" else 1
-        if alignment:
-            self.__alignment.adjust_alignment(side_idx, *replacement, part=part)
+        if side == "source":
+            self.__source.replace_tokens(*replacement, part=part)
+            if alignment:
+                self.__alignment.adjust_alignment(0, *replacement, part=part)
+        elif side == "target":
+            self.__target.replace_tokens(*replacement, part=part)
+            if alignment:
+                self.__alignment.adjust_alignment(1, *replacement, part=part)
