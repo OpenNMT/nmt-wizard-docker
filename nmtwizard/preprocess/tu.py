@@ -3,8 +3,15 @@ import copy
 
 from nmtwizard.preprocess import tokenizer
 
+from nmtwizard.logger import get_logger
+
+logger = get_logger(__name__)
+
 class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens"))):
     """Tuple structure to keep tokenizer and tokens together."""
+
+class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num", "new_tokens"))):
+        """Tuple structure for replacement in tokenization."""
 
 class Alignment(object):
 
@@ -27,10 +34,10 @@ class Alignment(object):
                 if isinstance(part, str):
                     # Initialize from pharaoh format
                     # TODO : add checks.
-                    self.__alignments[i] = [tuple(al.split('-')) for al in part.split()]
+                    self.__alignments[i] = {tuple(al.split('-')) for al in part.split()}
                 elif isinstance(part, list):
                     # Initialize from a list of tuples
-                    self.__alignments[i] = [tuple(al) for al in part]
+                    self.__alignments[i] = {tuple(al) for al in part}
                 else:
                     break
 
@@ -42,6 +49,38 @@ class Alignment(object):
                 # TODO : write fwd and bwd probs
                 alignments.append(align_result["alignments"])
             self.alignments = alignments
+
+    def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
+        # Shift alignments behind insertion/deletion.
+        # Remove alignments to deleted tokens.
+        # Align dangling alignments to the first token.
+
+        opp_side_idx = not side_idx
+        # Check there is an alignment
+        if self.__alignments:
+            new_alignment = set()
+
+            for al in self.__alignments[part]:
+                side_tok_idx = al[side_idx]
+                opp_side_tok_idx = al[opp_side_idx]
+                if side_tok_idx >= start_idx:
+                    if side_tok_idx >= start_idx + tok_num:
+                        # Shift alignment
+                        side_tok_idx += len(new_tokens) - tok_num
+                    else:
+                        if len(new_tokens) == 0:
+                            # Delete alignment
+                            continue
+                        else:
+                            # Realign to the first inserted token
+                            side_tok_idx = start_idx
+
+                if side_idx:
+                    new_alignment.add((opp_side_tok_idx, side_tok_idx))
+                else:
+                    new_alignment.add((side_tok_idx, opp_side_tok_idx))
+            self.__alignments[part] = new_alignment
+
 
 class TranslationSide(object):
 
@@ -92,6 +131,51 @@ class TranslationSide(object):
     def detok(self, detok):
         self.__detok = detok
         self.__tok = []
+
+
+    def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
+
+        # check/initialize tokenization if not done already
+        if self.tok.tokens:
+            if start_idx > len(self.__tok[part]):
+                raise RuntimeError('Start index is too big for replacement.')
+
+            end_idx = start_idx + tok_num
+            if end_idx > len(self.__tok[part]):
+                raise RuntimeError('Too many tokens to delete.')
+
+            # If we replace some tokens, check if they start or end with a joiner.
+            joiner_start = False
+            joiner_end = False
+            if start_idx != end_idx and new_tokens:
+                if start_idx < len(self.__tok[part]) and self.__tok[part][start_idx].startswith(tokenizer.joiner_marker):
+                    joiner_start = True
+                if end_idx <= len(self.__tok[part]) and self.__tok[part][end_idx-1].endswith(tokenizer.joiner_marker):
+                    joiner_end = True
+
+            # Insert new tokens.
+            for i, idx in enumerate(range(start_idx, start_idx + len(new_tokens))):
+                if idx < end_idx :
+                    # replace existing tokens
+                    self.__tok[part][idx] = new_tokens[i]
+                else:
+                    # insert remaining tokens
+                    self.__tok[part][idx:idx] = new_tokens[i:]
+                    break
+
+            # Insert joiners if needed
+            if joiner_start:
+                self.__tok[part][start_idx] = tokenizer.joiner_marker + self.__tok[part][start_idx]
+            if joiner_end:
+                self.__tok[part][start_idx + len(new_tokens) - 1] = self.__tok[part][start_idx + len(new_tokens) - 1] + tokenizer.joiner_marker
+
+            # Remove remaining tokens if deletion is bigger than insertion
+            if end_idx > start_idx + len(new_tokens):
+                del self.__tok[part][start_idx + len(new_tokens):end_idx]
+
+        else:
+            logger.warning("Cannot replace tokens, no tokenization is set.")
+
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
@@ -204,3 +288,42 @@ class TranslationUnit(object):
     @property
     def annotations(self):
         return self.__annotations
+
+    def replace_tokens(self,
+                       src_replace = None, # TokReplace structure
+                       tgt_replace = None, # TokReplace structure
+                       part = 0): # TODO : maybe rather send multi-part replacements ?
+
+        # Replace (delete, insert) tokens in a TU and adjust alignment without retoknization/realignment.
+
+        if src_replace:
+            # replace tokens in source and adjust alignment if any
+            src_replace = TokReplace(*src_replace)
+            self.replace_tokens_side("source", src_replace, part=part)
+
+        if tgt_replace:
+            # replace tokens in source and adjust_alignment if any
+            tgt_replace = TokReplace(*tgt_replace)
+            self.replace_tokens_side("target", tgt_replace, part=part)
+
+        # TODO
+        # Maybe provide and alignment for inserted tokens ?
+
+
+    def replace_tokens_side(self, side, replacement, part=0):
+
+        if side == "source":
+            trans_side = self.__source
+        elif side == "target":
+            trans_side = self.__target
+
+        # Initialize alignment
+        alignment = self.alignment
+
+        # Replace tokens
+        trans_side.replace_tokens(*replacement, part=part)
+
+        # Adjust alignment
+        side_idx = 0 if side == "source" else 1
+        if alignment:
+            self.__alignment.adjust_alignment(side_idx, *replacement, part=part)

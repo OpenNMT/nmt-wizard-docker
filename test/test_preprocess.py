@@ -3,8 +3,11 @@
 import pytest
 import shutil
 import os
+from copy import deepcopy
+import random
 
 from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
+from nmtwizard.preprocess import prepoperator
 
 def test_sampler(tmpdir):
 
@@ -325,50 +328,172 @@ def test_preprocess_pipeline(tmpdir):
     assert target_postprocessed == "Das ist..."
 
 
-def test_preprocess_align(tmpdir):
-    config = {
-        "source": "en",
-        "target": "de",
-        "data": {
-            "sample": 800,
-            "sample_dist": [
-                {
-                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
-                    "distribution": [
-                        ["europarl", 1]
-                    ]
-                }
-            ]
-        },
-        "preprocess": [
+config_base = {
+    "source": "en",
+    "target": "de",
+    "data": {
+        "sample": 800,
+        "sample_dist": [
             {
-                "op" : "tokenization",
-                "source": {
-                    "mode": "aggressive",
-                    "joiner_annotate": True
-                },
-                "target": {
-                    "mode": "aggressive",
-                    "joiner_annotate": True
-                }
-            },
-            {
-                "op": "alignment",
-                # "monotonic": True
-                "write_alignment": True,
-                "forward": {
-                    "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_forward.probs")
-                },
-                "backward": {
-                    "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_backward.probs")
-                }
+                "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
+                "distribution": [
+                    ["europarl", 1]
+                ]
             }
         ]
-    }
+    },
+    "preprocess": [
+        {
+            "op" : "tokenization",
+            "source": {
+                "mode": "aggressive",
+                "joiner_annotate": True
+            },
+            "target": {
+                "mode": "aggressive",
+                "joiner_annotate": True
+            }
+        },
+        {
+            "op": "alignment",
+            "write_alignment": True,
+            "forward": {
+                "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_forward.probs")
+            },
+            "backward": {
+                "probs": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "resources", "alignment", "ende_backward.probs")
+            }
+        }
+    ]
+}
 
-    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+def test_preprocess_align(tmpdir):
+
+    preprocessor = TrainingProcessor(config_base, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
 
     with open(os.path.join(str(tmpdir), "preprocess", "europarl-v7.de-en.10K.tok.align")) as align:
         assert align.readline().strip() == "0-0 1-0 2-1 3-2"
+
+
+def test_replace_tokens(tmpdir):
+
+    # Dummy token replacement operator.
+    @prepoperator.register_operator("repl")
+    class ReplaceOperator(prepoperator.TUOperator):
+
+        def __init__(self, config):
+            self._rand_repl_gen = self._replacement_generator()
+
+        @staticmethod
+        def is_stateful():
+            return False
+
+        @staticmethod
+        def _replacement_generator():
+            src_len = 0
+            tgt_len = 0
+
+            replacement_tokens = ["TEST1", "TEST2", "TEST3"]
+            while True:
+                src_len, tgt_len = yield
+
+                src_pos = random.randint(0, src_len)
+                tgt_pos = random.randint(0, tgt_len)
+
+                src_num_to_del = random.randint(0, src_len-src_pos)
+                tgt_num_to_del = random.randint(0, tgt_len-tgt_pos)
+
+                src_tok_replace = replacement_tokens[0:random.randint(0, len(replacement_tokens))]
+                tgt_tok_replace = replacement_tokens[0:random.randint(0, len(replacement_tokens))]
+                yield ((src_pos, src_num_to_del, src_tok_replace), (tgt_pos, tgt_num_to_del, tgt_tok_replace))
+
+
+        def _preprocess_tu(self, tu, training):
+
+            def joiner_side(tokens, pos, num_to_del):
+                joiner_start = False
+                joiner_end = False
+                if num_to_del:
+                    joiner_start = tokens[0][pos].startswith(joiner_marker)
+                    joiner_end = tokens[0][pos+num_to_del-1].endswith(joiner_marker)
+                return joiner_start, joiner_end
+
+            def checks_side(tokens, length, pos, num_to_del, tok_replace, joiner_start, joiner_end):
+                assert(len(tokens[0]) == length - num_to_del + len(tok_replace))
+
+                if tok_replace:
+                    if joiner_start:
+                        tok_replace[0] = joiner_marker + tok_replace[0]
+                    if joiner_end:
+                        tok_replace[-1] += joiner_marker
+                    assert (tokens[0][pos:pos+len(tok_replace)] == tok_replace)
+
+            def change_align_side(al_idx, pos, num_to_del, tok_replace):
+                new_al_idx = al_idx
+                len_tok_replace = len(tok_replace) if tok_replace else 0
+                if al_idx >= pos:
+                    if al_idx < pos+num_to_del:
+                        # insertion
+                        if len_tok_replace:
+                            new_al_idx = pos
+                        # deletion
+                        else:
+                            return None
+                    else:
+                        # shift
+                        new_al_idx = al_idx - num_to_del + len_tok_replace
+                return new_al_idx
+
+
+            src_tokens = tu.src_tok.tokens if tu.src_tok else None
+            tgt_tokens = tu.tgt_tok.tokens if tu.tgt_tok else None
+
+            src_len = len(src_tokens[0]) if src_tokens else 0
+            tgt_len = len(tgt_tokens[0]) if tgt_tokens else 0
+
+            if src_len and tgt_len:
+                alignment_before = deepcopy(tu.alignment[0])
+
+                joiner_marker = "￭"
+
+                next(self._rand_repl_gen)
+                src_replace, tgt_replace = self._rand_repl_gen.send((src_len, tgt_len))
+
+                src_pos, src_num_to_del, src_tok_replace = src_replace
+                tgt_pos, tgt_num_to_del, tgt_tok_replace = tgt_replace
+
+                src_joiner_start, src_joiner_end = joiner_side(src_tokens, src_pos, src_num_to_del)
+                tgt_joiner_start, tgt_joiner_end = joiner_side(tgt_tokens, tgt_pos, tgt_num_to_del)
+
+                tu.replace_tokens(src_replace, tgt_replace)
+
+                checks_side(src_tokens, src_len, src_pos, src_num_to_del, src_tok_replace, src_joiner_start, src_joiner_end)
+                checks_side(tgt_tokens, tgt_len, tgt_pos, tgt_num_to_del, tgt_tok_replace, tgt_joiner_start, tgt_joiner_end)
+
+                # Check alignment
+                alignment_after = tu.alignment[0]
+
+                new_align = set()
+                for al_src, al_tgt in alignment_before :
+                    new_al_src = change_align_side(al_src, src_pos, src_num_to_del, src_tok_replace)
+                    if new_al_src is None:
+                        continue
+                    new_al_tgt = change_align_side(al_tgt, tgt_pos, tgt_num_to_del, tgt_tok_replace)
+                    if new_al_tgt is None:
+                        continue
+                    new_align.add((new_al_src, new_al_tgt))
+
+                assert new_align == alignment_after
+            return [tu]
+
+    config_replace = deepcopy(config_base)
+
+    config_replace['preprocess'].append(
+        { "op": "repl" }
+    )
+
+    preprocessor = TrainingProcessor(config_replace, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, metadata = \
+        preprocessor.generate_preprocessed_data()

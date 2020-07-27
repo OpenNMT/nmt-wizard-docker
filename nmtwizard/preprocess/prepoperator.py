@@ -11,6 +11,27 @@ import systran_align
 
 logger = get_logger(__name__)
 
+_OPERATORS_REGISTRY = {}
+
+def register_operator(name):
+    """A class decorator to register an operator.
+
+    Example:
+
+        @register_operator("length_filter")
+        class LengthFilter(Operator):
+            ...
+    """
+    if name in _OPERATORS_REGISTRY:
+        raise ValueError("An operator with name '%s' is already registered" % name)
+
+    def _decorator(cls):
+        _OPERATORS_REGISTRY[name] = cls
+        return cls
+
+    return _decorator
+
+
 def get_operator_type(config):
     """Returns the operator type from the configuration."""
     op = config.get("op")
@@ -23,6 +44,20 @@ def get_operator_params(config):
     config = config.copy()
     config.pop("op", None)
     return config
+
+
+def build_operator(operator_config, state):
+    """Creates an operator instance from its configuration."""
+
+    operator_type = get_operator_type(operator_config)
+    operator_cls = _OPERATORS_REGISTRY.get(operator_type)
+    if operator_cls is None:
+        logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
+        return None
+    operator_params = get_operator_params(operator_config)
+    if operator_cls.is_stateful():
+        return operator_cls(operator_params, state)
+    return operator_cls(operator_params)
 
 
 class ProcessType(object):
@@ -60,7 +95,7 @@ class Pipeline(object):
 
     def _add_op_list(self, op_list_config, exit_step=None):
         for i, op in enumerate(op_list_config):
-            operator = self._build_operator(op)
+            operator = build_operator(op, self.build_state)
             if operator and operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
@@ -88,23 +123,6 @@ class Pipeline(object):
             postprocess_config = config.get("postprocess")
             if postprocess_config:
                 self._add_op_list(postprocess_config)
-
-
-    def _build_operator(self, operator_config):
-        op = get_operator_type(operator_config)
-        params = get_operator_params(operator_config)
-        operator = None
-        if op == "length_filter":
-            operator = LengthFilter(params)
-        elif op == "tokenization":
-            operator = Tokenizer(params, self.build_state)
-        elif op == "alignment":
-            operator = Aligner(params, self.build_state)
-        # TODO : all other operators
-        else:
-            # TODO : warning or error ?
-            logger.warning('Unknown operator \'%s\' will be ignored.' % op)
-        return operator
 
 
     def __call__(self, tu_batch):
@@ -137,7 +155,12 @@ class Operator(object):
         raise NotImplementedError()
 
 
-    def is_applied_for(self, process_type):
+    @staticmethod
+    def is_applied_for(process_type):
+        return True
+
+    @staticmethod
+    def is_stateful():
         return True
 
 
@@ -165,7 +188,8 @@ class Filter(TUOperator):
         self._criteria = []
 
 
-    def is_applied_for(self, process_type):
+    @staticmethod
+    def is_applied_for(process_type):
         return process_type == ProcessType.TRAINING
 
 
@@ -176,6 +200,7 @@ class Filter(TUOperator):
         return [tu]
 
 
+@register_operator("length_filter")
 class LengthFilter(Filter):
 
     def __init__(self, config):
@@ -191,21 +216,26 @@ class LengthFilter(Filter):
         if self._target_max:
             self._criteria.append(lambda x:len(x.tgt_detok) > self._target_max)
 
+    @staticmethod
+    def is_stateful():
+        return False
 
+
+@register_operator("tokenization")
 class Tokenizer(Operator):
 
-    def __init__(self, tok_config, state):
+    def __init__(self, tok_config, build_state):
         self._src_tok_config = tok_config.get("source") or tok_config.get("multi")
         self._tgt_tok_config = tok_config.get("target") or tok_config.get("multi")
 
-        if state:
-            self._src_tok_config_prev = state["src_tok_config"]
-            self._tgt_tok_config_prev = state["tgt_tok_config"]
+        if build_state:
+            self._src_tok_config_prev = build_state["src_tok_config"]
+            self._tgt_tok_config_prev = build_state["tgt_tok_config"]
 
-            state["src_tok_config"] = self._src_tok_config
-            state["tgt_tok_config"] = self._tgt_tok_config
+            build_state["src_tok_config"] = self._src_tok_config
+            build_state["tgt_tok_config"] = self._tgt_tok_config
 
-        self._postprocess_only = state['postprocess_only']
+        self._postprocess_only = build_state['postprocess_only']
 
         self._src_tokenizer = None
         self._tgt_tokenizer = None
@@ -245,6 +275,7 @@ class Tokenizer(Operator):
         return tu_list, meta_batch
 
 
+@register_operator("alignment")
 class Aligner(Operator):
 
     def __init__(self, align_config, build_state):
