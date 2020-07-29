@@ -92,17 +92,21 @@ def start_server(host,
         global_max_batch_size = serving_config.get('max_batch_size')
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
-        def _send_response(self, data):
-            self.send_response(200)
+        def _send_response(self, data, status=200):
+            self.send_response(status)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(six.ensure_binary(json.dumps(data)))
+
+        def _send_error(self, status, message):
+            data = {"message": message}
+            self._send_response(data, status=status)
 
         def do_GET(self):
             if self.path == '/status':
                 self.status()
             else:
-                self.send_error(404, 'invalid route %s' % self.path)
+                self._send_error(404, 'invalid route %s' % self.path)
 
         def do_POST(self):
             if self.path == '/translate':
@@ -112,19 +116,19 @@ def start_server(host,
             elif self.path == '/reload_model':
                 self.reload_model()
             else:
-                self.send_error(404, 'invalid route %s' % self.path)
+                self._send_error(404, 'invalid route %s' % self.path)
 
         def translate(self):
             if (backend_info is None or
                 (backend_process is not None and not _process_is_running(backend_process))):
-                self.send_error(503, 'backend service is unavailable')
+                self._send_error(503, 'backend service is unavailable')
                 return
             header_fn = (
                 self.headers.getheader if hasattr(self.headers, "getheader")
                 else self.headers.get)
             content_len = int(header_fn('content-length', 0))
             if content_len == 0:
-                self.send_error(400, 'missing request data')
+                self._send_error(400, 'missing request data')
                 return
             post_body = self.rfile.read(content_len)
             try:
@@ -138,9 +142,9 @@ def start_server(host,
                     max_batch_size=global_max_batch_size,
                     timeout=global_timeout)
             except ValueError as e:
-                self.send_error(400, str(e))
+                self._send_error(400, str(e))
             except RuntimeError as e:
-                self.send_error(504, str(e))
+                self._send_error(504, str(e))
             else:
                 self._send_response(result)
 
