@@ -55,7 +55,16 @@ def build_operator(operator_config, global_config, process_type, state):
         logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
         return None
     operator_params = get_operator_params(operator_config)
-    return operator_cls(operator_params, global_config, process_type, state)
+
+    # Propagate source and target languages
+    if "source" not in operator_params:
+        operator_params["source"] = {}
+    operator_params["source"]["lang"] = global_config["source"]
+    if "target" not in operator_params:
+        operator_params["target"] = {}
+    operator_params["target"]["lang"] = global_config["target"]
+
+    return operator_cls(operator_params, process_type, state)
 
 
 class ProcessType(object):
@@ -200,7 +209,7 @@ class Filter(TUOperator):
 @register_operator("length_filter")
 class LengthFilter(Filter):
 
-    def __init__(self, config, global_config, process_type):
+    def __init__(self, config, process_type, build_state):
 
         super(LengthFilter, self).__init__()
 
@@ -217,9 +226,12 @@ class LengthFilter(Filter):
 @register_operator("tokenization")
 class Tokenizer(Operator):
 
-    def __init__(self, tok_config, global_config, process_type, build_state):
+    def __init__(self, tok_config, process_type, build_state):
         self._src_tok_config = tok_config.get("source") or tok_config.get("multi")
         self._tgt_tok_config = tok_config.get("target") or tok_config.get("multi")
+
+        self._src_tok_config.pop("lang", None)
+        self._tgt_tok_config.pop("lang", None)
 
         if build_state:
             self._src_tok_config_prev = build_state["src_tok_config"]
@@ -271,7 +283,7 @@ class Tokenizer(Operator):
 @register_operator("alignment")
 class Aligner(Operator):
 
-    def __init__(self, align_config, global_config, process_type, build_state):
+    def __init__(self, align_config, process_type, build_state):
         self._align_config = align_config
         self._aligner = None
         build_state['write_alignment'] = self._align_config.get('write_alignment', False)
