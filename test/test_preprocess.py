@@ -383,7 +383,7 @@ def test_replace_tokens(tmpdir):
     @prepoperator.register_operator("repl")
     class ReplaceOperator(prepoperator.TUOperator):
 
-        def __init__(self, config):
+        def __init__(self, config, process_type, build_state):
             self._rand_repl_gen = self._replacement_generator()
 
         @staticmethod

@@ -46,7 +46,7 @@ def get_operator_params(config):
     return config
 
 
-def build_operator(operator_config, state):
+def build_operator(operator_config, global_config, process_type, state):
     """Creates an operator instance from its configuration."""
 
     operator_type = get_operator_type(operator_config)
@@ -55,9 +55,16 @@ def build_operator(operator_config, state):
         logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
         return None
     operator_params = get_operator_params(operator_config)
-    if operator_cls.is_stateful():
-        return operator_cls(operator_params, state)
-    return operator_cls(operator_params)
+
+    # Propagate source and target languages
+    if "source" not in operator_params:
+        operator_params["source"] = {}
+    operator_params["source"]["lang"] = global_config["source"]
+    if "target" not in operator_params:
+        operator_params["target"] = {}
+    operator_params["target"]["lang"] = global_config["target"]
+
+    return operator_cls(operator_params, process_type, state)
 
 
 class ProcessType(object):
@@ -94,8 +101,10 @@ class Pipeline(object):
 
 
     def _add_op_list(self, op_list_config, exit_step=None):
-        for i, op in enumerate(op_list_config):
-            operator = build_operator(op, self.build_state)
+        # Parameters from global configuration that can be useful for individual operators.
+
+        for i, op_config in enumerate(op_list_config):
+            operator = build_operator(op_config, self._config, self._process_type, self.build_state)
             if operator and operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
@@ -104,6 +113,7 @@ class Pipeline(object):
 
     def _build_pipeline(self, config, preprocess_exit_step=None):
         self._ops = []
+        self._config = config
         preprocess_config = config.get("preprocess")
         if preprocess_config:
             self._add_op_list(preprocess_config, exit_step=preprocess_exit_step)
@@ -159,10 +169,6 @@ class Operator(object):
     def is_applied_for(process_type):
         return True
 
-    @staticmethod
-    def is_stateful():
-        return True
-
 
 class TUOperator(Operator):
     """Base class for operations iterating on each TU in a batch."""
@@ -203,7 +209,7 @@ class Filter(TUOperator):
 @register_operator("length_filter")
 class LengthFilter(Filter):
 
-    def __init__(self, config):
+    def __init__(self, config, process_type, build_state):
 
         super(LengthFilter, self).__init__()
 
@@ -216,17 +222,16 @@ class LengthFilter(Filter):
         if self._target_max:
             self._criteria.append(lambda x:len(x.tgt_detok) > self._target_max)
 
-    @staticmethod
-    def is_stateful():
-        return False
-
 
 @register_operator("tokenization")
 class Tokenizer(Operator):
 
-    def __init__(self, tok_config, build_state):
+    def __init__(self, tok_config, process_type, build_state):
         self._src_tok_config = tok_config.get("source") or tok_config.get("multi")
         self._tgt_tok_config = tok_config.get("target") or tok_config.get("multi")
+
+        self._src_tok_config.pop("lang", None)
+        self._tgt_tok_config.pop("lang", None)
 
         if build_state:
             self._src_tok_config_prev = build_state["src_tok_config"]
@@ -278,7 +283,7 @@ class Tokenizer(Operator):
 @register_operator("alignment")
 class Aligner(Operator):
 
-    def __init__(self, align_config, build_state):
+    def __init__(self, align_config, process_type, build_state):
         self._align_config = align_config
         self._aligner = None
         build_state['write_alignment'] = self._align_config.get('write_alignment', False)
