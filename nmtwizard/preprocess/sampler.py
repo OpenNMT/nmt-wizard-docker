@@ -1,9 +1,9 @@
 import os
 import re
 import random
-import gzip
 import six
 
+from nmtwizard import utils
 from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,31 +21,19 @@ class SamplerFile(object):
         self.src_suffix = src_suffix
         self.tgt_suffix = tgt_suffix
 
-    def close_files(self, f=None) :
-        if f is None:
-            f = self.files
-        for v in f.values():
-            if isinstance(v, dict):
-                self.close_files(v)
-            else:
-                if hasattr(v, 'closed') and not v.closed:
-                    v.close()
 
-
-def count_lines(path):
-    f = None
-    if os.path.isfile(path + ".gz"):
-        f = gzip.open(path + ".gz", 'r')
-    elif os.path.isfile(path):
-        f = open(path, 'r')
-    else:
-        logger.warning("File %s not found", path)
-        return None, None
-    i = 0
-    for i, _ in enumerate(f):
-        pass
-    f.seek(0)
-    return f, i + 1
+def count_lines(path, buffer_size=65536):
+    path = utils.get_file_path(path)
+    if path is None:
+         logger.warning("File %s not found", path)
+         return None, None
+    with utils.open_file(path, "rb") as f:
+        num_lines = 0
+        while True:
+            data = f.read(buffer_size)
+            if not data:
+                return path, num_lines
+            num_lines += data.count(b"\n")
 
 def sample(config, source_dir):
 
@@ -145,7 +133,6 @@ def sample(config, source_dir):
 
                     # Size is 0 if some files do not exist, cannot be aligned or empty
                     if (size == 0) :
-                        sampler_file.close_files()
                         continue
 
                     # loop over patterns in distribution, check patterns are ok and file matches one

@@ -4,6 +4,7 @@ import hashlib
 import subprocess
 import six
 import os
+import gzip
 
 from nmtwizard.logger import get_logger
 
@@ -67,3 +68,20 @@ def pad_lists(lists, padding_value=None, max_length=None):
         lst += [padding_value] * (max_length - length)
         lengths.append(length)
     return lists, lengths
+
+def get_file_path(path):
+    if os.path.isfile(path):
+        return path
+    elif os.path.isfile(path + ".gz"):
+        return path + ".gz"
+    else:
+        return None
+
+def is_gzip_file(path):
+    return path.endswith(".gz")
+
+def open_file(path, *args, **kwargs):
+    if is_gzip_file(path):
+        return gzip.open(path, *args, **kwargs)
+    else:
+        return open(path, *args, **kwargs)
