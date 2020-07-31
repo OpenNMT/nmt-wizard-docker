@@ -91,7 +91,6 @@ class TrainingProcessor(Processor):
                     if hasattr(sampler_consumer, "open_files"):
                         sampler_consumer.open_files(f, self._pipeline.build_state)
                     self.process(sampler_loader, sampler_consumer)
-                    sampler_loader.close_files()
                     if hasattr(sampler_consumer, "close_files"):
                         sampler_consumer.close_files()
 
@@ -236,7 +235,6 @@ class InferenceProcessor(Processor):
 
         self.process(file_loader, file_consumer)
 
-        file_loader.close_files()
         file_consumer.close_files()
 
         if file_consumer.metadata:
