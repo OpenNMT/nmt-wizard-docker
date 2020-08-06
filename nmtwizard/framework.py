@@ -976,7 +976,7 @@ class Framework(utility.Utility):
             cum_sent_count = 0
             if parent_build_info is not None:
                 cum_sent_count = parent_build_info.get('cumSentenceCount')
-            sent_count = sum(v.get('lines_filtered', 0) for v in six.itervalues(distribution))
+            sent_count = sum(v.get('linefiltered', 0) for v in six.itervalues(distribution))
             build_info['sentenceCount'] = sent_count
             build_info['cumSentenceCount'] = (
                 cum_sent_count + sent_count if cum_sent_count is not None else None)
