@@ -300,8 +300,8 @@ def sample(config, source_dir):
                 f.lines_kept = lines_kept
 
         summary[f.base_name] = {
-            "lines_count" : f.lines_count,
-            "lines_sampled" : f.lines_kept,
+            "linecount" : f.lines_count,
+            "linesampled" : f.lines_kept,
             "pattern" : pattern
         }
         if 'annotations' in f.files:

@@ -60,14 +60,14 @@ def test_sampler(tmpdir):
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
     assert num_samples == 5000
-    assert summary['news_pattern']['lines_sampled'] == 3000
-    assert summary['generic_corpus']['lines_sampled'] >= 215
-    assert summary['generic_added']['lines_sampled'] >= 107
-    assert summary['corpus_specific1']['lines_sampled'] >= 479
-    assert summary['corpus_specific2']['lines_sampled'] >= 1198
-    assert summary['IT']['lines_sampled'] == 0
+    assert summary['news_pattern']['linesampled'] == 3000
+    assert summary['generic_corpus']['linesampled'] >= 215
+    assert summary['generic_added']['linesampled'] >= 107
+    assert summary['corpus_specific1']['linesampled'] >= 479
+    assert summary['corpus_specific2']['linesampled'] >= 1198
+    assert summary['IT']['linesampled'] == 0
     assert 'unaligned' not in summary
-    assert summary['generic_to_ignore']['lines_sampled'] == 0
+    assert summary['generic_to_ignore']['linesampled'] == 0
 
     # check unique sampling with undersampling
     with open(str(tmpdir.join("preprocess/corpus_specific2.en")), 'rb') as f :
@@ -104,12 +104,12 @@ def test_sampler(tmpdir):
         preprocessor.generate_preprocessed_data()
 
     assert num_samples == 6000
-    assert summary['news_pattern']['lines_sampled'] == 6000
-    assert summary['generic_corpus']['lines_sampled'] == 0
-    assert summary['generic_added']['lines_sampled'] == 0
-    assert summary['corpus_specific1']['lines_sampled'] == 0
-    assert summary['corpus_specific2']['lines_sampled'] == 0
-    assert summary['IT']['lines_sampled'] == 0
+    assert summary['news_pattern']['linesampled'] == 6000
+    assert summary['generic_corpus']['linesampled'] == 0
+    assert summary['generic_added']['linesampled'] == 0
+    assert summary['corpus_specific1']['linesampled'] == 0
+    assert summary['corpus_specific2']['linesampled'] == 0
+    assert summary['IT']['linesampled'] == 0
 
 
 def test_sampler_with_annotations(tmpdir):
