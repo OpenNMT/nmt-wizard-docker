@@ -352,10 +352,10 @@ class SamplerFileWriter(Consumer):
     def finalize(self, config, summary=None):
         if self._lines_filtered != self._f.lines_kept:
             self.num_samples += self._lines_filtered
-            summary[self._f.base_name]["lines_filtered"] = self._lines_filtered
+            summary[self._f.base_name]["linefiltered"] = self._lines_filtered
         else:
             self.num_samples += self._f.lines_kept
-            summary[self._f.base_name]["lines_filtered"] = self._f.lines_kept
+            summary[self._f.base_name]["linefiltered"] = self._f.lines_kept
 
         if self._tokens_to_add['source'] or self._tokens_to_add['target'] :
             if 'tokens_to_add' not in summary:
