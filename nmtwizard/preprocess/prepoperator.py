@@ -187,6 +187,22 @@ class TUOperator(Operator):
         raise NotImplementedError()
 
 
+class PlaceholderOperator(TUOperator):
+
+    """Base class for operators inserting some placeholder annotation."""
+
+    def _check_placeholder_consistency(self):
+        # TODO : implement placeholder checks in preprocess in training and in postprocess
+        pass
+
+    def _random_injection(self):
+        # TODO : implement common mechanism for random placeholder injection
+        # To be activates before and in place any specific processing if configured
+        pass
+
+    # TODO : implement random placeholder insertion
+
+
 class Filter(TUOperator):
 
     def __init__(self):
