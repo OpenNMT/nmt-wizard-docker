@@ -152,12 +152,12 @@ def sample(config, source_dir):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
                             sampler_file.weight = w
-                            if not isinstance(weight, six.string_types):
-                                if d_idx_pattern not in pattern_sizes:
+                            if d_idx_pattern not in pattern_sizes:
+                                if not isinstance(weight, six.string_types):
                                     pattern_weights_sum += float(weight)
-                                    pattern_sizes[d_idx_pattern] = size
-                                else:
-                                    pattern_sizes[d_idx_pattern] += size
+                                pattern_sizes[d_idx_pattern] = size
+                            else:
+                                pattern_sizes[d_idx_pattern] += size
                             break
 
                     # Check that the file has not been selected in another distribution
@@ -239,11 +239,11 @@ def sample(config, source_dir):
     # In strict mode, check that all patterns have been triggered
     if 'data' in config and 'mode_strict' in config['data'] and config['data']['mode_strict']:
         for d_idx, d_item in enumerate(sample_dist):
-            for rule in d['distribution'] :
+            for rule in d_item['distribution'] :
                 pattern = rule[0]
                 d_idx_pattern = str(d_idx) + "-" + pattern
                 if (d_idx_pattern not in pattern_sizes) :
-                    raise RuntimeError('pattern %s in block %d doesn\'t match any file with strict mode enabled.' % pattern, d_idx)
+                    raise RuntimeError('pattern \'%s\' in block %d doesn\'t match any file with strict mode enabled.' % (pattern, d_idx))
 
 
     # Adjust weights based on all sampled files for each pattern.
