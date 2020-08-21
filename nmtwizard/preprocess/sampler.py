@@ -29,11 +29,15 @@ def count_lines(path, buffer_size=65536):
          return None, None
     with utils.open_file(path, "rb") as f:
         num_lines = 0
+        eol = False
         while True:
             data = f.read(buffer_size)
             if not data:
+                if not eol:
+                    num_lines += 1
                 return path, num_lines
             num_lines += data.count(b"\n")
+            eol = True if data.endswith(b"\n") else False
 
 def sample(config, source_dir):
 
