@@ -86,7 +86,18 @@ def test_sampler(tmpdir):
         for l, c in rf_dict.items() :
             assert 2 <= c <= 3
 
+    # Check strict mode
     shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"]["mode_strict"] = True
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    with pytest.raises(RuntimeError) as excinfo:
+        data_path, train_dir, num_samples, summary, metadata = \
+            preprocessor.generate_preprocessed_data()
+    assert str(excinfo.value) == "pattern '.*something' in block 0 doesn't match any file with strict mode enabled."
+
+    shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"].pop("mode_strict")
     config["data"]["sample_dist"] = [
         {
             "path": str(corpus_dir),
