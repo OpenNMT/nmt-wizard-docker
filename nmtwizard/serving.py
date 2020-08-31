@@ -64,6 +64,7 @@ def start_server(host,
                  preprocess_fn,
                  translate_fn,
                  postprocess_fn,
+                 backend_info_fn=None,
                  rebatch_request=True):
     """Start a serving service.
 
@@ -77,6 +78,8 @@ def start_server(host,
       translation_fn: A callable that forwards the request to the translation backend.
       postprocess_fn: A callable taking (src_tokens, tgt_tokens, config)
         and returning text.
+      backend_info_fn: A callable returning some information about the backend service,
+        and whether it can accept new requests or not.
       rebatch_request: If True, incoming requests are rebatched according to
         max_batch_size. Otherwise, max_batch_size is passed as a translation option
         to translate_fn which takes responsibility over batching.
@@ -90,6 +93,10 @@ def start_server(host,
     if serving_config is not None and isinstance(serving_config, dict):
         global_timeout = serving_config.get('timeout')
         global_max_batch_size = serving_config.get('max_batch_size')
+
+    def _backend_is_reachable():
+        return (backend_info is not None
+                and backend_process is None or _process_is_running(backend_process))
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         def _send_response(self, data, status=200):
@@ -105,6 +112,8 @@ def start_server(host,
         def do_GET(self):
             if self.path == '/status':
                 self.status()
+            elif self.path == '/health':
+                self.health()
             else:
                 self._send_error(404, 'invalid route %s' % self.path)
 
@@ -119,8 +128,7 @@ def start_server(host,
                 self._send_error(404, 'invalid route %s' % self.path)
 
         def translate(self):
-            if (backend_info is None or
-                (backend_process is not None and not _process_is_running(backend_process))):
+            if not _backend_is_reachable():
                 self._send_error(503, 'backend service is unavailable')
                 return
             header_fn = (
@@ -147,6 +155,16 @@ def start_server(host,
                 self._send_error(504, str(e))
             else:
                 self._send_response(result)
+
+        def health(self):
+            if not _backend_is_reachable():
+                self._send_error(503, 'backend service is unavailable')
+                return
+            if backend_info_fn is None:
+                self._send_response({})
+                return
+            info, available = backend_info_fn(serving_config, backend_info)
+            self._send_response(info, status=200 if available else 503)
 
         def status(self):
             if backend_info is None:

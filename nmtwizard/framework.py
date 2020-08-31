@@ -172,6 +172,20 @@ class Framework(utility.Utility):
         """
         raise NotImplementedError()
 
+    def backend_info(self, serving_config, model_info):
+        """Returns some information about the backend instance, and whether it can
+        accept more requests.
+
+        Args:
+          serving_config: The serving configuration.
+          model_info: The information to reach the model, as returned by serve().
+
+        Returns:
+          A dictionnary with some information about the backend and a
+          boolean indicating that the backend can accept more work.
+        """
+        return {}, True
+
     def train_multi_files(self,
                           config,
                           data_dir,
@@ -660,6 +674,7 @@ class Framework(utility.Utility):
             self._preprocess_input,
             self.forward_request,
             self._postprocess_output,
+            backend_info_fn=self.backend_info,
             rebatch_request=not self.has_own_request_batching)
 
     def preprocess(self, config, storage):
