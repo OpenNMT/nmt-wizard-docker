@@ -187,11 +187,12 @@ class TUOperator(Operator):
         tu_list = [self._postprocess_tu(tu) for tu in tu_list]
         return tu_list, meta_batch
 
+
     @abc.abstractmethod
     def _preprocess_tu(self, tu, training):
         raise NotImplementedError()
 
-    @abc.abstractmethod
+
     def _postprocess_tu(self, tu):
         raise NotImplementedError()
 
