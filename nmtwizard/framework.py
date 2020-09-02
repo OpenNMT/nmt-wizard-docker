@@ -483,18 +483,18 @@ class Framework(utility.Utility):
         objects, preprocess_config, vocab_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
-        # Old tokenization configuration
+        # Old PN9 tokenization / buildvocab configuration
         if isinstance(preprocess_config, dict):
             local_config["tokenization"] = utility.resolve_environment_variables(preprocess_config)
             config["tokenization"] = preprocess_config
         elif isinstance(preprocess_config, list):
             local_config["preprocess"] = utility.resolve_environment_variables(preprocess_config)
             config["preprocess"] = preprocess_config
+            local_config["vocabulary"] = utility.resolve_environment_variables(vocab_config)
+            config["vocabulary"] = vocab_config
         else:
             raise RuntimeError("Unknown preprocess configuration after buildvocab: \"{}\"".format(preprocess_config))
 
-        local_config["vocabulary"] = utility.resolve_environment_variables(vocab_config)
-        config["vocabulary"] = vocab_config
         config['model'] = model_id
         config['modelType'] = 'base'
         config['imageTag'] = image
@@ -765,13 +765,13 @@ class Framework(utility.Utility):
         # For compatibility with old configurations
         tok_config = config.get('tokenization', {})
         tok_local_config = local_config.get('tokenization', {})
-        joint_vocab = is_joint_vocab(vocab_config)
+        joint_vocab = is_joint_vocab(vocab_local_config)
         parent_dependencies = {}
         if model_config:
             model_local_config = self._finalize_config(model_config)
             model_vocab_config = model_config.get('vocabulary', {})
             model_vocab_local_config = model_local_config.get('vocabulary', {})
-            model_joint_vocab = is_joint_vocab(model_vocab_config)
+            model_joint_vocab = is_joint_vocab(model_vocab_local_config)
             if joint_vocab != model_joint_vocab:
                 raise ValueError("Changing joint vocabularies to split vocabularies "
                                  "(or vice-versa) is currently not supported.")
@@ -795,7 +795,7 @@ class Framework(utility.Utility):
             tok_config,
             tok_local_config,
             model_config=model_vocab_config,
-            local_model_config=model_vocab_local_config,
+            model_local_config=model_vocab_local_config,
             tokens_to_add=source_tokens_to_add,
             keep_previous=keep_previous,
             joint_vocab=joint_vocab)
@@ -806,10 +806,15 @@ class Framework(utility.Utility):
             tok_config,
             tok_local_config,
             model_config=model_vocab_config,
-            local_model_config=model_vocab_local_config,
+            model_local_config=model_vocab_local_config,
             tokens_to_add=target_tokens_to_add,
             keep_previous=keep_previous,
             joint_vocab=joint_vocab)
+
+        if vocab_config :
+            config.pop('tokenization', None)
+            local_config.pop('tokenization', None)
+
 
         return src_info, tgt_info, parent_dependencies
 
@@ -820,17 +825,20 @@ class Framework(utility.Utility):
                         tok_config,
                         tok_local_config,
                         model_config=None,
-                        local_model_config=None,
+                        model_local_config=None,
                         tokens_to_add=None,
                         keep_previous=False,
                         joint_vocab=False):
-        if not config:
+        if not local_config:
             return None
-        opt = config.get(side)
-        if opt is None or 'path' not in opt:
+        local_opt = local_config.get(side)
+        if local_opt is None or 'path' not in local_opt:
             return None
-        local_opt = local_config[side]
+        opt = config.get(side) if config else {}
         vocab_name = side if not joint_vocab else 'joint'
+
+        tok_opt = tok_config.get(side) if tok_config else {}
+        local_tok_opt = tok_local_config.get(side) if tok_local_config else {}
 
         current_basename = '%s-vocab.txt' % vocab_name
         current_vocab = self._convert_vocab(
@@ -842,22 +850,33 @@ class Framework(utility.Utility):
         if previous_vocab is not None:
             previous_vocab = self._convert_vocab(
                 previous_vocab, basename=previous_basename)
-            del opt['previous_vocabulary']
+            if 'previous_vocabulary' in opt:
+                del opt['previous_vocabulary']
             del local_opt['previous_vocabulary']
+
+            if 'previous_vocabulary' in tok_opt:
+                del tok_opt['previous_vocabulary']
+            if 'previous_vocabulary' in local_tok_opt:
+                del local_tok_opt['previous_vocabulary']
         # Otherwise check if the vocabulary is different than the parent model.
-        elif model_config is not None:
-            model_opt = model_config[side]
-            local_model_opt = local_model_config[side]
+        elif model_local_config is not None:
+            local_model_opt = model_local_config[side]
             previous_vocab = self._convert_vocab(
                 local_model_opt['path'], basename=previous_basename)
             vocab_changed = not filecmp.cmp(previous_vocab, current_vocab)
             if vocab_changed:
-                if not opt.get('replace_vocab', False):
+                if not local_opt.get('replace_vocab', False):
                     raise ValueError('%s vocabulary has changed but replace_vocab is not set.'
                                      % vocab_name.capitalize())
                 if keep_previous:
-                    opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
+                    if opt:
+                        opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
                     local_opt['previous_vocabulary'] = local_model_opt['path']
+
+                    if tok_opt:
+                        tok_opt['previous_vocabulary'] = os.path.join("${MODEL_DIR}", previous_basename)
+                    if local_tok_opt:
+                        local_tok_opt['previous_vocabulary'] = local_model_opt['path']
             else:
                 os.remove(previous_vocab)
                 previous_vocab = None
@@ -865,6 +884,9 @@ class Framework(utility.Utility):
         if 'replace_vocab' in opt:
             del opt['replace_vocab']
             del local_opt['replace_vocab']
+        if 'replace_vocab' in tok_opt:
+            del tok_opt['replace_vocab']
+            del local_tok_opt['replace_vocab']
 
         if tokens_to_add:
             new_filename = next_filename_version(os.path.basename(local_opt["path"]))
@@ -876,18 +898,22 @@ class Framework(utility.Utility):
             if previous_vocab is None:
                 previous_vocab = current_vocab
                 if keep_previous:
-                    opt['previous_vocabulary'] = opt['path']
+                    if opt:
+                        opt['previous_vocabulary'] = opt['path']
                     local_opt['previous_vocabulary'] = local_opt['path']
+                    if tok_opt:
+                        tok_opt['previous_vocabulary'] = tok_opt['vocabulary']
+                        local_tok_opt['previous_vocabulary'] = local_tok_opt['vocabulary']
             current_vocab = self._convert_vocab(
                 new_vocab, basename="updated-%s-vocab.txt" % vocab_name)
-            opt["path"] = new_vocab
+            if opt:
+                opt["path"] = new_vocab
             local_opt["path"] = new_vocab
 
             # For compatibility with old configurations
-            if tok_config:
-                tok_config[side]['vocabulary'] = new_vocab
-            if tok_local_config:
-                tok_local_config[side]['vocabulary'] = new_vocab
+            if tok_opt:
+                tok_opt['vocabulary'] = new_vocab
+                local_tok_opt['vocabulary'] = new_vocab
 
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
@@ -999,7 +1025,7 @@ class Framework(utility.Utility):
 
 
     def _finalize_config(self, config, training=True):
-        config_util.old_to_new_config(config)
+        config = config_util.old_to_new_config(config)
         config = utility.resolve_environment_variables(config, training=training)
         config = self._upgrade_data_config(config, training=training)
         config = utility.resolve_remote_files(config, self._shared_dir, self._storage)
