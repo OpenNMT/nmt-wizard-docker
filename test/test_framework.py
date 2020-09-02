@@ -317,7 +317,8 @@ def test_train(tmpdir):
         os.path.join(model_dir_old, os.path.basename(config["tokenization"]["source"]["vocabulary"])))
     assert os.path.isfile(
         os.path.join(model_dir_old, os.path.basename(config["tokenization"]["target"]["vocabulary"])))
-
+    assert "vocabulary" not in config
+    assert "preprocess" not in config
 
     assert DummyCheckpoint(model_dir).index() == 0
 

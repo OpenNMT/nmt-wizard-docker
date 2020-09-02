@@ -850,14 +850,11 @@ class Framework(utility.Utility):
         if previous_vocab is not None:
             previous_vocab = self._convert_vocab(
                 previous_vocab, basename=previous_basename)
-            if 'previous_vocabulary' in opt:
-                del opt['previous_vocabulary']
-            del local_opt['previous_vocabulary']
+            opt.pop('previous_vocabulary', None)
+            local_opt.pop('previous_vocabulary', None)
 
-            if 'previous_vocabulary' in tok_opt:
-                del tok_opt['previous_vocabulary']
-            if 'previous_vocabulary' in local_tok_opt:
-                del local_tok_opt['previous_vocabulary']
+            tok_opt.pop('previous_vocabulary', None)
+            local_tok_opt.pop('previous_vocabulary', None)
         # Otherwise check if the vocabulary is different than the parent model.
         elif model_local_config is not None:
             local_model_opt = model_local_config[side]
@@ -881,12 +878,10 @@ class Framework(utility.Utility):
                 os.remove(previous_vocab)
                 previous_vocab = None
 
-        if 'replace_vocab' in opt:
-            del opt['replace_vocab']
-            del local_opt['replace_vocab']
-        if 'replace_vocab' in tok_opt:
-            del tok_opt['replace_vocab']
-            del local_tok_opt['replace_vocab']
+        opt.pop('replace_vocab', None)
+        local_opt.pop('replace_vocab', None)
+        tok_opt.pop('replace_vocab', None)
+        local_tok_opt.pop('replace_vocab', None)
 
         if tokens_to_add:
             new_filename = next_filename_version(os.path.basename(local_opt["path"]))
