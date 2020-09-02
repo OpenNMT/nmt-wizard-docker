@@ -2,7 +2,7 @@
 
 import jsonschema
 import six
-
+import copy
 
 def merge_config(a, b):
     """Merges config b in a."""
@@ -116,36 +116,36 @@ def update_config_with_options(config, options):
 
 
 def old_to_new_config(config):
-    # old configurations
+    """Locally update old configuration with 'tokenization' field to include new 'vocabulary' and 'preprocess" fields.
+    """
     if not config:
         return
     tok_config = config.get("tokenization")
-    if tok_config:
-        vocab_src = tok_config["source"].get("vocabulary", None)
-        vocab_tgt = tok_config["target"].get("vocabulary", None)
-        replace_src = tok_config["source"].get("replace_vocab", False)
-        replace_tgt = tok_config["target"].get("replace_vocab", False)
-        if vocab_src or vocab_tgt:
-            if "vocabulary" not in config:
-                config["vocabulary"] = {}
+    new_config = config
+    if tok_config :
+        if "vocabulary" not in config:
+            new_config = copy.deepcopy(config)
+            vocab_src = tok_config["source"].get("vocabulary", None)
+            vocab_tgt = tok_config["target"].get("vocabulary", None)
+            replace_src = tok_config["source"].get("replace_vocab", False)
+            replace_tgt = tok_config["target"].get("replace_vocab", False)
+            if vocab_src or vocab_tgt:
+                new_config["vocabulary"] = {}
             if vocab_src:
-                if "source" not in config["vocabulary"]:
-                    config["vocabulary"]["source"] = { "path": vocab_src }
-                else:
-                    config["vocabulary"]["source"]["path"] = vocab_src
-                config["vocabulary"]["source"]["replace_vocab"] = replace_src
+                new_config["vocabulary"]["source"] = { "path": vocab_src, "replace_vocab" : replace_src }
             if vocab_tgt:
-                if "target" not in config["vocabulary"]:
-                    config["vocabulary"]["target"] = { "path": vocab_tgt }
-                else:
-                    config["vocabulary"]["target"]["path"] = vocab_tgt
-                config["vocabulary"]["target"]["replace_vocab"] = replace_tgt
+                new_config["vocabulary"]["target"] = { "path": vocab_tgt, "replace_vocab": replace_tgt }
 
+        if "preprocess" not in config:
+            new_tok_config = copy.deepcopy(tok_config)
+            new_tok_config["source"].pop("vocabulary", None)
+            new_tok_config["target"].pop("vocabulary", None)
+            new_config["preprocess"] = [
+                {
+                    "op":"tokenization",
+                    "source": new_tok_config["source"],
+                    "target": new_tok_config["target"]
+                }
+            ]
 
-        config["preprocess"] = [
-            {
-                "op":"tokenization",
-                "source": tok_config["source"],
-                "target": tok_config["target"]
-            }
-        ]
+    return new_config
