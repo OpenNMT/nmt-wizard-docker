@@ -768,9 +768,12 @@ class Framework(utility.Utility):
         joint_vocab = is_joint_vocab(vocab_local_config)
         parent_dependencies = {}
         if model_config:
-            model_local_config = self._finalize_config(model_config)
+            model_config = config_util.old_to_new_config(model_config)
             model_vocab_config = model_config.get('vocabulary', {})
-            model_vocab_local_config = model_local_config.get('vocabulary', {})
+            model_vocab_local_config = utility.resolve_remote_files(
+                utility.resolve_environment_variables(model_vocab_config),
+                self._shared_dir,
+                self._storage)
             model_joint_vocab = is_joint_vocab(model_vocab_local_config)
             if joint_vocab != model_joint_vocab:
                 raise ValueError("Changing joint vocabularies to split vocabularies "
