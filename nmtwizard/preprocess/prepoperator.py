@@ -182,8 +182,18 @@ class TUOperator(Operator):
         return tu_list, meta_batch
 
 
+    def _postprocess(self, tu_batch):
+        tu_list, meta_batch = tu_batch
+        tu_list = [self._postprocess_tu(tu) for tu in tu_list]
+        return tu_list, meta_batch
+
+
     @abc.abstractmethod
     def _preprocess_tu(self, tu, training):
+        raise NotImplementedError()
+
+
+    def _postprocess_tu(self, tu):
         raise NotImplementedError()
 
 
@@ -282,6 +292,10 @@ class Tokenizer(Operator):
 
 @register_operator("alignment")
 class Aligner(Operator):
+
+    @staticmethod
+    def is_applied_for(process_type):
+        return process_type == ProcessType.TRAINING
 
     def __init__(self, align_config, process_type, build_state):
         self._align_config = align_config
