@@ -217,6 +217,11 @@ class TranslationUnit(object):
             self.__source.raw = tu_input.strip()
             self.__source.detok = self.__source.raw
 
+    def synchronize(self):
+        self.src_tok
+        self.tgt_tok
+        self.alignment
+
     @property
     def src_tok(self):
         return self.__source.tok
