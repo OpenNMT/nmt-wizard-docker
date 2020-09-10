@@ -332,8 +332,8 @@ class SamplerFileWriter(SamplerConsumer):
 
         yield
 
-        for f in self._files.values():
-            f.close()
+        for file_obj in self._files.values():
+            file_obj.close()
         self._file_summary = None
         self._files = None
 
