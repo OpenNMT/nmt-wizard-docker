@@ -240,9 +240,6 @@ class Tokenizer(Operator):
         self._src_tok_config = tok_config.get("source") or tok_config.get("multi")
         self._tgt_tok_config = tok_config.get("target") or tok_config.get("multi")
 
-        self._src_tok_config.pop("lang", None)
-        self._tgt_tok_config.pop("lang", None)
-
         if build_state:
             self._src_tok_config_prev = build_state["src_tok_config"]
             self._tgt_tok_config_prev = build_state["tgt_tok_config"]

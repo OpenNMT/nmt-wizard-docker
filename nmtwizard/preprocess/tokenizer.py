@@ -7,13 +7,35 @@ import pyonmttok
 
 joiner_marker = "￭"
 
+_ALLOWED_TOKENIZER_ARGS = set([
+    "bpe_dropout",
+    "bpe_model_path",
+    "case_feature",
+    "case_markup",
+    "joiner",
+    "joiner_annotate",
+    "joiner_new",
+    "mode",
+    "no_substitution",
+    "preserve_placeholders",
+    "preserve_segmented_tokens",
+    "segment_alphabet",
+    "segment_alphabet_change",
+    "segment_case",
+    "segment_numbers",
+    "sp_alpha",
+    "sp_model_path",
+    "sp_nbest_size",
+    "spacer_annotate",
+    "spacer_new",
+    "support_prior_joiners",
+    "vocabulary_path",
+    "vocabulary_threshold",
+])
+
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
-    args = args.copy()
-    args.pop('vocabulary', None)
-    args.pop('replace_vocab', None)
-    args.pop('build_subword', None)
-    args.pop('build_vocabulary', None)
+    args = {name:value for name, value in args.items() if name in _ALLOWED_TOKENIZER_ARGS}
     if not args:
         return None
     return pyonmttok.Tokenizer(**args)
