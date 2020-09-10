@@ -3,6 +3,7 @@ import six
 import abc
 import os
 import collections
+import contextlib
 import itertools
 
 from nmtwizard.preprocess import tokenizer
@@ -16,6 +17,14 @@ class Consumer(object):
         raise NotImplementedError()
 
 
+class SamplerConsumer(Consumer):
+    """Base class for consuming sampling results."""
+
+    @contextlib.contextmanager
+    def set_file_context(self, f, summary, build_state):
+        yield
+
+
 def _ingest_tokens(subword_learner, tu_side):
     if not tu_side.tokens:
         return
@@ -25,7 +34,7 @@ def _ingest_tokens(subword_learner, tu_side):
             subword_learner.ingest_token(token)
 
 
-class SubwordLearner(Consumer):
+class SubwordLearner(SamplerConsumer):
     """SubwordLearner class stores, learns and writes subword models."""
 
     def __init__(self, config, result_dir, tok_step):
@@ -97,7 +106,7 @@ class SubwordLearner(Consumer):
             subword_info['learner'].learn(out_file)
 
 
-class VocabularyBuilder(Consumer):
+class VocabularyBuilder(SamplerConsumer):
     """VocabularyBuilder class stores, learns and writes vocabularies."""
 
     def __init__(self, config, result_dir, tok_step):
@@ -264,12 +273,19 @@ class FileWriter(Consumer):
         # In preprocess, it is used to store preprocessed source.
         # In postprocess, it is used to store postprocessed target.
         # TODO V2 : multiple files
-        self._file = open(output_file, 'w')
+        self._output_file = output_file
+        self._file = None
         self.metadata = []
 
 
-    def close_files(self):
+    def __enter__(self):
+        self._file = open(self._output_file, 'w')
+        return self
+
+
+    def __exit__(self, exc_type, exc_value, traceback):
         self._file.close()
+        self._file = None
 
 
     def __call__(self, tu_batch):
@@ -288,19 +304,23 @@ class FileWriter(Consumer):
                 self.metadata.append(tu.metadata)
 
 
-class SamplerFileWriter(Consumer):
+class SamplerFileWriter(SamplerConsumer):
     """SamplerFileWriter writes pre/postprocessed TUs into files at training using SamplerFile object."""
 
     def __init__(self, result_dir):
         self._result_dir = result_dir
         self._tokens_to_add = {'source':set(), 'target':set()}
+        self._file_summary = None
+        self._files = None
         self.num_samples = 0
 
-    def open_files(self, f, build_state):
+
+    @contextlib.contextmanager
+    def set_file_context(self, f, summary, build_state):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
-        self._lines_filtered = 0
-        self._f = f
+        self._file_summary = summary[f.base_name]
+        self._file_summary["linefiltered"] = 0
         self._files = {}
         src = os.path.join(self._result_dir, f.base_name + "." + f.src_suffix)
         self._files["src"] = open(src, 'w')
@@ -310,11 +330,18 @@ class SamplerFileWriter(Consumer):
             align = os.path.join(self._result_dir, f.base_name + ".align")
             self._files["align"] = open(align, 'w')
 
-    def close_files(self):
+        yield
+
         for f in self._files.values():
             f.close()
+        self._file_summary = None
+        self._files = None
+
 
     def __call__(self, tu_batch):
+        if self._files is None:
+            raise RuntimeError("A file context should be set before calling this consumer")
+
         tu_list, meta = tu_batch
         if 'tokens_to_add' in meta:
             if 'source' in meta['tokens_to_add']:
@@ -346,17 +373,11 @@ class SamplerFileWriter(Consumer):
                     for part in alignment:
                         part = " ".join(sorted("%s-%s" % tup for tup in part))
                         self._files["align"].write("%s\n" % part)
-        self._lines_filtered += len(tu_list)
+        self.num_samples += len(tu_list)
+        self._file_summary["linefiltered"] += len(tu_list)
 
 
     def finalize(self, config, summary=None):
-        if self._lines_filtered != self._f.lines_kept:
-            self.num_samples += self._lines_filtered
-            summary[self._f.base_name]["linefiltered"] = self._lines_filtered
-        else:
-            self.num_samples += self._f.lines_kept
-            summary[self._f.base_name]["linefiltered"] = self._f.lines_kept
-
         if self._tokens_to_add['source'] or self._tokens_to_add['target'] :
             if 'tokens_to_add' not in summary:
                 summary['tokens_to_add'] = {}
