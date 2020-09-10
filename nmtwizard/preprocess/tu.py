@@ -218,9 +218,9 @@ class TranslationUnit(object):
             self.__source.detok = self.__source.raw
 
     def synchronize(self):
-        self.src_tok
-        self.tgt_tok
-        self.alignment
+        _ = self.src_tok
+        _ = self.tgt_tok
+        _ = self.alignment
 
     @property
     def src_tok(self):
