@@ -1,7 +1,6 @@
 # coding: utf-8
 import six
 import abc
-import sys
 
 from nmtwizard import utils
 from nmtwizard.preprocess import tu
@@ -9,6 +8,13 @@ from nmtwizard.preprocess import tu
 @six.add_metaclass(abc.ABCMeta)
 class Loader(object):
     """Base class for creating batches of TUs."""
+
+    def __init__(self, batch_size):
+        self._batch_size = batch_size
+
+    @property
+    def batch_size(self):
+        return self._batch_size
 
     @abc.abstractmethod
     def __call__(self):
@@ -22,6 +28,7 @@ class BasicLoader(Loader):
 
         """ In preprocess, input is one source, untokenized and one-part.
             In postprocess, input is ((source, metadata), target), tokenized and possibly multipart."""
+        super().__init__(len(basic_input))
         self._input = basic_input
         self._start_state = start_state
 
@@ -36,8 +43,8 @@ class BasicLoader(Loader):
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
-    def __init__(self, input_files, start_state, batch_size = sys.maxsize):
-        self._batch_size = batch_size
+    def __init__(self, input_files, start_state, batch_size=None):
+        super().__init__(batch_size)
         self._start_state = start_state
         source_file = input_files
         target_file = None
@@ -91,9 +98,9 @@ class SamplerFileLoader(Loader):
 
     def __init__(self, f, batch_size):
         # TODO V2: multiple src
+        super().__init__(batch_size)
         self._file = f
         self._current_line = 0
-        self._batch_size = batch_size
 
     def __call__(self):
         src_file = utils.open_file(self._file.files["src"])
@@ -108,7 +115,7 @@ class SamplerFileLoader(Loader):
                 del tu_list[:] # TODO V2: Check memory usage on a big corpus
                 # Read sampled lines from all files and build TUs.
                 batch_line = 0
-                while (batch_line < self._batch_size
+                while ((self._batch_size is None or batch_line < self._batch_size)
                        and self._current_line < self._file.lines_count):
                     src_line = src_file.readline().strip()
                     tgt_line = tgt_file.readline().strip()
@@ -116,8 +123,8 @@ class SamplerFileLoader(Loader):
                     for key, annot_file in annotations.items():
                         annot_lines[key] = annot_file.readline().strip()
                     if (self._current_line in self._file.random_sample):
-                        while self._file.random_sample[self._current_line] and \
-                              batch_line < self._batch_size:
+                        while (self._file.random_sample[self._current_line]
+                               and (self._batch_size is None or batch_line < self._batch_size)):
                             tu_list.append(tu.TranslationUnit(
                                 (src_line, tgt_line),
                                 annotations=annot_lines))

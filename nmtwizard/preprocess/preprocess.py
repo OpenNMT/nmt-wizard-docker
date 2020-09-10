@@ -1,7 +1,6 @@
 """Functions for corpus preprocessing."""
 
 import os
-import sys
 
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import consumer
@@ -76,11 +75,7 @@ class TrainingProcessor(Processor):
 
             # Sample files and write information to a special file structure.
             all_files, summary, metadata = sampler.sample(self._config, data_path)
-
-            # Default batch size is the whole sample size.
-            batch_size = sys.maxsize
-            if 'preprocess' in self._config and 'batch_size' in self._config['preprocess'] :
-                batch_size = config['preprocess']['batch_size']
+            batch_size = self._config.get('data', {}).get('batch_size', 100000)
 
             sampler_consumer = consumer.make_consumer(self._config, result_dir, result, preprocess_exit_step)
             self._set_pipeline(preprocess_exit_step)
