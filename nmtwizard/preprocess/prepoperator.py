@@ -138,6 +138,10 @@ class Pipeline(object):
     def __call__(self, tu_batch):
         for op in self._ops:
             tu_batch = op(tu_batch, self._process_type)
+        if self._process_type != ProcessType.POSTPROCESS:
+            tu_list, _ = tu_batch
+            for tu in tu_list:
+                tu.synchronize()
         return tu_batch
 
 
