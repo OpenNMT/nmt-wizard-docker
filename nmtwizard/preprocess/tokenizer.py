@@ -1,8 +1,6 @@
 # coding: utf-8
 """Tokenization utilities."""
 
-import os
-import shutil
 import pyonmttok
 
 joiner_marker = "￭"
@@ -39,47 +37,6 @@ def build_tokenizer(args):
     if not args:
         return None
     return pyonmttok.Tokenizer(**args)
-
-def tokenize_file(tokenizer, input_file, output_file):
-    """Tokenizes an input file."""
-    if not tokenizer:
-        shutil.copy(input_file, output_file)
-    else:
-        tokenizer.tokenize_file(input_file, output_file)
-
-def detokenize_file(tokenizer, input_file, output_file):
-    """Detokenizes an input file."""
-    if not tokenizer:
-        shutil.copy(input_file, output_file)
-    else:
-        tokenizer.detokenize_file(input_file, output_file)
-
-def tokenize_directory(input_dir,
-                       output_dir,
-                       src_tokenizer,
-                       tgt_tokenizer,
-                       src_suffix,
-                       tgt_suffix):
-    """Tokenizes all files in input_dir into output_dir."""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    for filename in os.listdir(input_dir):
-        input_file = os.path.join(input_dir, filename)
-        if not os.path.isfile(input_file):
-            continue
-        if filename.endswith(src_suffix):
-            tokenizer = src_tokenizer
-        elif filename.endswith(tgt_suffix):
-            tokenizer = tgt_tokenizer
-        else:
-            continue
-        output_file = os.path.join(output_dir, filename)
-        tokenize_file(tokenizer, input_file, output_file)
-
-def tokenize(tokenizer, text):
-    words,_ = tokenizer.tokenize(text)
-    output = " ".join(words)
-    return output
 
 def make_subword_learner(subword_config, subword_dir, tokenizer=None):
     params = subword_config.get('params')
