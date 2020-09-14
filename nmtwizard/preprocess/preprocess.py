@@ -83,13 +83,10 @@ class TrainingProcessor(Processor):
             for f in all_files:
                 if f.lines_kept :
                     sampler_loader=loader.SamplerFileLoader(f, batch_size)
-                    if hasattr(sampler_consumer, "open_files"):
-                        sampler_consumer.open_files(f, self._pipeline.build_state)
-                    self.process(sampler_loader, sampler_consumer)
-                    if hasattr(sampler_consumer, "close_files"):
-                        sampler_consumer.close_files()
+                    with sampler_consumer.set_file_context(f, summary, self._pipeline.build_state):
+                        self.process(sampler_loader, sampler_consumer)
 
-                    sampler_consumer.finalize(self._config, summary)
+            sampler_consumer.finalize(self._config, summary)
 
             if hasattr(sampler_consumer, "num_samples"):
                 num_samples = sampler_consumer.num_samples
@@ -226,13 +223,10 @@ class InferenceProcessor(Processor):
             return input_file
 
         file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
-        file_consumer = consumer.FileWriter(output_file)
+        with consumer.FileWriter(output_file) as file_consumer:
+            self.process(file_loader, file_consumer)
 
-        self.process(file_loader, file_consumer)
-
-        file_consumer.close_files()
-
-        if file_consumer.metadata:
-            output_file = (output_file, file_consumer.metadata)
+            if file_consumer.metadata:
+                output_file = (output_file, file_consumer.metadata)
 
         return output_file
