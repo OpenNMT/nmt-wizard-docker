@@ -45,6 +45,18 @@ def get_operator_params(config):
     config.pop("op", None)
     return config
 
+def collect_operator_params(global_config, op_name, exit_step=None):
+    """Returns all occurences of an operator in the configuration."""
+    params = []
+    preprocess_config = global_config.get("preprocess")
+    if preprocess_config:
+        for i, operator_config in enumerate(preprocess_config):
+            if exit_step is not None and i > exit_step:
+                break
+            if get_operator_type(operator_config) == op_name:
+                params.append(get_operator_params(operator_config))
+    return params
+
 
 def build_operator(operator_config, global_config, process_type, state):
     """Creates an operator instance from its configuration."""
@@ -301,7 +313,6 @@ class Aligner(Operator):
     def __init__(self, align_config, process_type, build_state):
         self._align_config = align_config
         self._aligner = None
-        build_state['write_alignment'] = self._align_config.get('write_alignment', False)
 
     def _preprocess(self, tu_batch, training=True):
         tu_list, meta_batch = tu_batch

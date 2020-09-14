@@ -7,6 +7,7 @@ import contextlib
 import itertools
 
 from nmtwizard.preprocess import tokenizer
+from nmtwizard.preprocess import prepoperator
 
 @six.add_metaclass(abc.ABCMeta)
 class Consumer(object):
@@ -17,11 +18,28 @@ class Consumer(object):
         raise NotImplementedError()
 
 
+@six.add_metaclass(abc.ABCMeta)
 class SamplerConsumer(Consumer):
     """Base class for consuming sampling results."""
 
+    def __init__(self):
+        self._num_samples = 0
+
+    @property
+    def num_samples(self):
+        return self._num_samples
+
+    def __call__(self, tu_batch):
+        tu_list, _ = tu_batch
+        self._num_samples += len(tu_list)
+        self._consume(tu_batch)
+
+    @abc.abstractmethod
+    def _consume(self, tu_batch):
+        raise NotImplementedError()
+
     @contextlib.contextmanager
-    def set_file_context(self, f, summary, build_state):
+    def set_file_context(self, f, summary):
         yield
 
 
@@ -38,7 +56,7 @@ class SubwordLearner(SamplerConsumer):
     """SubwordLearner class stores, learns and writes subword models."""
 
     def __init__(self, config, result_dir, tok_step):
-
+        super().__init__()
         self._result_dir = result_dir
 
         self._subword_info = {}
@@ -67,7 +85,7 @@ class SubwordLearner(SamplerConsumer):
         self._multi_learner = self._subword_learners.get('multi')
 
 
-    def __call__(self, tu_batch):
+    def _consume(self, tu_batch):
         tu_list, _ = tu_batch
         for tu in tu_list :
             if self._source_learner is not None:
@@ -110,7 +128,7 @@ class VocabularyBuilder(SamplerConsumer):
     """VocabularyBuilder class stores, learns and writes vocabularies."""
 
     def __init__(self, config, result_dir, tok_step):
-
+        super().__init__()
         self._result_dir = result_dir
 
         self._vocabularies = {}
@@ -134,7 +152,7 @@ class VocabularyBuilder(SamplerConsumer):
             self._sums['target'] = 0
 
 
-    def __call__(self, tu_batch):
+    def _consume(self, tu_batch):
 
         tu_list, _ = tu_batch
         # TODO : remove value for placeholders
@@ -307,16 +325,20 @@ class FileWriter(Consumer):
 class SamplerFileWriter(SamplerConsumer):
     """SamplerFileWriter writes pre/postprocessed TUs into files at training using SamplerFile object."""
 
-    def __init__(self, result_dir):
+    def __init__(self, config, result_dir, exit_step):
+        super().__init__()
         self._result_dir = result_dir
+        self._save_alignments = False
+        align_params = prepoperator.collect_operator_params(config, 'alignment', exit_step)
+        if align_params:
+            self._save_alignments = align_params[-1].get('write_alignment', self._save_alignments)
         self._tokens_to_add = {'source':set(), 'target':set()}
         self._file_summary = None
         self._files = None
-        self.num_samples = 0
 
 
     @contextlib.contextmanager
-    def set_file_context(self, f, summary, build_state):
+    def set_file_context(self, f, summary):
         # TODO V2 : multiple files
         # TODO V2 : do we output ALL the files that we take as input ?
         self._file_summary = summary[f.base_name]
@@ -326,7 +348,7 @@ class SamplerFileWriter(SamplerConsumer):
         self._files["src"] = open(src, 'w')
         tgt = os.path.join(self._result_dir, f.base_name + "." + f.tgt_suffix)
         self._files["tgt"] = open(tgt, 'w')
-        if build_state.get('write_alignment', False):
+        if self._save_alignments:
             align = os.path.join(self._result_dir, f.base_name + ".align")
             self._files["align"] = open(align, 'w')
 
@@ -338,7 +360,7 @@ class SamplerFileWriter(SamplerConsumer):
         self._files = None
 
 
-    def __call__(self, tu_batch):
+    def _consume(self, tu_batch):
         if self._files is None:
             raise RuntimeError("A file context should be set before calling this consumer")
 
@@ -373,7 +395,6 @@ class SamplerFileWriter(SamplerConsumer):
                     for part in alignment:
                         part = " ".join(sorted("%s-%s" % tup for tup in part))
                         self._files["align"].write("%s\n" % part)
-        self.num_samples += len(tu_list)
         self._file_summary["linefiltered"] += len(tu_list)
 
 
@@ -393,13 +414,13 @@ class SamplerFileWriter(SamplerConsumer):
             summary['tokens_to_add']['target'] = list(target_set)
 
 
-def make_consumer(config, result_dir, result, tok_step):
+def make_consumer(config, result_dir, result, exit_step):
 
     if result == 'subword':
-        return SubwordLearner(config, result_dir, tok_step)
+        return SubwordLearner(config, result_dir, exit_step)
 
     if result == 'vocabulary':
-        return VocabularyBuilder(config, result_dir, tok_step)
+        return VocabularyBuilder(config, result_dir, exit_step)
 
     # Default is write to file.
-    return SamplerFileWriter(result_dir)
+    return SamplerFileWriter(config, result_dir, exit_step)

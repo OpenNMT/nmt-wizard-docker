@@ -11,15 +11,6 @@ from nmtwizard.preprocess import tokenizer
 
 logger = get_logger(__name__)
 
-def _get_tok_configs(config):
-    tok_configs = []
-    preprocess_config = config.get("preprocess")
-    if preprocess_config is not None:
-        for operator_config in preprocess_config:
-            if prepoperator.get_operator_type(operator_config) == "tokenization":
-                tok_configs.append(prepoperator.get_operator_params(operator_config))
-    return tok_configs
-
 
 class Processor(object):
 
@@ -83,14 +74,11 @@ class TrainingProcessor(Processor):
             for f in all_files:
                 if f.lines_kept :
                     sampler_loader=loader.SamplerFileLoader(f, batch_size)
-                    with sampler_consumer.set_file_context(f, summary, self._pipeline.build_state):
+                    with sampler_consumer.set_file_context(f, summary):
                         self.process(sampler_loader, sampler_consumer)
 
             sampler_consumer.finalize(self._config, summary)
-
-            if hasattr(sampler_consumer, "num_samples"):
-                num_samples = sampler_consumer.num_samples
-
+            num_samples = sampler_consumer.num_samples
             data_path = result_dir
 
         return data_path, train_dir, num_samples, summary, metadata
@@ -121,7 +109,7 @@ class TrainingProcessor(Processor):
     def generate_vocabularies(self):
 
         # Generate vocabularies and subword models for each tokenization block.
-        tok_configs = _get_tok_configs(self._config)
+        tok_configs = prepoperator.collect_operator_params(self._config, "tokenization")
 
         if not tok_configs:
             raise RuntimeError('No \'tokenization\' operator in preprocess configuration, cannot build vocabularies.)')
