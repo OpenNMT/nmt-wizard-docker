@@ -120,7 +120,7 @@ class Pipeline(object):
 
         if self._process_type == ProcessType.POSTPROCESS:
             # Reverse preprocessing operators.
-            self._ops = reversed(self._ops)
+            self._ops = list(reversed(self._ops))
 
             # Reverse start and build states.
             self.start_state, self.build_state = self.build_state, self.start_state
