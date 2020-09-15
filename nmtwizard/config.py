@@ -129,12 +129,19 @@ def old_to_new_config(config):
             vocab_tgt = tok_config["target"].get("vocabulary", None)
             replace_src = tok_config["source"].get("replace_vocab", False)
             replace_tgt = tok_config["target"].get("replace_vocab", False)
+            prev_vocab_src = tok_config["source"].get("previous_vocabulary", None)
+            prev_vocab_tgt = tok_config["target"].get("previous_vocabulary", None)
+
             if vocab_src or vocab_tgt:
                 new_config["vocabulary"] = {}
             if vocab_src:
                 new_config["vocabulary"]["source"] = { "path": vocab_src, "replace_vocab" : replace_src }
             if vocab_tgt:
                 new_config["vocabulary"]["target"] = { "path": vocab_tgt, "replace_vocab": replace_tgt }
+            if prev_vocab_src:
+                new_config["vocabulary"]["source"]["previous_vocabulary"] = prev_vocab_src
+            if prev_vocab_tgt:
+                new_config["vocabulary"]["target"]["previous_vocabulary"] = prev_vocab_tgt
 
         if "preprocess" not in config:
             new_tok_config = copy.deepcopy(tok_config)
