@@ -108,11 +108,6 @@ class SamplerFileLoader(Loader):
             key:utils.open_file(path)
             for key, path in self._file.files.get("annotations", {}).items()}
 
-        batch_meta = self._file.weight.copy()
-        batch_meta["base_name"] = self._file.base_name
-        batch_meta["root"] = self._file.root
-        batch_meta["no_preprocess"] = self._file.no_preprocess
-
         def _get_samples():
             for i in range(self._file.lines_count):
                 src_line = src_file.readline()
@@ -135,6 +130,11 @@ class SamplerFileLoader(Loader):
                     num_samples -= 1
 
         try:
+            batch_meta = self._file.weight.copy()
+            batch_meta["base_name"] = self._file.base_name
+            batch_meta["root"] = self._file.root
+            batch_meta["no_preprocess"] = self._file.no_preprocess
+
             tu_list = []
 
             for sample_tu in _get_samples():
