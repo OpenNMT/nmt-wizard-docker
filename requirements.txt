@@ -4,5 +4,3 @@ pyonmttok>=1.18.5,<2
 requests
 six>=1.13,<2
 systran-align
-mecab-python3
-ipadic

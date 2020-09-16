@@ -1,1 +1,1 @@
-OpenNMT-tf==2.12.0
+OpenNMT-tf==2.12.1
