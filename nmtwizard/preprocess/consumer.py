@@ -34,6 +34,9 @@ class SamplerConsumer(Consumer):
         self._num_samples += len(tu_list)
         self._consume(tu_batch)
 
+    def finalize(self, config, summary=None):
+        pass
+
     @abc.abstractmethod
     def _consume(self, tu_batch):
         raise NotImplementedError()
