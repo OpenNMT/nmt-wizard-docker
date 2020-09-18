@@ -45,6 +45,12 @@ def get_operator_params(config):
     config.pop("op", None)
     return config
 
+def _add_lang_info(operator_params, config, side):
+    side_params = operator_params.get(side)
+    if side_params is not None:
+        side_params["lang"] = config[side]
+    else:
+        operator_params["%s_lang" % side] = config[side]
 
 def build_operator(operator_config, global_config, process_type, state):
     """Creates an operator instance from its configuration."""
@@ -57,12 +63,8 @@ def build_operator(operator_config, global_config, process_type, state):
     operator_params = get_operator_params(operator_config)
 
     # Propagate source and target languages
-    if "source" not in operator_params:
-        operator_params["source"] = {}
-    operator_params["source"]["lang"] = global_config["source"]
-    if "target" not in operator_params:
-        operator_params["target"] = {}
-    operator_params["target"]["lang"] = global_config["target"]
+    _add_lang_info(operator_params, global_config, "source")
+    _add_lang_info(operator_params, global_config, "target")
 
     return operator_cls(operator_params, process_type, state)
 
