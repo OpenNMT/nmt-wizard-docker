@@ -150,3 +150,19 @@ class SamplerFileLoader(Loader):
             tgt_file.close()
             for f in annotations.values():
                 f.close()
+
+
+class SamplerFilesLoader(Loader):
+    """Load TUs from a sequence of SamplerFile objects."""
+
+    def __init__(self, files, batch_size):
+        super().__init__(batch_size)
+        self._files = files
+
+    def __call__(self):
+        for f in self._files:
+            if f.lines_kept == 0:
+                continue
+            loader = SamplerFileLoader(f, self._batch_size)
+            for tu_batch in loader():
+                yield tu_batch
