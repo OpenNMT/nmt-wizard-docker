@@ -76,7 +76,7 @@ class FileLoader(Loader):
 
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
-                        del tu_list[:] # TODO V2: Check memory usage on a big corpus
+                        tu_list = []
 
             # Preprocess.
             else :
@@ -84,7 +84,7 @@ class FileLoader(Loader):
                     tu_list.append(tu.TranslationUnit(line, self._start_state))
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
-                        del tu_list[:] # TODO V2: Check memory usage on a big corpus
+                        tu_list = []
 
             if tu_list:
                 yield tu_list, {}
@@ -100,7 +100,6 @@ class SamplerFileLoader(Loader):
         # TODO V2: multiple src
         super().__init__(batch_size)
         self._file = f
-        self._current_line = 0
 
     def __call__(self):
         src_file = utils.open_file(self._file.files["src"])
@@ -109,37 +108,43 @@ class SamplerFileLoader(Loader):
             key:utils.open_file(path)
             for key, path in self._file.files.get("annotations", {}).items()}
 
+        def _get_samples():
+            for i in range(self._file.lines_count):
+                src_line = src_file.readline()
+                tgt_line = tgt_file.readline()
+                annot_lines = {}
+                for key, annot_file in annotations.items():
+                    annot_lines[key] = annot_file.readline()
+
+                num_samples = self._file.random_sample.get(i, 0)
+                if num_samples == 0:
+                    continue
+
+                src_line = src_line.strip()
+                tgt_line = tgt_line.strip()
+                for key, line in annot_lines.items():
+                    annot_lines[key] = line.strip()
+
+                while num_samples > 0:
+                    yield tu.TranslationUnit((src_line, tgt_line), annotations=annot_lines)
+                    num_samples -= 1
+
         try:
+            batch_meta = self._file.weight.copy()
+            batch_meta["base_name"] = self._file.base_name
+            batch_meta["root"] = self._file.root
+            batch_meta["no_preprocess"] = self._file.no_preprocess
+
             tu_list = []
-            while True:
-                del tu_list[:] # TODO V2: Check memory usage on a big corpus
-                # Read sampled lines from all files and build TUs.
-                batch_line = 0
-                while ((self._batch_size is None or batch_line < self._batch_size)
-                       and self._current_line < self._file.lines_count):
-                    src_line = src_file.readline().strip()
-                    tgt_line = tgt_file.readline().strip()
-                    annot_lines = {}
-                    for key, annot_file in annotations.items():
-                        annot_lines[key] = annot_file.readline().strip()
-                    if (self._current_line in self._file.random_sample):
-                        while (self._file.random_sample[self._current_line]
-                               and (self._batch_size is None or batch_line < self._batch_size)):
-                            tu_list.append(tu.TranslationUnit(
-                                (src_line, tgt_line),
-                                annotations=annot_lines))
-                            batch_line += 1
-                            self._file.random_sample[self._current_line] -= 1
-                    self._current_line += 1
-                if not tu_list:
-                    return
 
-                batch_meta = self._file.weight.copy()
-                batch_meta["base_name"] = self._file.base_name
-                batch_meta["root"] = self._file.root
-                batch_meta["no_preprocess"] = self._file.no_preprocess
+            for sample_tu in _get_samples():
+                tu_list.append(sample_tu)
+                if self._batch_size is not None and len(tu_list) == self._batch_size:
+                    yield tu_list, batch_meta.copy()
+                    tu_list = []
 
-                yield tu_list, batch_meta
+            if tu_list:
+                yield tu_list, batch_meta.copy()
         finally:
             src_file.close()
             tgt_file.close()

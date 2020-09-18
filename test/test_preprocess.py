@@ -9,7 +9,8 @@ import random
 from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 from nmtwizard.preprocess import prepoperator
 
-def test_sampler(tmpdir):
+@pytest.mark.parametrize("batch_size", [11, 10000])
+def test_sampler(tmpdir, batch_size):
 
     corpus_dir = tmpdir.join("corpus")
     corpus_dir.mkdir()
@@ -39,6 +40,7 @@ def test_sampler(tmpdir):
         "source": "en",
         "target": "de",
         "data": {
+            "batch_size": batch_size,
             "sample": 5000,
             "sample_dist": [
                 {
