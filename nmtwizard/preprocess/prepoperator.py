@@ -303,10 +303,12 @@ class Aligner(Operator):
     def __init__(self, align_config, process_type, build_state):
         self._align_config = align_config
         self._aligner = None
-        build_state['write_alignment'] = self._align_config.get('write_alignment', False)
+        self._write_alignment = self._align_config.get('write_alignment', False)
 
     def _preprocess(self, tu_batch, training=True):
         tu_list, meta_batch = tu_batch
+        if training:
+            meta_batch['write_alignment'] = self._write_alignment
         self._build_aligner()
         tu_list = self._set_aligner(tu_list)
         return tu_list, meta_batch
