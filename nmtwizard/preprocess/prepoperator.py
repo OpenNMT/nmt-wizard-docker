@@ -243,8 +243,8 @@ class LengthFilter(Filter):
 class Tokenizer(Operator):
 
     def __init__(self, tok_config, process_type, build_state):
-        self._src_tok_config = tok_config.get("source") or tok_config.get("multi")
-        self._tgt_tok_config = tok_config.get("target") or tok_config.get("multi")
+        self._src_tok_config = tok_config["source"]
+        self._tgt_tok_config = tok_config["target"]
 
         if build_state:
             self._src_tok_config_prev = build_state["src_tok_config"]

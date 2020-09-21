@@ -48,6 +48,27 @@ def _ingest_tokens(subword_learner, tu_side):
             # This method ignores annotations and placeholder tokens.
             subword_learner.ingest_token(token)
 
+def _build_subword_learner(tok_config, result_dir, ref_tok_config=None):
+    subword_config = tok_config.get('build_subword')
+    if subword_config is None:
+        return {}
+    if ref_tok_config is None:
+        ref_tok_config = tok_config
+    subword_info = tokenizer.make_subword_learner(
+        subword_config,
+        result_dir,
+        tokenizer=tokenizer.build_tokenizer(ref_tok_config))
+    return subword_info
+
+def _build_vocabulary_counters(config):
+    vocab_config = config.get('build_vocabulary')
+    if vocab_config is None:
+        return {}
+    return {
+        "tokens": collections.defaultdict(int),
+        "total": 0,
+    }
+
 
 class SubwordLearner(SamplerConsumer):
     """SubwordLearner class stores, learns and writes subword models."""
@@ -55,51 +76,58 @@ class SubwordLearner(SamplerConsumer):
     def __init__(self, config, result_dir, tok_step):
         super().__init__()
         self._result_dir = result_dir
-
-        self._subword_info = {}
-        self._subword_learners = {}
-
         self._tok_step = tok_step
 
-        for side in ('multi', 'source', 'target'):
-            tokenization_config = config['preprocess'][tok_step].get(side)
-            if tokenization_config is None:
-                continue
-            subword_config = tokenization_config.get('build_subword')
-            if subword_config is None:
-                continue
-            # The subword learner needs to be aware of the tokenizer annotations
-            # to properly ignore them.
-            learner_info = tokenizer.make_subword_learner(
-                subword_config,
-                result_dir,
-                tokenizer=tokenizer.build_tokenizer(tokenization_config))
-            self._subword_info[side] = learner_info
-            self._subword_learners[side] = learner_info['learner']
+        tok_config = config['preprocess'][tok_step]
+        source_config = tok_config['source']
+        target_config = tok_config['target']
+        shared_config = tok_config.get('multi', {})
 
-        self._source_learner = self._subword_learners.get('source')
-        self._target_learner = self._subword_learners.get('target')
-        self._multi_learner = self._subword_learners.get('multi')
+        # The subword learner needs to be aware of the tokenizer annotations to properly
+        # ignore them. We assume for a shared subword model that the source and target
+        # tokenizers use the same type of annotations, and pass the source tokenization
+        # config when building the shared learner.
+        # TODO: clean this up (this can be resolved using the "Token API" of the OpenNMT Tokenizer).
+        shared_subword_info = _build_subword_learner(shared_config, result_dir, source_config)
+        if shared_subword_info:
+            self._source_subword_info = shared_subword_info
+            self._target_subword_info = shared_subword_info
+        else:
+            self._source_subword_info = _build_subword_learner(source_config, result_dir)
+            self._target_subword_info = _build_subword_learner(target_config, result_dir)
 
 
     def _consume(self, tu_batch):
+        source_learner = self._source_subword_info.get('learner')
+        target_learner = self._target_subword_info.get('learner')
+        if source_learner is None and target_learner is None:
+            return
+
         tu_list, _ = tu_batch
         for tu in tu_list :
-            if self._source_learner is not None:
-                _ingest_tokens(self._source_learner, tu.src_tok)
-            if self._target_learner is not None:
-                _ingest_tokens(self._target_learner, tu.tgt_tok)
-            if self._multi_learner is not None:
-                _ingest_tokens(self._multi_learner, tu.src_tok)
-                _ingest_tokens(self._multi_learner, tu.tgt_tok)
+            if source_learner is not None:
+                _ingest_tokens(source_learner, tu.src_tok)
+            if target_learner is not None:
+                _ingest_tokens(target_learner, tu.tgt_tok)
 
 
     def finalize(self, config, summary=None):
+        if not self._source_subword_info and not self._target_subword_info:
+            return
+
+        if self._source_subword_info is self._target_subword_info:
+            all_subword_info = [('multi', self._source_subword_info)]
+        else:
+            all_subword_info = []
+            if self._source_subword_info:
+                all_subword_info.append(('source', self._source_subword_info))
+            if self._target_subword_info:
+                all_subword_info.append(('target', self._target_subword_info))
 
         tok_config = config['preprocess'][self._tok_step]
 
         # Learn subword models and write them to files.
-        for side, subword_info in self._subword_info.items():
+        for side, subword_info in all_subword_info:
             name =  tok_config[side]['build_subword']['name'] \
                     if 'name' in tok_config[side]['build_subword'] \
                     else 'model'+str(self._tok_step)
@@ -127,48 +155,35 @@ class VocabularyBuilder(SamplerConsumer):
     def __init__(self, config, result_dir, tok_step):
         super().__init__()
         self._result_dir = result_dir
-
-        self._vocabularies = {}
-        self._sums = {}
-
         self._tok_step = tok_step
+
         tok_config = config['preprocess'][tok_step]
+        source_config = tok_config['source']
+        target_config = tok_config['target']
+        shared_config = tok_config.get('multi', {})
 
-        opt_multi = tok_config.get('multi', {}).get('build_vocabulary')
-        opt_source = tok_config.get('source', {}).get('build_vocabulary')
-        opt_target = tok_config.get('target', {}).get('build_vocabulary')
-
-        if opt_multi:
-            self._vocabularies['multi'] = collections.defaultdict(int)
-            self._sums['multi'] = 0
-        if opt_source:
-            self._vocabularies['source'] = collections.defaultdict(int)
-            self._sums['source'] = 0
-        if opt_target:
-            self._vocabularies['target'] = collections.defaultdict(int)
-            self._sums['target'] = 0
+        shared_counters = _build_vocabulary_counters(shared_config)
+        if shared_counters:
+            self._source_counters = shared_counters
+            self._target_counters = shared_counters
+        else:
+            self._source_counters = _build_vocabulary_counters(source_config)
+            self._target_counters = _build_vocabulary_counters(target_config)
 
 
     def _consume(self, tu_batch):
+        if not self._source_counters and not self._target_counters:
+            return
 
         tu_list, _ = tu_batch
         # TODO : remove value for placeholders
         for tu in tu_list :
-            if 'source' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.src_tok.tokens):
-                    self._vocabularies['source'][token] += 1
-                    self._sums['source'] += 1
-            if 'target' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
-                    self._vocabularies['target'][token] += 1
-                    self._sums['target'] += 1
-            if 'multi' in self._vocabularies:
-                for token in itertools.chain.from_iterable(tu.src_tok.tokens):
-                    self._vocabularies['multi'][token] += 1
-                    self._sums['multi'] += 1
-                for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
-                    self._vocabularies['multi'][token] += 1
-                    self._sums['multi'] += 1
+            for token in itertools.chain.from_iterable(tu.src_tok.tokens):
+                self._source_counters['tokens'][token] += 1
+                self._source_counters['total'] += 1
+            for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
+                self._target_counters['tokens'][token] += 1
+                self._target_counters['total'] += 1
 
 
     def _prune(self, vocabulary, sorted_vocabulary, size, min_frequency):
@@ -185,10 +200,23 @@ class VocabularyBuilder(SamplerConsumer):
 
 
     def finalize(self, config, summary=None):
+        if not self._source_counters and not self._target_counters:
+            return
 
         tok_config = config['preprocess'][self._tok_step]
 
-        for side, vocabulary in self._vocabularies.items():
+        if self._source_counters is self._target_counters:
+            vocabularies = [('multi', self._source_counters)]
+        else:
+            vocabularies = []
+            if self._source_counters:
+                vocabularies.append(('source', self._source_counters))
+            if self._target_counters:
+                vocabularies.append(('target', self._target_counters))
+
+        for side, counters in vocabularies:
+            vocabulary = counters['tokens']
+            total_size = counters['total']
             name =  tok_config[side]['build_vocabulary']['name'] \
                     if 'name' in tok_config[side]['build_vocabulary'] \
                     else 'vocab'+str(self._tok_step)
@@ -252,7 +280,7 @@ class VocabularyBuilder(SamplerConsumer):
             with open(out_file, 'w') as vocab_file :
                 for i in range(real_size):
                     w = sorted_vocabulary[i]
-                    vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(self._sums[side])))
+                    vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(total_size)))
 
             # TODO V2 : header with configuration ?
             # TODO V2 : deal with placeholders

@@ -111,12 +111,11 @@ class TrainingProcessor(Processor):
         opt_source = tok_config.get('source', {}).get(build_option)
         opt_target = tok_config.get('target', {}).get(build_option)
 
-        if not opt_multi and not (opt_source and opt_target):
+        if not opt_multi and not opt_source and not opt_target:
             logger.warning('No \'%s\' option specified, exit without preprocessing.' % build_option)
             return
 
-        if (opt_multi and opt_source) or \
-           (opt_multi and opt_target) :
+        if opt_multi and (opt_source or opt_target):
             raise RuntimeError('Cannot specify \'%s\' for both \'multi\' and either \'source\' or \'target\'.' % build_option)
 
         # Generate preprocessed sentences and feed them to subword learners or to vocabularies.
@@ -132,10 +131,9 @@ class TrainingProcessor(Processor):
             raise RuntimeError('No \'tokenization\' operator in preprocess configuration, cannot build vocabularies.)')
 
         for i, tok_config in enumerate(tok_configs):
-            if ('source' not in tok_config or 'target' not in tok_config) and 'multi' not in tok_config :
-                raise RuntimeError('Each \'tokenization\' operator should contain \
-                                    either both \'source\' and \'target\' fields \
-                                or \'multi\' field.')
+            if 'source' not in tok_config or 'target' not in tok_config:
+                raise RuntimeError('Each \'tokenization\' operator should contain '
+                                   'both \'source\' and \'target\' fields.')
 
             for side in tok_config:
                 build_vocab = tok_config[side].get('build_vocabulary')
