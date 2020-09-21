@@ -93,7 +93,9 @@ class Pipeline(object):
         # TODO: can we do it better ?
         self.start_state = { "src_tok_config" : None,
                              "tgt_tok_config" : None,
-                             "postprocess_only" : False }
+                             "postprocess_only" : False,
+                             "src_vocabulary" : config.get("vocabulary", {}).get("source", {}).get("path"),
+                             "tgt_vocabulary" : config.get("vocabulary", {}).get("target", {}).get("path")}
 
         # Current state of pipeline.
         # Passed to and modified by operator initializers if necessary.
@@ -183,7 +185,7 @@ class TUOperator(Operator):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
         tu_list, meta_batch = tu_batch
-        tu_list = list(chain.from_iterable(self._preprocess_tu(tu, training) for tu in tu_list))
+        tu_list = list(chain.from_iterable(self._preprocess_tu(tu, meta_batch, training) for tu in tu_list))
 
         return tu_list, meta_batch
 
@@ -195,7 +197,7 @@ class TUOperator(Operator):
 
 
     @abc.abstractmethod
-    def _preprocess_tu(self, tu, training):
+    def _preprocess_tu(self, tu, meta_batch, training):
         raise NotImplementedError()
 
 
@@ -215,7 +217,7 @@ class Filter(TUOperator):
         return process_type == ProcessType.TRAINING
 
 
-    def _preprocess_tu(self, tu, training):
+    def _preprocess_tu(self, tu, meta_batch, training):
         for c in self._criteria:
             if (c(tu)):
                 return []
