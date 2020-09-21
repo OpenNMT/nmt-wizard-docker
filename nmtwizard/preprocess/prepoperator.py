@@ -154,16 +154,17 @@ class Operator(object):
     """Base class for preprocessing operators."""
 
     def __call__(self, tu_batch, process_type):
+        self._process_type = process_type
         if process_type == ProcessType.POSTPROCESS:
             tu_batch = self._postprocess(tu_batch)
         else:
-            tu_batch = self._preprocess(tu_batch, training=process_type == ProcessType.TRAINING)
+            tu_batch = self._preprocess(tu_batch)
         # TODO : do we need a separate function for inference ?
         return tu_batch
 
 
     @abc.abstractmethod
-    def _preprocess(self, tu_batch, training):
+    def _preprocess(self, tu_batch):
         raise NotImplementedError()
 
 
@@ -181,11 +182,11 @@ class Operator(object):
 class TUOperator(Operator):
     """Base class for operations iterating on each TU in a batch."""
 
-    def _preprocess(self, tu_batch, training):
+    def _preprocess(self, tu_batch):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
         tu_list, meta_batch = tu_batch
-        tu_list = list(chain.from_iterable(self._preprocess_tu(tu, meta_batch, training) for tu in tu_list))
+        tu_list = list(chain.from_iterable(self._preprocess_tu(tu, meta_batch) for tu in tu_list))
 
         return tu_list, meta_batch
 
@@ -197,7 +198,7 @@ class TUOperator(Operator):
 
 
     @abc.abstractmethod
-    def _preprocess_tu(self, tu, meta_batch, training):
+    def _preprocess_tu(self, tu, meta_batch):
         raise NotImplementedError()
 
 
@@ -217,7 +218,7 @@ class Filter(TUOperator):
         return process_type == ProcessType.TRAINING
 
 
-    def _preprocess_tu(self, tu, meta_batch, training):
+    def _preprocess_tu(self, tu, meta_batch):
         for c in self._criteria:
             if (c(tu)):
                 return []
@@ -261,7 +262,7 @@ class Tokenizer(Operator):
         self._tgt_tokenizer = None
 
 
-    def _preprocess(self, tu_batch, training=True):
+    def _preprocess(self, tu_batch):
         tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config, self._tgt_tok_config)
         return tu_batch
 
@@ -307,9 +308,9 @@ class Aligner(Operator):
         self._aligner = None
         self._write_alignment = self._align_config.get('write_alignment', False)
 
-    def _preprocess(self, tu_batch, training=True):
+    def _preprocess(self, tu_batch):
         tu_list, meta_batch = tu_batch
-        if training:
+        if self._process_type == ProcessType.TRAINING:
             meta_batch['write_alignment'] = self._write_alignment
         self._build_aligner()
         tu_list = self._set_aligner(tu_list)
