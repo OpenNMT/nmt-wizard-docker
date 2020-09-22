@@ -58,7 +58,8 @@ class FileLoader(Loader):
 
     def __init__(self, input_files, start_state, batch_size=None):
         super().__init__(batch_size)
-        self._start_state = start_state
+        self._source_tokenizer = start_state.get('src_tokenizer')
+        self._target_tokenizer = start_state.get('tgt_tokenizer')
         source_file = input_files
         target_file = None
         if isinstance(source_file, tuple):
@@ -88,7 +89,8 @@ class FileLoader(Loader):
                         source=src_lines,
                         target=tgt_lines,
                         metadata=meta,
-                        start_state=self._start_state))
+                        source_tokenizer=self._source_tokenizer,
+                        target_tokenizer=self._target_tokenizer))
 
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
@@ -97,7 +99,7 @@ class FileLoader(Loader):
             # Preprocess.
             else :
                 for line in files[0]:
-                    tu_list.append(tu.TranslationUnit(line, self._start_state))
+                    tu_list.append(tu.TranslationUnit(source=line))
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
                         tu_list = []
