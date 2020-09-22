@@ -58,8 +58,7 @@ def build_operator(operator_config, global_config, process_type, state):
     operator_type = get_operator_type(operator_config)
     operator_cls = _OPERATORS_REGISTRY.get(operator_type)
     if operator_cls is None:
-        logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
-        return None
+        raise ValueError("Unknown operator '%s'" % operator_type)
     operator_params = get_operator_params(operator_config)
 
     # Propagate source and target languages
@@ -109,7 +108,7 @@ class Pipeline(object):
 
         for i, op_config in enumerate(op_list_config):
             operator = build_operator(op_config, self._config, self._process_type, self.build_state)
-            if operator and operator.is_applied_for(self._process_type):
+            if operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
                 break
