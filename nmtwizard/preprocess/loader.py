@@ -28,14 +28,27 @@ class BasicLoader(Loader):
 
         """ In preprocess, input is one source, untokenized and one-part.
             In postprocess, input is ((source, metadata), target), tokenized and possibly multipart."""
-        super().__init__(len(basic_input))
-        self._input = basic_input
-        self._start_state = start_state
+        super().__init__(batch_size=1)
+        if isinstance(basic_input, tuple):
+            self._source, self._target = basic_input
+            if isinstance(self._source, tuple):
+                self._source, self._metadata = self._source
+            else:
+                self._metadata = None
+        else:
+            self._source = basic_input
+            self._target = None
+            self._metadata = None
+        self._source_tokenizer = start_state.get('src_tokenizer')
+        self._target_tokenizer = start_state.get('tgt_tokenizer')
 
     def __call__(self):
-        tu_list = []
-        if self._input:
-            tu_list.append(tu.TranslationUnit(self._input, self._start_state))
+        tu_list = [tu.TranslationUnit(
+            source=self._source,
+            target=self._target,
+            metadata=self._metadata,
+            source_tokenizer=self._source_tokenizer,
+            target_tokenizer=self._target_tokenizer)]
         yield tu_list, {}
         return
 
@@ -72,7 +85,10 @@ class FileLoader(Loader):
                     tgt_lines = [next(files[1]).strip().split() for _ in range(num_parts)]
 
                     tu_list.append(tu.TranslationUnit(
-                        ((src_lines, meta), tgt_lines), self._start_state))
+                        source=src_lines,
+                        target=tgt_lines,
+                        metadata=meta,
+                        start_state=self._start_state))
 
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
@@ -126,7 +142,10 @@ class SamplerFileLoader(Loader):
                     annot_lines[key] = line.strip()
 
                 while num_samples > 0:
-                    yield tu.TranslationUnit((src_line, tgt_line), annotations=annot_lines)
+                    yield tu.TranslationUnit(
+                        source=src_line,
+                        target=tgt_line,
+                        annotations=annot_lines)
                     num_samples -= 1
 
         try:

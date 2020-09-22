@@ -320,8 +320,9 @@ class Tokenizer(Operator):
 
         # Set tokenizers for TUs.
         for tu in tu_list :
-            tu.src_tok = (src_tokenizer, None)
-            tu.tgt_tok = (tgt_tokenizer, None)
+            for part in tu.parts:
+                part.src_tok = (src_tokenizer, None)
+                part.tgt_tok = (tgt_tokenizer, None)
 
         return tu_list, meta_batch
 

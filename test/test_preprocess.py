@@ -470,19 +470,19 @@ def test_replace_tokens(tmpdir):
                 joiner_start = False
                 joiner_end = False
                 if num_to_del:
-                    joiner_start = tokens[0][pos].startswith(joiner_marker)
-                    joiner_end = tokens[0][pos+num_to_del-1].endswith(joiner_marker)
+                    joiner_start = tokens[pos].startswith(joiner_marker)
+                    joiner_end = tokens[pos+num_to_del-1].endswith(joiner_marker)
                 return joiner_start, joiner_end
 
             def checks_side(tokens, length, pos, num_to_del, tok_replace, joiner_start, joiner_end):
-                assert(len(tokens[0]) == length - num_to_del + len(tok_replace))
+                assert(len(tokens) == length - num_to_del + len(tok_replace))
 
                 if tok_replace:
                     if joiner_start:
                         tok_replace[0] = joiner_marker + tok_replace[0]
                     if joiner_end:
                         tok_replace[-1] += joiner_marker
-                    assert (tokens[0][pos:pos+len(tok_replace)] == tok_replace)
+                    assert (tokens[pos:pos+len(tok_replace)] == tok_replace)
 
             def change_align_side(al_idx, pos, num_to_del, tok_replace):
                 new_al_idx = al_idx
@@ -501,33 +501,45 @@ def test_replace_tokens(tmpdir):
                 return new_al_idx
 
 
-            src_tokens = tu.src_tok.tokens if tu.src_tok else None
-            tgt_tokens = tu.tgt_tok.tokens if tu.tgt_tok else None
-
-            src_len = len(src_tokens[0]) if src_tokens else 0
-            tgt_len = len(tgt_tokens[0]) if tgt_tokens else 0
-
-            if src_len and tgt_len:
-                alignment_before = deepcopy(tu.alignment[0])
+            if tu.src_tok.tokens and tu.tgt_tok.tokens:
+                alignment_before = deepcopy(tu.alignment)
 
                 joiner_marker = "￭"
 
                 next(self._rand_repl_gen)
+                src_len = len(tu.src_tok.tokens)
+                tgt_len = len(tu.tgt_tok.tokens)
                 src_replace, tgt_replace = self._rand_repl_gen.send((src_len, tgt_len))
 
                 src_pos, src_num_to_del, src_tok_replace = src_replace
                 tgt_pos, tgt_num_to_del, tgt_tok_replace = tgt_replace
 
-                src_joiner_start, src_joiner_end = joiner_side(src_tokens, src_pos, src_num_to_del)
-                tgt_joiner_start, tgt_joiner_end = joiner_side(tgt_tokens, tgt_pos, tgt_num_to_del)
+                src_joiner_start, src_joiner_end = joiner_side(
+                    tu.src_tok.tokens, src_pos, src_num_to_del)
+                tgt_joiner_start, tgt_joiner_end = joiner_side(
+                    tu.tgt_tok.tokens, tgt_pos, tgt_num_to_del)
 
                 tu.replace_tokens(src_replace, tgt_replace)
 
-                checks_side(src_tokens, src_len, src_pos, src_num_to_del, src_tok_replace, src_joiner_start, src_joiner_end)
-                checks_side(tgt_tokens, tgt_len, tgt_pos, tgt_num_to_del, tgt_tok_replace, tgt_joiner_start, tgt_joiner_end)
+                checks_side(
+                    tu.src_tok.tokens,
+                    src_len,
+                    src_pos,
+                    src_num_to_del,
+                    src_tok_replace,
+                    src_joiner_start,
+                    src_joiner_end)
+                checks_side(
+                    tu.tgt_tok.tokens,
+                    tgt_len,
+                    tgt_pos,
+                    tgt_num_to_del,
+                    tgt_tok_replace,
+                    tgt_joiner_start,
+                    tgt_joiner_end)
 
                 # Check alignment
-                alignment_after = tu.alignment[0]
+                alignment_after = tu.alignment
 
                 new_align = set()
                 for al_src, al_tgt in alignment_before :

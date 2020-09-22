@@ -3,7 +3,6 @@
 
 import pyonmttok
 
-joiner_marker = "￭"
 
 _ALLOWED_TOKENIZER_ARGS = set([
     "bpe_dropout",
