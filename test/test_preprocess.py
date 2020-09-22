@@ -9,8 +9,9 @@ import random
 from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 from nmtwizard.preprocess import prepoperator
 
-@pytest.mark.parametrize("batch_size", [11, 10000])
-def test_sampler(tmpdir, batch_size):
+@pytest.mark.parametrize("batch_size,num_threads", [(10, 1), (10, 2), (10000, 1)])
+def test_sampler(tmpdir, batch_size, num_threads):
+    os.environ["NB_CPU"] = str(num_threads)
 
     corpus_dir = tmpdir.join("corpus")
     corpus_dir.mkdir()
@@ -123,6 +124,8 @@ def test_sampler(tmpdir, batch_size):
     assert summary['corpus_specific1']['linesampled'] == 0
     assert summary['corpus_specific2']['linesampled'] == 0
     assert summary['IT']['linesampled'] == 0
+
+    del os.environ["NB_CPU"]
 
 
 def test_sampler_with_annotations(tmpdir):

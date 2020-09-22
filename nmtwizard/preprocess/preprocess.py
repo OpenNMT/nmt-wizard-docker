@@ -1,5 +1,7 @@
 """Functions for corpus preprocessing."""
 
+import collections
+import multiprocessing
 import os
 
 from nmtwizard.logger import get_logger
@@ -21,26 +23,75 @@ def _get_tok_configs(config):
     return tok_configs
 
 
+def _get_num_workers():
+    num_cpus = int(os.environ.get('NB_CPU', '1'))
+    return num_cpus if num_cpus > 1 else 0  # Run the sequential path if only 1 CPU is available.
+
+
 class Processor(object):
 
-    def _set_pipeline(self, preprocess_exit_step=None):
-        self._pipeline = prepoperator.Pipeline(self._config, self._pipeline_type, preprocess_exit_step)
+    def __init__(self, config, pipeline_type):
+        self._config = config
+        self._pipeline_type = pipeline_type
+        self._preprocess_exit_step = None
+        self._pipeline = None
 
-    def process(self, loader, consumer):
+    def build_pipeline(self, config=None):
+        if config is None:
+            config = self._config
+        return prepoperator.Pipeline(
+            config,
+            self._pipeline_type,
+            preprocess_exit_step=self._preprocess_exit_step)
 
-        # TODO V2 : parallelization
-        for tu_batch in loader():
-            tu_batch = self._pipeline(tu_batch)
-            consumer(tu_batch)
+    def process_batch(self, tu_batch):
+        # Lazily create the pipeline so that it is created in each worker process.
+        if self._pipeline is None:
+            self._pipeline = self.build_pipeline()
+        return self._pipeline(tu_batch)
+
+    def process(self, loader, consumer, num_workers=0, preprocess_exit_step=None):
+        self._preprocess_exit_step = preprocess_exit_step
+
+        if num_workers == 0:
+
+            for tu_batch in loader():
+                tu_batch = self.process_batch(tu_batch)
+                consumer(tu_batch)
+
+        else:
+
+            # Because of the Python GIL (Global Interpreter Lock), we need to use
+            # process-based workers to enable true parallelism. The downside is
+            # that it duplicates resources for each worker, increasing the
+            # memory usage. This is mitigated by the better stream processing of
+            # the loader/consumer which avoids loading the full corpus in memory.
+            with multiprocessing.Pool(processes=num_workers) as pool:
+                results = collections.deque()
+
+                for tu_batch in loader():
+                    # Push the batch in the process queue and get a handle on the result.
+                    results.append(pool.apply_async(self.process_batch, (tu_batch,)))
+
+                    # Limit the queue max size to avoid loading too many batches in advance.
+                    if len(results) == 2 * num_workers:
+                        results[0].wait()
+
+                    # Consume batches that are ready.
+                    while len(results) > 0 and results[0].ready():
+                        consumer(results.popleft().get())
+
+                # Wait and consume all remaining batches.
+                while len(results) > 0:
+                    consumer(results.popleft().get())
 
 
 class TrainingProcessor(Processor):
 
     def __init__(self, config, corpus_dir, data_dir):
-        self._config = config
+        super().__init__(config, prepoperator.ProcessType.TRAINING)
         self._corpus_dir = corpus_dir
         self._data_dir = data_dir
-        self._pipeline_type = prepoperator.ProcessType.TRAINING
 
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
 
@@ -76,6 +127,7 @@ class TrainingProcessor(Processor):
             # Sample files and write information to a special file structure.
             all_files, summary, metadata = sampler.sample(self._config, data_path)
             batch_size = self._config.get('data', {}).get('batch_size', 100000)
+            sampler_loader = loader.SamplerFilesLoader(all_files, batch_size)
 
             if result == 'subword':
                 sampler_consumer = consumer.SubwordLearner(
@@ -87,12 +139,11 @@ class TrainingProcessor(Processor):
                 sampler_consumer = consumer.SamplerFileWriter(
                     self._config, result_dir, preprocess_exit_step, summary)
 
-            self._set_pipeline(preprocess_exit_step)
-
-            for f in all_files:
-                if f.lines_kept :
-                    sampler_loader=loader.SamplerFileLoader(f, batch_size)
-                    self.process(sampler_loader, sampler_consumer)
+            self.process(
+                sampler_loader,
+                sampler_consumer,
+                num_workers=_get_num_workers(),
+                preprocess_exit_step=preprocess_exit_step)
 
             sampler_consumer.finalize(self._config, summary)
             num_samples = sampler_consumer.num_samples
@@ -177,10 +228,12 @@ class TrainingProcessor(Processor):
 class InferenceProcessor(Processor):
 
     def __init__(self, config, postprocess=False):
-        self._config = config
+        pipeline_type = (prepoperator.ProcessType.POSTPROCESS
+                         if postprocess
+                         else prepoperator.ProcessType.INFERENCE)
+        super().__init__(config, pipeline_type)
         self._postprocess = postprocess
-        self._pipeline_type = prepoperator.ProcessType.POSTPROCESS if self._postprocess else prepoperator.ProcessType.INFERENCE
-        self._set_pipeline()
+        self._pipeline = self.build_pipeline()
 
     def process_input(self, process_input):
         """Processes one translation example at inference.
