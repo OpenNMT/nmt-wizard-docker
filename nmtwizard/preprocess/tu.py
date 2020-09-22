@@ -196,12 +196,8 @@ class TranslationUnit(object):
                 source, self.__metadata = source
             if isinstance(source, list) and isinstance(target, list):
                 # Postprocess.
-                src_tokenizer = None
-                tgt_tokenizer = None
-                if start_state and start_state["src_tok_config"]:
-                    src_tokenizer = tokenizer.build_tokenizer(start_state["src_tok_config"])
-                if start_state and start_state["tgt_tok_config"]:
-                    tgt_tokenizer = tokenizer.build_tokenizer(start_state["tgt_tok_config"])
+                src_tokenizer = start_state["src_tokenizer"] if start_state else None
+                tgt_tokenizer = start_state["tgt_tokenizer"] if start_state else None
                 self.__source.tok = (src_tokenizer, source)
                 self.__target.tok = (tgt_tokenizer, target)
                 if alignment:

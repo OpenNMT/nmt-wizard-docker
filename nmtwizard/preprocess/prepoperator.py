@@ -91,8 +91,8 @@ class Pipeline(object):
 
         # Start state is used in loader, to inform it about input tokenization.
         # TODO: can we do it better ?
-        self.start_state = { "src_tok_config" : None,
-                             "tgt_tok_config" : None,
+        self.start_state = { "src_tokenizer" : None,
+                             "tgt_tokenizer" : None,
                              "postprocess_only" : False,
                              "src_vocabulary" : config.get("vocabulary", {}).get("source", {}).get("path"),
                              "tgt_vocabulary" : config.get("vocabulary", {}).get("target", {}).get("path")}
@@ -246,52 +246,44 @@ class LengthFilter(Filter):
 class Tokenizer(Operator):
 
     def __init__(self, tok_config, process_type, build_state):
-        self._src_tok_config = tok_config["source"]
-        self._tgt_tok_config = tok_config["target"]
+        self._src_tokenizer = tokenizer.build_tokenizer(tok_config["source"])
+        self._tgt_tokenizer = tokenizer.build_tokenizer(tok_config["target"])
 
         if build_state:
-            self._src_tok_config_prev = build_state["src_tok_config"]
-            self._tgt_tok_config_prev = build_state["tgt_tok_config"]
+            self._prev_src_tokenizer = build_state["src_tokenizer"]
+            self._prev_tgt_tokenizer = build_state["tgt_tokenizer"]
 
-            build_state["src_tok_config"] = self._src_tok_config
-            build_state["tgt_tok_config"] = self._tgt_tok_config
+            build_state["src_tokenizer"] = self._src_tokenizer
+            build_state["tgt_tokenizer"] = self._tgt_tokenizer
 
         self._postprocess_only = build_state['postprocess_only']
 
-        self._src_tokenizer = None
-        self._tgt_tokenizer = None
-
 
     def _preprocess(self, tu_batch):
-        tu_batch = self._set_tokenizers(tu_batch, self._src_tok_config, self._tgt_tok_config)
+        tu_batch = self._set_tokenizers(tu_batch, self._src_tokenizer, self._tgt_tokenizer)
         return tu_batch
 
 
     def _postprocess(self, tu_batch):
         # Tokenization from 'postprocess' field applies current tokenization in postprocess.
         if self._postprocess_only:
-            src_tok_config = self._src_tok_config
-            tgt_tok_config = self._tgt_tok_config
+            src_tokenizer = self._src_tokenizer
+            tgt_tokenizer = self._tgt_tokenizer
         # Tokenization from 'preprocess' field applies previous tokenization in postprocess.
         else:
-            src_tok_config = self._src_tok_config_prev
-            tgt_tok_config = self._tgt_tok_config_prev
-        tu_batch = self._set_tokenizers(tu_batch, src_tok_config, tgt_tok_config)
+            src_tokenizer = self._prev_src_tokenizer
+            tgt_tokenizer = self._prev_tgt_tokenizer
+        tu_batch = self._set_tokenizers(tu_batch, src_tokenizer, tgt_tokenizer)
         return tu_batch
 
 
-    def _set_tokenizers(self, tu_batch, src_tok_config, tgt_tok_config):
+    def _set_tokenizers(self, tu_batch, src_tokenizer, tgt_tokenizer):
         tu_list, meta_batch = tu_batch
-        if not self._src_tokenizer and src_tok_config:
-            self._src_tokenizer = tokenizer.build_tokenizer(src_tok_config)
-
-        if not self._tgt_tokenizer and tgt_tok_config:
-            self._tgt_tokenizer = tokenizer.build_tokenizer(tgt_tok_config)
 
         # Set tokenizers for TUs.
         for tu in tu_list :
-            tu.src_tok = (self._src_tokenizer, None)
-            tu.tgt_tok = (self._tgt_tokenizer, None)
+            tu.src_tok = (src_tokenizer, None)
+            tu.tgt_tok = (tgt_tokenizer, None)
 
         return tu_list, meta_batch
 
