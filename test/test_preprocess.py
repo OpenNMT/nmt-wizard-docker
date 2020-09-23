@@ -9,6 +9,12 @@ import random
 from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 from nmtwizard.preprocess import prepoperator
 
+def generate_pseudo_corpus(corpus_dir, size, name, suffix):
+    with corpus_dir.join(name+"."+suffix).open(mode='w') as f :
+        for l in range(size):
+            f.write(name + " " + str(l) + "\n")
+
+
 @pytest.mark.parametrize("batch_size,num_threads", [(10, 1), (10, 2), (10000, 1)])
 def test_sampler(tmpdir, batch_size, num_threads):
     os.environ["NB_CPU"] = str(num_threads)
@@ -16,26 +22,21 @@ def test_sampler(tmpdir, batch_size, num_threads):
     corpus_dir = tmpdir.join("corpus")
     corpus_dir.mkdir()
 
-    def _generate_pseudo_corpus(i, name, suffix):
-        with corpus_dir.join(name+"."+suffix).open(mode='w') as f :
-            for l in range(i):
-                f.write(name + " " + str(l) + "\n")
-
-    _generate_pseudo_corpus(800, "corpus_specific1", "en")
-    _generate_pseudo_corpus(800, "corpus_specific1", "de")
-    _generate_pseudo_corpus(2000, "corpus_specific2", "en")
-    _generate_pseudo_corpus(2000, "corpus_specific2", "de")
-    _generate_pseudo_corpus(50, "generic_added", "en")
-    _generate_pseudo_corpus(50, "generic_added", "de")
-    _generate_pseudo_corpus(100, "generic_corpus", "en")
-    _generate_pseudo_corpus(100, "generic_corpus", "de")
-    _generate_pseudo_corpus(200, "IT", "en")
-    _generate_pseudo_corpus(200, "IT", "de")
-    _generate_pseudo_corpus(3000, "news_pattern", "en")
-    _generate_pseudo_corpus(3000, "news_pattern", "de")
-    _generate_pseudo_corpus(10, "unaligned", "en")
-    _generate_pseudo_corpus(10, "generic_to_ignore", "en")
-    _generate_pseudo_corpus(10, "generic_to_ignore", "de")
+    generate_pseudo_corpus(corpus_dir, 800, "corpus_specific1", "en")
+    generate_pseudo_corpus(corpus_dir, 800, "corpus_specific1", "de")
+    generate_pseudo_corpus(corpus_dir, 2000, "corpus_specific2", "en")
+    generate_pseudo_corpus(corpus_dir, 2000, "corpus_specific2", "de")
+    generate_pseudo_corpus(corpus_dir, 50, "generic_added", "en")
+    generate_pseudo_corpus(corpus_dir, 50, "generic_added", "de")
+    generate_pseudo_corpus(corpus_dir, 100, "generic_corpus", "en")
+    generate_pseudo_corpus(corpus_dir, 100, "generic_corpus", "de")
+    generate_pseudo_corpus(corpus_dir, 200, "IT", "en")
+    generate_pseudo_corpus(corpus_dir, 200, "IT", "de")
+    generate_pseudo_corpus(corpus_dir, 3000, "news_pattern", "en")
+    generate_pseudo_corpus(corpus_dir, 3000, "news_pattern", "de")
+    generate_pseudo_corpus(corpus_dir, 10, "unaligned", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "generic_to_ignore", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "generic_to_ignore", "de")
 
     config = {
         "source": "en",
@@ -290,6 +291,9 @@ def test_generate_vocabularies(tmpdir):
 
 def test_preprocess_pipeline(tmpdir):
 
+    corpus_dir = tmpdir.join("corpus")
+    corpus_dir.mkdir()
+
     config = {
         "source": "en",
         "target": "de",
@@ -297,9 +301,13 @@ def test_preprocess_pipeline(tmpdir):
             "sample": 800,
             "sample_dist": [
                 {
-                    "path": os.path.join(os.path.dirname(os.path.realpath(__file__)), "corpus", "train"),
+                    "path": str(corpus_dir),
                     "distribution": [
-                        ["europarl", 1]
+                        ["generic", 1, "generic_tag"],
+                        ["extra_generic", 1, "generic_tag"],
+                        ["good_news", 1, "news_tag"],
+                        ["news", 1, "news_tag"],
+                        ["no_tag", 1]
                     ]
                 }
             ]
@@ -308,7 +316,17 @@ def test_preprocess_pipeline(tmpdir):
             {
                 "op" : "length_filter",
                 "source": {
-                    "max_length_char" : 100
+                    "max_length_char" : 3
+                },
+                "overrides": {
+                    "generic_tag": {
+                        "disabled": True
+                    },
+                    "news_tag": {
+                        "source": {
+                            "max_length_char" : 6
+                        }
+                    }
                 }
             },
             {
@@ -325,9 +343,29 @@ def test_preprocess_pipeline(tmpdir):
         ]
     }
 
+    generate_pseudo_corpus(corpus_dir, 10, "generic", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "generic", "de")
+    generate_pseudo_corpus(corpus_dir, 10, "extra_generic", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "extra_generic", "de")
+    generate_pseudo_corpus(corpus_dir, 10, "good_news", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "good_news", "de")
+    generate_pseudo_corpus(corpus_dir, 10, "news", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "news", "de")
+    generate_pseudo_corpus(corpus_dir, 10, "no_tag", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "no_tag", "de")
+
+
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
+
+    for f_name, f_info in summary.items():
+        if "generic" in f_name or f_name == 'news':
+            # generic is not filtered because filtering is disabled
+            # 'news' is not filtered because length is overriden
+            assert f_info['linefiltered'] == f_info['linesampled']
+        else :
+            assert f_info['linefiltered'] == 0
 
     prep = InferenceProcessor(config)
     source, target = prep.process_input("This is a test.")

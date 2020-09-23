@@ -19,7 +19,7 @@ def _get_tok_configs(config):
     if preprocess_config is not None:
         for operator_config in preprocess_config:
             if prepoperator.get_operator_type(operator_config) == "tokenization":
-                tok_configs.append(prepoperator.get_operator_params(operator_config))
+                tok_configs.append(operator_config)
     return tok_configs
 
 
@@ -36,18 +36,22 @@ class Processor(object):
         self._preprocess_exit_step = None
         self._pipeline = None
 
-    def build_pipeline(self, config=None):
+    def build_pipeline(self, config=None, override_label=None):
         if config is None:
             config = self._config
         return prepoperator.Pipeline(
             config,
             self._pipeline_type,
-            preprocess_exit_step=self._preprocess_exit_step)
+            preprocess_exit_step=self._preprocess_exit_step,
+            override_label=override_label
+        )
 
     def process_batch(self, tu_batch):
         # Lazily create the pipeline so that it is created in each worker process.
-        if self._pipeline is None:
-            self._pipeline = self.build_pipeline()
+        _, batch_meta = tu_batch
+        override_label = batch_meta.get('label', None) if batch_meta else None
+        if self._pipeline is None or self._pipeline.override_label != override_label:
+            self._pipeline = self.build_pipeline(override_label=override_label)
         return self._pipeline(tu_batch)
 
     def process(self, loader, consumer, num_workers=0, preprocess_exit_step=None):
@@ -96,7 +100,6 @@ class TrainingProcessor(Processor):
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
 
         # TODO V2 : annotations
-        # TODO V2 : file-specific rules/extra
 
         # For backward compatibility with old relative path configurations.
         train_dir = 'train'
@@ -187,6 +190,8 @@ class TrainingProcessor(Processor):
                                    'both \'source\' and \'target\' fields.')
 
             for side in tok_config:
+                if side not in ["source", "target", "multi"]:
+                    continue
                 build_vocab = tok_config[side].get('build_vocabulary')
                 if build_vocab:
                     if tok_config[side].get('vocabulary_path', {}):

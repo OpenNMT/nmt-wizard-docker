@@ -147,14 +147,14 @@ def sample(config, source_dir):
                         pattern = rule[0]
 
                         weight = rule[1]
-                        extra = None
+                        label = None
                         if isinstance(weight, six.string_types) and not weight.startswith('*'):
                             weight = float(weight)
                         if len(rule) > 2:
-                            extra = rule[2]
+                            label = rule[2]
                         if pattern == '*' or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
-                            w = {"pattern": d_idx_pattern, "weight": weight, "extra": extra}
+                            w = {"pattern": d_idx_pattern, "weight": weight, "label": label}
                             sampler_file.weight = w
                             if d_idx_pattern not in pattern_sizes:
                                 if not isinstance(weight, six.string_types):
@@ -283,10 +283,10 @@ def sample(config, source_dir):
     summary = {}
     leftover = 0.0
     for f in all_files.values():
-        extra, pattern = None, None
+        label, pattern = None, None
         f.lines_kept = 0
         if hasattr(f, "weight") and f.weight is not None:
-            extra = f.weight["extra"]
+            label = f.weight["label"]
             pattern = f.weight["pattern"]
             weight = f.weight["weight"]
             if isinstance(weight, six.string_types) or weight != 0.0:
@@ -311,7 +311,7 @@ def sample(config, source_dir):
         if 'annotations' in f.files:
             summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
 
-        metadata[f.base_name] = extra
+        metadata[f.base_name] = label
 
         _select_lines(f)
 
