@@ -131,16 +131,19 @@ class TrainingProcessor(Processor):
             all_files, summary, metadata = sampler.sample(self._config, data_path)
             batch_size = self._config.get('data', {}).get('batch_size', 100000)
             sampler_loader = loader.SamplerFilesLoader(all_files, batch_size)
+            sampler_consumer = consumer.MultiConsumer([
+                consumer.OpsProfileLogger(),
+            ])
 
             if result == 'subword':
-                sampler_consumer = consumer.SubwordLearner(
-                    self._config, result_dir, preprocess_exit_step)
+                sampler_consumer.add(consumer.SubwordLearner(
+                    self._config, result_dir, preprocess_exit_step))
             elif result == 'vocabulary':
-                sampler_consumer = consumer.VocabularyBuilder(
-                    self._config, result_dir, preprocess_exit_step)
+                sampler_consumer.add(consumer.VocabularyBuilder(
+                    self._config, result_dir, preprocess_exit_step))
             else:
-                sampler_consumer = consumer.SamplerFileWriter(
-                    self._config, result_dir, preprocess_exit_step, summary)
+                sampler_consumer.add(consumer.SamplerFileWriter(
+                    self._config, result_dir, preprocess_exit_step, summary))
 
             self.process(
                 sampler_loader,
@@ -148,7 +151,7 @@ class TrainingProcessor(Processor):
                 num_workers=_get_num_workers(),
                 preprocess_exit_step=preprocess_exit_step)
 
-            sampler_consumer.finalize(self._config, summary)
+            sampler_consumer.finalize()
             num_samples = sampler_consumer.num_samples
             data_path = result_dir
 

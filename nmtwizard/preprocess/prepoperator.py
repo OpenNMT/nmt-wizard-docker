@@ -3,6 +3,8 @@ import six
 import abc
 import os
 import copy
+import collections
+import time
 from itertools import chain
 
 from nmtwizard.logger import get_logger
@@ -66,6 +68,8 @@ def build_operator(operator_config, global_config, process_type, state, override
     operator_cls = _OPERATORS_REGISTRY.get(operator_type)
     if operator_cls is None:
         raise ValueError("Unknown operator '%s'" % operator_type)
+    if not operator_cls.is_applied_for(process_type):
+        return None
     operator_params = get_operator_params(operator_config, override_label)
     disabled = operator_params.get("disabled", False)
     if disabled:
@@ -75,7 +79,7 @@ def build_operator(operator_config, global_config, process_type, state, override
     _add_lang_info(operator_params, global_config, "source")
     _add_lang_info(operator_params, global_config, "target")
 
-    return operator_cls(operator_params, process_type, state)
+    return operator_type, operator_cls(operator_params, process_type, state)
 
 
 class ProcessType(object):
@@ -120,8 +124,13 @@ class Pipeline(object):
         # Parameters from global configuration that can be useful for individual operators.
 
         for i, op_config in enumerate(op_list_config):
-            operator = build_operator(op_config, self._config, self._process_type, self.build_state, self.override_label)
-            if operator and operator.is_applied_for(self._process_type):
+            operator = build_operator(
+                op_config,
+                self._config,
+                self._process_type,
+                self.build_state,
+                self.override_label)
+            if operator is not None:
                 self._ops.append(operator)
             if exit_step and i == exit_step:
                 break
@@ -152,13 +161,30 @@ class Pipeline(object):
 
 
     def __call__(self, tu_batch):
-        for op in self._ops:
+        if self._process_type == ProcessType.TRAINING:
+            ops_profile = collections.defaultdict(float)
+        else:
+            ops_profile = None
+
+        for i, (op_type, op) in enumerate(self._ops):
+            if ops_profile is not None:
+                start = time.time()
+
             tu_batch = op(tu_batch, self._process_type)
+
+            if ops_profile is not None:
+                end = time.time()
+                ops_profile['%s_%d' % (op_type, i)] += end - start
+
+        tu_list, batch_meta = tu_batch
+        if ops_profile is not None:
+            batch_meta['ops_profile'] = ops_profile
+
         if self._process_type != ProcessType.POSTPROCESS:
-            tu_list, _ = tu_batch
             for tu in tu_list:
                 tu.synchronize()
-        return tu_batch
+
+        return tu_list, batch_meta
 
 
 @six.add_metaclass(abc.ABCMeta)
