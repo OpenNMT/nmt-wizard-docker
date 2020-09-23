@@ -2,10 +2,12 @@
 import six
 import abc
 import os
+import copy
 from itertools import chain
 
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import tokenizer
+from nmtwizard.config import merge_config
 
 import systran_align
 
@@ -39,10 +41,17 @@ def get_operator_type(config):
         raise ValueError("Missing 'op' field in operator configuration: %s" % str(config))
     return op
 
-def get_operator_params(config):
+def get_operator_params(config, override_tag=None):
     """Returns the operator parameters from the configuration."""
-    config = config.copy()
+    config = copy.deepcopy(config)
     config.pop("op", None)
+    override_config = config.get("override")
+    if override_config and override_tag and override_tag in override_config:
+        override_config = override_config[override_tag]
+        config = merge_config(config, override_config)
+    disabled = config.get("disabled", False)
+    if disabled:
+        return None
     return config
 
 def _add_lang_info(operator_params, config, side):
@@ -52,7 +61,7 @@ def _add_lang_info(operator_params, config, side):
     else:
         operator_params["%s_lang" % side] = config[side]
 
-def build_operator(operator_config, global_config, process_type, state):
+def build_operator(operator_config, global_config, process_type, state, override_tag):
     """Creates an operator instance from its configuration."""
 
     operator_type = get_operator_type(operator_config)
@@ -60,7 +69,10 @@ def build_operator(operator_config, global_config, process_type, state):
     if operator_cls is None:
         logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
         return None
-    operator_params = get_operator_params(operator_config)
+    operator_params = get_operator_params(operator_config, override_tag)
+    if operator_params is None:
+        # None when an operator is explicitely disabled.
+        return None
 
     # Propagate source and target languages
     _add_lang_info(operator_params, global_config, "source")
@@ -86,8 +98,11 @@ class ProcessType(object):
 class Pipeline(object):
     """Pipeline for building and applying pre/postprocess operators in order."""
 
-    def __init__(self, config, process_type, preprocess_exit_step=None):
+    def __init__(self, config, process_type, preprocess_exit_step=None, override_tag=None):
         self._process_type = process_type
+
+        # When building a pipeline, a special tag can be activated to override operator configuration in some cases (e.g. for some corpora).
+        self.override_tag = override_tag
 
         # Start state is used in loader, to inform it about input tokenization.
         # TODO: can we do it better ?
@@ -108,7 +123,7 @@ class Pipeline(object):
         # Parameters from global configuration that can be useful for individual operators.
 
         for i, op_config in enumerate(op_list_config):
-            operator = build_operator(op_config, self._config, self._process_type, self.build_state)
+            operator = build_operator(op_config, self._config, self._process_type, self.build_state, self.override_tag)
             if operator and operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
