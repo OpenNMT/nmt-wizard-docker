@@ -108,7 +108,7 @@ class Pipeline(object):
 
         for i, op_config in enumerate(op_list_config):
             operator = build_operator(op_config, self._config, self._process_type, self.build_state)
-            if operator.is_applied_for(self._process_type):
+            if operator and operator.is_applied_for(self._process_type):
                 self._ops.append(operator)
             if exit_step and i == exit_step:
                 break
