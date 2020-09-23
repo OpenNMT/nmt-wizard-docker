@@ -36,22 +36,22 @@ class Processor(object):
         self._preprocess_exit_step = None
         self._pipeline = None
 
-    def build_pipeline(self, config=None, override_tag=None):
+    def build_pipeline(self, config=None, override_label=None):
         if config is None:
             config = self._config
         return prepoperator.Pipeline(
             config,
             self._pipeline_type,
             preprocess_exit_step=self._preprocess_exit_step,
-            override_tag=override_tag
+            override_label=override_label
         )
 
     def process_batch(self, tu_batch):
         # Lazily create the pipeline so that it is created in each worker process.
         _, batch_meta = tu_batch
-        override_tag = batch_meta.get('extra', None) if batch_meta else None
-        if self._pipeline is None or self._pipeline.override_tag != override_tag:
-            self._pipeline = self.build_pipeline(override_tag=override_tag)
+        override_label = batch_meta.get('extra', None) if batch_meta else None
+        if self._pipeline is None or self._pipeline.override_label != override_label:
+            self._pipeline = self.build_pipeline(override_label=override_label)
         return self._pipeline(tu_batch)
 
     def process(self, loader, consumer, num_workers=0, preprocess_exit_step=None):
