@@ -19,7 +19,7 @@ def _get_tok_configs(config):
     if preprocess_config is not None:
         for operator_config in preprocess_config:
             if prepoperator.get_operator_type(operator_config) == "tokenization":
-                tok_configs.append(prepoperator.get_operator_params(operator_config))
+                tok_configs.append(operator_config)
     return tok_configs
 
 
@@ -191,6 +191,8 @@ class TrainingProcessor(Processor):
                                    'both \'source\' and \'target\' fields.')
 
             for side in tok_config:
+                if side not in ["source", "target", "multi"]:
+                    continue
                 build_vocab = tok_config[side].get('build_vocabulary')
                 if build_vocab:
                     if tok_config[side].get('vocabulary_path', {}):
