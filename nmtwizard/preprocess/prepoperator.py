@@ -46,6 +46,7 @@ def get_operator_params(config, override_label=None):
     config = copy.deepcopy(config)
     config.pop("op", None)
     override_config = config.pop("overrides", None)
+    # TODO: implement multiple override labels per batch/corpus.
     if override_config and override_label and override_label in override_config:
         override_config = override_config[override_label]
         config = merge_config(config, override_config)
