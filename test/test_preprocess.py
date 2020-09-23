@@ -6,13 +6,17 @@ import os
 from copy import deepcopy
 import random
 
+from nmtwizard import utils
 from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 from nmtwizard.preprocess import prepoperator
+from nmtwizard.preprocess import sampler
 
 def generate_pseudo_corpus(corpus_dir, size, name, suffix):
-    with corpus_dir.join(name+"."+suffix).open(mode='w') as f :
+    path = str(corpus_dir.join(name+"."+suffix))
+    with utils.open_file(path, "wb") as f :
         for l in range(size):
-            f.write(name + " " + str(l) + "\n")
+            f.write((name + " " + str(l) + "\n").encode("utf-8"))
+    return path
 
 
 @pytest.mark.parametrize("batch_size,num_threads", [(10, 1), (10, 2), (10000, 1)])
@@ -420,6 +424,17 @@ config_base = {
         }
     ]
 }
+
+
+def test_preprocess_gzip_file(tmpdir):
+    num_lines = 10
+    input_path = generate_pseudo_corpus(tmpdir, num_lines, "input", "en.gz")
+    processor = InferenceProcessor(config_base)
+    output_path, _ = processor.process_file(input_path)
+
+    assert os.path.basename(output_path) == "input.en.tok"
+    assert sampler.count_lines(output_path)[1] == num_lines
+
 
 def test_preprocess_align(tmpdir):
 
