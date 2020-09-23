@@ -50,9 +50,6 @@ def get_operator_params(config, override_label=None):
     if override_config and override_label and override_label in override_config:
         override_config = override_config[override_label]
         config = merge_config(config, override_config)
-    disabled = config.get("disabled", False)
-    if disabled:
-        return None
     return config
 
 def _add_lang_info(operator_params, config, side):
@@ -71,8 +68,8 @@ def build_operator(operator_config, global_config, process_type, state, override
         logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
         return None
     operator_params = get_operator_params(operator_config, override_label)
-    if operator_params is None:
-        # None when an operator is explicitely disabled.
+    disabled = operator_params.get("disabled", False)
+    if disabled:
         return None
 
     # Propagate source and target languages
