@@ -49,7 +49,7 @@ class Processor(object):
     def process_batch(self, tu_batch):
         # Lazily create the pipeline so that it is created in each worker process.
         _, batch_meta = tu_batch
-        override_label = batch_meta.get('extra', None) if batch_meta else None
+        override_label = batch_meta.get('label', None) if batch_meta else None
         if self._pipeline is None or self._pipeline.override_label != override_label:
             self._pipeline = self.build_pipeline(override_label=override_label)
         return self._pipeline(tu_batch)
@@ -100,7 +100,6 @@ class TrainingProcessor(Processor):
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
 
         # TODO V2 : annotations
-        # TODO V2 : file-specific rules/extra
 
         # For backward compatibility with old relative path configurations.
         train_dir = 'train'
