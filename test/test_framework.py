@@ -11,6 +11,7 @@ import six
 
 from nmtwizard.framework import Framework
 from nmtwizard.preprocess import preprocess
+from nmtwizard.preprocess import prepoperator
 
 class DummyCheckpoint(object):
     """Dummy checkpoint files for testing."""
@@ -495,6 +496,14 @@ def test_release_change_file(tmpdir):
     assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % new_vocab
     assert os.path.isfile(
         os.path.join(model_dir, os.path.basename(config["vocabulary"]["source"]["path"])))
+
+# Dummy domain classifier operator.
+@prepoperator.register_operator("domain")
+class _DomainClassifier(prepoperator.Operator):
+    def __init__(self, *arg, **kwargs):
+        pass
+    def _preprocess(self, tu_batch):
+        return tu_batch
 
 def test_release_with_inference_options(tmpdir):
     config = copy.deepcopy(config_base)

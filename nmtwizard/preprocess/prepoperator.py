@@ -65,8 +65,7 @@ def build_operator(operator_config, global_config, process_type, state, override
     operator_type = get_operator_type(operator_config)
     operator_cls = _OPERATORS_REGISTRY.get(operator_type)
     if operator_cls is None:
-        logger.warning('Unknown operator \'%s\' will be ignored.' % operator_type)
-        return None
+        raise ValueError("Unknown operator '%s'" % operator_type)
     operator_params = get_operator_params(operator_config, override_label)
     disabled = operator_params.get("disabled", False)
     if disabled:
