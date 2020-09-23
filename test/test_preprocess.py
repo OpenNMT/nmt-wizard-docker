@@ -318,7 +318,7 @@ def test_preprocess_pipeline(tmpdir):
                 "source": {
                     "max_length_char" : 3
                 },
-                "override": {
+                "overrides": {
                     "generic_tag": {
                         "disabled": True
                     },

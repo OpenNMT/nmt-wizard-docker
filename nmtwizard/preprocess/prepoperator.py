@@ -45,7 +45,7 @@ def get_operator_params(config, override_label=None):
     """Returns the operator parameters from the configuration."""
     config = copy.deepcopy(config)
     config.pop("op", None)
-    override_config = config.get("override")
+    override_config = config.pop("overrides", None)
     if override_config and override_label and override_label in override_config:
         override_config = override_config[override_label]
         config = merge_config(config, override_config)
