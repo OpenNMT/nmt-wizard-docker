@@ -88,7 +88,7 @@ class OpsProfileLogger(Consumer):
 
 
 def _ingest_tokens(subword_learner, tu_side):
-    tokens = tu_side.tokens_objects
+    tokens = tu_side.token_objects
     if not tokens:
         return
     for token in tokens:

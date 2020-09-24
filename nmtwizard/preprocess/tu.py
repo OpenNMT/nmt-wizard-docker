@@ -7,7 +7,7 @@ from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
-class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens", "tokens_objects"))):
+class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens", "token_objects"))):
     """Tuple structure to keep tokenizer and tokens together."""
 
 class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num", "new_tokens"))):
@@ -92,16 +92,16 @@ class TranslationSide(object):
     def tok(self):
         if self.__tok is None:
             if self.__tokenizer is None:
-                return Tokenization(tokenizer=None, tokens=None, tokens_objects=None)
-            tokens_objects = self.__tokenizer.tokenize(self.__detok, as_token_objects=True)
-            tokens, _ = self.__tokenizer.serialize_tokens(tokens_objects)
-            self.__tok = (tokens, tokens_objects)
+                return Tokenization(tokenizer=None, tokens=None, token_objects=None)
+            token_objects = self.__tokenizer.tokenize(self.__detok, as_token_objects=True)
+            tokens, _ = self.__tokenizer.serialize_tokens(token_objects)
+            self.__tok = (tokens, token_objects)
         else:
-            tokens, tokens_objects = self.__tok
+            tokens, token_objects = self.__tok
         return Tokenization(
             tokenizer=self.__tokenizer,
             tokens=list(tokens),
-            tokens_objects=list(tokens_objects))
+            token_objects=list(token_objects))
 
     @tok.setter
     def tok(self, tok):
@@ -111,28 +111,28 @@ class TranslationSide(object):
                 self.__tok = None
             elif tokenizer is not self.__tokenizer and self.__tok is not None:
                 # Tokenization has changed, perform detokenization with previous tokenizer.
-                _, tokens_objects = self.__tok
-                self.__detok = self.__tokenizer.detokenize(tokens_objects)
+                _, token_objects = self.__tok
+                self.__detok = self.__tokenizer.detokenize(token_objects)
                 self.__tok = None
         else:
             # Set a new list of tokens and a new tokenizer.
             if tokenizer is None:
                 raise ValueError('A tokenizer should be declared when setting tokens')
             if tokens and isinstance(tokens[0], pyonmttok.Token):
-                tokens_objects = tokens
-                tokens, _ = tokenizer.serialize_tokens(tokens_objects)
+                token_objects = tokens
+                tokens, _ = tokenizer.serialize_tokens(token_objects)
             else:
-                tokens_objects = tokenizer.deserialize_tokens(tokens)
+                token_objects = tokenizer.deserialize_tokens(tokens)
             self.__detok = None
-            self.__tok = (tokens, tokens_objects)
+            self.__tok = (tokens, token_objects)
         self.__tokenizer = tokenizer
 
     @property
     def detok(self):
         if self.__detok is None:
             if self.__tokenizer is not None and self.__tok is not None:
-                _, tokens_objects = self.__tok
-                self.__detok = self.__tokenizer.detokenize(tokens_objects)
+                _, token_objects = self.__tok
+                self.__detok = self.__tokenizer.detokenize(token_objects)
             else:
                 raise RuntimeError('Cannot perform detokenization.')
         return self.__detok
