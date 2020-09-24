@@ -16,10 +16,10 @@ class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num
 class Alignment(object):
 
     def __init__(self, aligner=None, alignments=None):
-        if not aligner and not alignments:
+        if aligner is None and alignments is None:
             raise RuntimeError('Cannot set an empty alignment.')
         # A list of alignments, one for each part
-        self.alignments = alignments
+        self.__alignments = alignments
         self.aligner = aligner
 
     @property
@@ -42,13 +42,13 @@ class Alignment(object):
                     break
 
     def align(self, src_tok, tgt_tok):
-        if not self.alignments and self.aligner:
+        if self.__alignments is None and self.aligner is not None:
             alignments = []
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
                 align_result = self.aligner.align(src_tok_part, tgt_tok_part)
                 # TODO : write fwd and bwd probs
                 alignments.append(align_result["alignments"])
-            self.alignments = alignments
+            self.__alignments = alignments
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
         # Shift alignments behind insertion/deletion.
@@ -57,7 +57,7 @@ class Alignment(object):
 
         opp_side_idx = not side_idx
         # Check there is an alignment
-        if self.__alignments:
+        if self.__alignments is not None:
             new_alignment = set()
 
             for al in self.__alignments[part]:
@@ -86,42 +86,41 @@ class TranslationSide(object):
 
     def __init__(self):
         self.raw = None
-        self.__tok = []
+        self.__tok = None
         self.__detok = None
         self.__tokenizer = None
 
     @property
     def tok(self):
-        if not self.__tok:
-            if self.__tokenizer and self.__detok:
+        if self.__tok is None:
+            if self.__tokenizer is None or self.__detok is None:
+                return Tokenization(tokenizer=self.__tokenizer, tokens=None)
+            else:
                 tok,_ = self.__tokenizer.tokenize(self.__detok)
-                self.__tok.append(tok)
-            # TODO: ignore empty lines and reactivate this
-            # else:
-            #     raise RuntimeError('Cannot perform tokenization.')
+                self.__tok = [tok]
         return Tokenization(tokenizer=self.__tokenizer, tokens=list(self.__tok))
 
     @tok.setter
     def tok(self, tok):
         tokenizer, tok = tok
-        if tok:
+        if tok is not None:
             # Set a new list of tokens and a new tokenizer.
             self.__tok = tok
             self.__tokenizer = tokenizer
             self.__detok = None
         else:
             # Set a new tokenizer, perform detokenization with previous one.
-            if self.__tok :
-                if not self.__tokenizer :
+            if self.__tok is not None:
+                if self.__tokenizer is None:
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
                 self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
-            self.__tok = []
+            self.__tok = None
             self.__tokenizer = tokenizer
 
     @property
     def detok(self):
         if self.__detok is None:
-            if self.__tokenizer and self.__tok:
+            if self.__tokenizer is not None and self.__tok is not None:
                 self.__detok = self.__tokenizer.detokenize(self.__tok[0])
             else:
                 raise RuntimeError('Cannot perform detokenization.')
@@ -130,13 +129,13 @@ class TranslationSide(object):
     @detok.setter
     def detok(self, detok):
         self.__detok = detok
-        self.__tok = []
+        self.__tok = None
 
 
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
         # check/initialize tokenization if not done already
-        if self.tok.tokens:
+        if self.tok.tokens is not None:
             if start_idx > len(self.__tok[part]):
                 raise IndexError('Start index is too big for replacement.')
 
@@ -147,7 +146,7 @@ class TranslationSide(object):
             # If we replace some tokens, check if they start or end with a joiner.
             joiner_start = False
             joiner_end = False
-            if start_idx != end_idx and new_tokens:
+            if start_idx != end_idx and new_tokens is not None:
                 if start_idx < len(self.__tok[part]) and self.__tok[part][start_idx].startswith(tokenizer.joiner_marker):
                     joiner_start = True
                 if end_idx <= len(self.__tok[part]) and self.__tok[part][end_idx-1].endswith(tokenizer.joiner_marker):
@@ -200,7 +199,7 @@ class TranslationUnit(object):
                 tgt_tokenizer = start_state["tgt_tokenizer"] if start_state else None
                 self.__source.tok = (src_tokenizer, source)
                 self.__target.tok = (tgt_tokenizer, target)
-                if alignment:
+                if alignment is not None:
                     self.__alignment = Alignment(alignments=alignment)
             else:
                 # Preprocess in training or in inference with incomplete target.
@@ -224,9 +223,9 @@ class TranslationUnit(object):
 
     @property
     def tgt_tok(self):
-        if self.__target:
+        if self.__target is not None:
             return self.__target.tok
-        return self.__target
+        return None
 
 
     @src_tok.setter
@@ -236,26 +235,26 @@ class TranslationUnit(object):
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
-        if self.__target:
+        if self.__target is not None:
             self.__target.tok = tok
             self.__alignment = None
 
     @property
     def alignment(self):
-        if not self.__alignment:
+        if self.__alignment is None:
             return None
-        if not self.__alignment.alignments:
+        if self.__alignment.alignments is None:
             self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
         return copy.deepcopy(self.__alignment.alignments)
 
     def set_aligner(self, aligner):
-        if not self.src_tok.tokenizer or not self.tgt_tok.tokenizer:
+        if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
             raise RuntimeError('Cannot set aligner if not tokenization is set.')
-        if self.__alignment:
+        if self.__alignment is not None:
             self.__alignment.aligner = aligner
+            self.__alignment.alignments = None
         else:
             self.__alignment = Alignment(aligner)
-        self.__alignment.alignments = None
 
     @property
     def src_detok(self):
@@ -263,9 +262,9 @@ class TranslationUnit(object):
 
     @property
     def tgt_detok(self):
-        if self.__target:
+        if self.__target is not None:
             return self.__target.detok
-        return self.__target
+        return None
 
     @src_detok.setter
     def src_detok(self, detok):
@@ -274,7 +273,7 @@ class TranslationUnit(object):
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
-        if self.__target:
+        if self.__target is not None:
             self.__target.detok = detok
             self.__alignment = None
 

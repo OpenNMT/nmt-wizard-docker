@@ -33,11 +33,8 @@ class BasicLoader(Loader):
         self._start_state = start_state
 
     def __call__(self):
-        tu_list = []
-        if self._input:
-            tu_list.append(tu.TranslationUnit(self._input, self._start_state))
+        tu_list = [tu.TranslationUnit(self._input, self._start_state)]
         yield tu_list, {}
-        return
 
 
 class FileLoader(Loader):
