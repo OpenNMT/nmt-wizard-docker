@@ -4,6 +4,7 @@ import collections
 import multiprocessing
 import os
 
+from nmtwizard import utils
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import consumer
 from nmtwizard.preprocess import loader
@@ -254,9 +255,6 @@ class InferenceProcessor(Processor):
                  input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
                  output is single-part postprocessed target."""
 
-        if not self._pipeline:
-            return process_input
-
         basic_loader = loader.BasicLoader(process_input, self._pipeline.start_state)
         basic_writer = consumer.BasicWriter(self._postprocess)
         self.process(basic_loader,
@@ -275,16 +273,16 @@ class InferenceProcessor(Processor):
                  input is ((source, metadata), target), where source and target are files with tokenized and multi-part data
                  output is a file with postprocessed single-part targets."""
 
-        # TODO :  can this file be compressed ?
         input_file = input_files
         if isinstance(input_files, tuple):
             input_file = input_files[-1]
-            output_file = "%s.detok" % input_file
+            output_suffix = 'detok'
         else:
-            output_file = "%s.tok" % input_file
+            output_suffix = 'tok'
 
-        if not self._pipeline:
-            return input_file
+        output_file = '%s.%s' % (
+            input_file if not utils.is_gzip_file(input_file) else input_file[:-3],
+            output_suffix)
 
         file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
         with consumer.FileWriter(output_file) as file_consumer:
