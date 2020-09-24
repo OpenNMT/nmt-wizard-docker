@@ -5,20 +5,14 @@ import os
 import collections
 import itertools
 
+from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import tokenizer
+
+logger = get_logger(__name__)
 
 @six.add_metaclass(abc.ABCMeta)
 class Consumer(object):
     """Base class for using preprocess results."""
-
-    @abc.abstractmethod
-    def __call__(self, tu_batch):
-        raise NotImplementedError()
-
-
-@six.add_metaclass(abc.ABCMeta)
-class SamplerConsumer(Consumer):
-    """Base class for consuming sampling results."""
 
     def __init__(self):
         self._num_samples = 0
@@ -32,12 +26,66 @@ class SamplerConsumer(Consumer):
         self._num_samples += len(tu_list)
         self._consume(tu_batch)
 
-    def finalize(self, config, summary=None):
-        pass
-
     @abc.abstractmethod
     def _consume(self, tu_batch):
         raise NotImplementedError()
+
+    def finalize(self):
+        pass
+
+
+class MultiConsumer(Consumer):
+    """A consumer wrapping multiple consumers."""
+
+    def __init__(self, consumers=None):
+        super().__init__()
+        if consumers is None:
+            consumers = []
+        self._consumers = consumers
+
+    def add(self, consumer):
+        self._consumers.append(consumer)
+
+    def _consume(self, tu_batch):
+        for consumer in self._consumers:
+            consumer(tu_batch)
+
+    def finalize(self):
+        for consumer in self._consumers:
+            consumer.finalize()
+
+
+class OpsProfileLogger(Consumer):
+    """A consumer that reduces operators profile information and logs the result."""
+
+    def __init__(self):
+        super().__init__()
+        self._global_profile = collections.defaultdict(float)
+
+    def _consume(self, tu_batch):
+        _, batch_meta = tu_batch
+        profile = batch_meta.get('ops_profile')
+        if not profile:
+            return
+        for name, value in profile.items():
+            self._global_profile[name] += value
+
+    def finalize(self):
+        if not self._global_profile:
+            return
+        total_time = sum(self._global_profile.values())
+        self._global_profile["all"] = total_time
+        sorted_profile = sorted(
+            self._global_profile.items(),
+            key=lambda item: item[1],
+            reverse=True)
+        logger.info("Summary of operators execution CPU time:")
+        for name, value in sorted_profile:
+            logger.info(
+                "\t%s: %.3f s (%.1f%%)",
+                name,
+                value,
+                (value / total_time) * 100)
 
 
 def _ingest_tokens(subword_learner, tu_side):
@@ -70,11 +118,12 @@ def _build_vocabulary_counters(config):
     }
 
 
-class SubwordLearner(SamplerConsumer):
+class SubwordLearner(Consumer):
     """SubwordLearner class stores, learns and writes subword models."""
 
     def __init__(self, config, result_dir, tok_step):
         super().__init__()
+        self._config = config
         self._result_dir = result_dir
         self._tok_step = tok_step
 
@@ -111,7 +160,8 @@ class SubwordLearner(SamplerConsumer):
                 _ingest_tokens(target_learner, tu.tgt_tok)
 
 
-    def finalize(self, config, summary=None):
+    def finalize(self):
+        config = self._config
         if not self._source_subword_info and not self._target_subword_info:
             return
 
@@ -149,11 +199,12 @@ class SubwordLearner(SamplerConsumer):
             subword_info['learner'].learn(out_file)
 
 
-class VocabularyBuilder(SamplerConsumer):
+class VocabularyBuilder(Consumer):
     """VocabularyBuilder class stores, learns and writes vocabularies."""
 
     def __init__(self, config, result_dir, tok_step):
         super().__init__()
+        self._config = config
         self._result_dir = result_dir
         self._tok_step = tok_step
 
@@ -199,7 +250,8 @@ class VocabularyBuilder(SamplerConsumer):
         return min(real_size, size)
 
 
-    def finalize(self, config, summary=None):
+    def finalize(self):
+        config = self._config
         if not self._source_counters and not self._target_counters:
             return
 
@@ -289,9 +341,10 @@ class BasicWriter(Consumer):
     """BasicWriter writes one pre/postprocessed TU at inference."""
 
     def __init__(self, postprocess):
+        super().__init__()
         self._postprocess = postprocess
 
-    def __call__(self, tu_batch):
+    def _consume(self, tu_batch):
         """ In preprocess, output is ((source, metadata), target), tokenized and possibly multipart, where target is either None or incomplete translation.
 
             In postprocess, output is postprocessed target, untokenized and one-part."""
@@ -316,6 +369,7 @@ class FileWriter(Consumer):
         # In preprocess, it is used to store preprocessed source.
         # In postprocess, it is used to store postprocessed target.
         # TODO V2 : multiple files
+        super().__init__()
         self._output_file = output_file
         self._file = None
         self.metadata = []
@@ -331,7 +385,7 @@ class FileWriter(Consumer):
         self._file = None
 
 
-    def __call__(self, tu_batch):
+    def _consume(self, tu_batch):
         tu_list, _ = tu_batch
         # Write lines to files from TUs
         for tu in tu_list :
@@ -347,11 +401,12 @@ class FileWriter(Consumer):
                 self.metadata.append(tu.metadata)
 
 
-class SamplerFileWriter(SamplerConsumer):
+class SamplerFileWriter(Consumer):
     """SamplerFileWriter writes pre/postprocessed TUs into files at training using SamplerFile object."""
 
     def __init__(self, config, result_dir, exit_step, summary):
         super().__init__()
+        self._config = config
         self._result_dir = result_dir
         self._summary = summary
         self._tokens_to_add = {'source':set(), 'target':set()}
@@ -414,7 +469,9 @@ class SamplerFileWriter(SamplerConsumer):
                             align_file.write("%s\n" % part)
 
 
-    def finalize(self, config, summary=None):
+    def finalize(self):
+        config = self._config
+        summary = self._summary
         if self._tokens_to_add['source'] or self._tokens_to_add['target'] :
             if 'tokens_to_add' not in summary:
                 summary['tokens_to_add'] = {}
