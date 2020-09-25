@@ -1,17 +1,13 @@
 # coding: utf-8
 import six
 import abc
-import os
 import copy
 import collections
 import time
 from itertools import chain
 
 from nmtwizard.logger import get_logger
-from nmtwizard.preprocess import tokenizer
 from nmtwizard.config import merge_config
-
-import systran_align
 
 logger = get_logger(__name__)
 
@@ -261,108 +257,3 @@ class Filter(TUOperator):
             if (c(tu)):
                 return []
         return [tu]
-
-
-@register_operator("length_filter")
-class LengthFilter(Filter):
-
-    def __init__(self, config, process_type, build_state):
-
-        super(LengthFilter, self).__init__()
-
-        self._source_max = config.get('source', {}).get('max_length_char')
-        self._target_max = config.get('target', {}).get('max_length_char')
-
-        if self._source_max:
-            self._criteria.append(lambda x:len(x.src_detok) > self._source_max)
-
-        if self._target_max:
-            self._criteria.append(lambda x:len(x.tgt_detok) > self._target_max)
-
-
-@register_operator("tokenization")
-class Tokenizer(Operator):
-
-    def __init__(self, tok_config, process_type, build_state):
-        self._src_tokenizer = tokenizer.build_tokenizer(tok_config["source"])
-        self._tgt_tokenizer = tokenizer.build_tokenizer(tok_config["target"])
-
-        if build_state:
-            self._prev_src_tokenizer = build_state["src_tokenizer"]
-            self._prev_tgt_tokenizer = build_state["tgt_tokenizer"]
-
-            build_state["src_tokenizer"] = self._src_tokenizer
-            build_state["tgt_tokenizer"] = self._tgt_tokenizer
-
-        self._postprocess_only = build_state['postprocess_only']
-
-
-    def _preprocess(self, tu_batch):
-        tu_batch = self._set_tokenizers(tu_batch, self._src_tokenizer, self._tgt_tokenizer)
-        return tu_batch
-
-
-    def _postprocess(self, tu_batch):
-        # Tokenization from 'postprocess' field applies current tokenization in postprocess.
-        if self._postprocess_only:
-            src_tokenizer = self._src_tokenizer
-            tgt_tokenizer = self._tgt_tokenizer
-        # Tokenization from 'preprocess' field applies previous tokenization in postprocess.
-        else:
-            src_tokenizer = self._prev_src_tokenizer
-            tgt_tokenizer = self._prev_tgt_tokenizer
-        tu_batch = self._set_tokenizers(tu_batch, src_tokenizer, tgt_tokenizer)
-        return tu_batch
-
-
-    def _set_tokenizers(self, tu_batch, src_tokenizer, tgt_tokenizer):
-        tu_list, meta_batch = tu_batch
-
-        # Set tokenizers for TUs.
-        for tu in tu_list :
-            tu.src_tok = (src_tokenizer, None)
-            tu.tgt_tok = (tgt_tokenizer, None)
-
-        return tu_list, meta_batch
-
-
-@register_operator("alignment")
-class Aligner(Operator):
-
-    @staticmethod
-    def is_applied_for(process_type):
-        return process_type == ProcessType.TRAINING
-
-    def __init__(self, align_config, process_type, build_state):
-        self._align_config = align_config
-        self._aligner = None
-        self._write_alignment = self._align_config.get('write_alignment', False)
-
-    def _preprocess(self, tu_batch):
-        tu_list, meta_batch = tu_batch
-        if self._process_type == ProcessType.TRAINING:
-            meta_batch['write_alignment'] = self._write_alignment
-        self._build_aligner()
-        tu_list = self._set_aligner(tu_list)
-        return tu_list, meta_batch
-
-
-    def _build_aligner(self):
-        if not self._aligner and self._align_config:
-            # TODO : maybe add monotonic alignment ?
-            forward_probs_path=self._align_config.get('forward', {}).get('probs')
-            backward_probs_path=self._align_config.get('backward', {}).get('probs')
-            if forward_probs_path and backward_probs_path:
-                if not os.path.exists(forward_probs_path) or not os.path.isfile(forward_probs_path):
-                    raise ValueError("Forward probs file for alignment doesn't exist: %s" % forward_probs_path)
-                if not os.path.exists(backward_probs_path) or not os.path.isfile(backward_probs_path):
-                    raise ValueError("Backward probs file for alignment doesn't exist: %s" % backward_probs_path)
-                self._aligner = systran_align.Aligner(forward_probs_path, backward_probs_path)
-            else:
-                self._aligner = None
-
-    def _set_aligner(self, tu_list):
-        # Set aligner for TUs.
-        for tu in tu_list :
-            tu.set_aligner(self._aligner)
-        return tu_list
