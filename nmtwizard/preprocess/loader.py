@@ -24,16 +24,21 @@ class Loader(object):
 class BasicLoader(Loader):
     """BasicLoader class creates a one-TU batch at inference."""
 
-    def __init__(self, basic_input, start_state):
-
-        """ In preprocess, input is one source, untokenized and one-part.
-            In postprocess, input is ((source, metadata), target), tokenized and possibly multipart."""
-        super().__init__(len(basic_input))
-        self._input = basic_input
-        self._start_state = start_state
+    def __init__(self, source, target=None, metadata=None, start_state=None):
+        super().__init__(batch_size=1)
+        self._source = source
+        self._target = target
+        self._metadata = metadata
+        self._source_tokenizer = start_state.get('src_tokenizer') if start_state else None
+        self._target_tokenizer = start_state.get('tgt_tokenizer') if start_state else None
 
     def __call__(self):
-        tu_list = [tu.TranslationUnit(self._input, self._start_state)]
+        tu_list = [tu.TranslationUnit(
+            source=self._source,
+            target=self._target,
+            metadata=self._metadata,
+            source_tokenizer=self._source_tokenizer,
+            target_tokenizer=self._target_tokenizer)]
         yield tu_list, {}
 
 
@@ -42,7 +47,8 @@ class FileLoader(Loader):
 
     def __init__(self, input_files, start_state, batch_size=None):
         super().__init__(batch_size)
-        self._start_state = start_state
+        self._source_tokenizer = start_state.get('src_tokenizer')
+        self._target_tokenizer = start_state.get('tgt_tokenizer')
         source_file = input_files
         target_file = None
         if isinstance(source_file, tuple):
@@ -69,7 +75,11 @@ class FileLoader(Loader):
                     tgt_lines = [next(files[1]).strip().split() for _ in range(num_parts)]
 
                     tu_list.append(tu.TranslationUnit(
-                        ((src_lines, meta), tgt_lines), self._start_state))
+                        source=src_lines,
+                        target=tgt_lines,
+                        metadata=meta,
+                        source_tokenizer=self._source_tokenizer,
+                        target_tokenizer=self._target_tokenizer))
 
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
@@ -78,7 +88,7 @@ class FileLoader(Loader):
             # Preprocess.
             else :
                 for line in files[0]:
-                    tu_list.append(tu.TranslationUnit(line, self._start_state))
+                    tu_list.append(tu.TranslationUnit(source=line))
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
                         tu_list = []
@@ -123,7 +133,10 @@ class SamplerFileLoader(Loader):
                     annot_lines[key] = line.strip()
 
                 while num_samples > 0:
-                    yield tu.TranslationUnit((src_line, tgt_line), annotations=annot_lines)
+                    yield tu.TranslationUnit(
+                        source=src_line,
+                        target=tgt_line,
+                        annotations=annot_lines)
                     num_samples -= 1
 
         try:

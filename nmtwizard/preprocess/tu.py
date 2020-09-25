@@ -84,11 +84,20 @@ class Alignment(object):
 
 class TranslationSide(object):
 
-    def __init__(self):
-        self.raw = None
-        self.__tok = None
-        self.__detok = None
-        self.__tokenizer = None
+    def __init__(self, line, tokenizer=None):
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")  # Ensure Unicode string.
+        if isinstance(line, str):
+            self.raw = line.strip()
+            self.__detok = self.raw
+            self.__tok = None
+        elif isinstance(line, list):
+            self.raw = None
+            self.__detok = None
+            self.__tok = line
+        else:
+            raise TypeError("Can't build a TranslationSide from type %s" % type(line))
+        self.__tokenizer = tokenizer
 
     @property
     def tok(self):
@@ -178,39 +187,24 @@ class TranslationSide(object):
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
-    def __init__(self, tu_input, start_state=None, annotations=None, alignment=None):
-
-        self.__source = TranslationSide()
+    def __init__(self,
+                 source,
+                 target=None,
+                 metadata=None,
+                 annotations=None,
+                 alignment=None,
+                 source_tokenizer=None,
+                 target_tokenizer=None):
+        self.__source = TranslationSide(source, tokenizer=source_tokenizer)
         self.__target = None
-        self.__metadata = [None] #TODO: proper metadata
+        self.__metadata = metadata if metadata is not None else [None] #TODO: proper metadata
         self.__annotations = annotations
         self.__alignment = None
 
-        if isinstance(tu_input, tuple):
-            # We have both source and target.
-            # Can be raw (in training, in inference with incomplete target) or tokenized and in parts (in postprocess).
-            source, target = tu_input
-            self.__target = TranslationSide()
-            if isinstance(source, tuple):
-                source, self.__metadata = source
-            if isinstance(source, list) and isinstance(target, list):
-                # Postprocess.
-                src_tokenizer = start_state["src_tokenizer"] if start_state else None
-                tgt_tokenizer = start_state["tgt_tokenizer"] if start_state else None
-                self.__source.tok = (src_tokenizer, source)
-                self.__target.tok = (tgt_tokenizer, target)
-                if alignment is not None:
-                    self.__alignment = Alignment(alignments=alignment)
-            else:
-                # Preprocess in training or in inference with incomplete target.
-                self.__source.raw = source.strip()
-                self.__target.raw = target.strip()
-                self.__source.detok = self.__source.raw
-                self.__target.detok = self.__target.raw
-        else:
-            # We have source only: preprocess in inference with source only.
-            self.__source.raw = tu_input.strip()
-            self.__source.detok = self.__source.raw
+        if target is not None:
+            self.__target = TranslationSide(target, tokenizer=target_tokenizer)
+            if alignment is not None:
+                self.__alignment = Alignment(alignments=alignment)
 
     def synchronize(self):
         _ = self.src_tok
