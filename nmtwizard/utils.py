@@ -85,3 +85,20 @@ def open_file(path, *args, **kwargs):
         return gzip.open(path, *args, **kwargs)
     else:
         return open(path, *args, **kwargs)
+
+def count_lines(path, buffer_size=65536):
+    path = get_file_path(path)
+    if path is None:
+         logger.warning("File %s not found", path)
+         return None, None
+    with open_file(path, "rb") as f:
+        num_lines = 0
+        eol = False
+        while True:
+            data = f.read(buffer_size)
+            if not data:
+                if not eol:
+                    num_lines += 1
+                return path, num_lines
+            num_lines += data.count(b"\n")
+            eol = True if data.endswith(b"\n") else False

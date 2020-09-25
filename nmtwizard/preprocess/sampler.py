@@ -22,23 +22,6 @@ class SamplerFile(object):
         self.tgt_suffix = tgt_suffix
 
 
-def count_lines(path, buffer_size=65536):
-    path = utils.get_file_path(path)
-    if path is None:
-         logger.warning("File %s not found", path)
-         return None, None
-    with utils.open_file(path, "rb") as f:
-        num_lines = 0
-        eol = False
-        while True:
-            data = f.read(buffer_size)
-            if not data:
-                if not eol:
-                    num_lines += 1
-                return path, num_lines
-            num_lines += data.count(b"\n")
-            eol = True if data.endswith(b"\n") else False
-
 def sample(config, source_dir):
 
     def _count_lines(root, base_name, annotations):
@@ -47,12 +30,12 @@ def sample(config, source_dir):
         logger.debug("Processing %s", file_path)
 
         # Check all directions are present and aligned, open files
-        src_file, src_lines = count_lines(file_path + "." + src_suffix)
+        src_file, src_lines = utils.count_lines(file_path + "." + src_suffix)
         files["src"] = src_file
 
         if src_file and src_lines :
             # TODO V2 : multiple sources and targets
-            tgt_file, tgt_lines = count_lines(file_path + "." + tgt_suffix)
+            tgt_file, tgt_lines = utils.count_lines(file_path + "." + tgt_suffix)
             files["tgt"] = tgt_file
             if src_lines != tgt_lines:
                 logger.warning('Target file %s is not aligned with source file %s. Files will be ignored in sampling.', file_path + "." + tgt_suffix, file_path + "." + src_suffix)
@@ -64,7 +47,7 @@ def sample(config, source_dir):
                 annot_file_path = os.path.join(annot_path, base_name)
                 if suffix :
                     annot_file_path += "." + suffix
-                annot_file, annot_lines = count_lines(annot_file_path)
+                annot_file, annot_lines = utils.count_lines(annot_file_path)
                 if not annot_file :
                     continue
                 if suffix:

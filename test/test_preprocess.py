@@ -9,7 +9,6 @@ import random
 from nmtwizard import utils
 from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
 from nmtwizard.preprocess import prepoperator
-from nmtwizard.preprocess import sampler
 
 def generate_pseudo_corpus(corpus_dir, size, name, suffix):
     path = str(corpus_dir.join(name+"."+suffix))
@@ -433,7 +432,7 @@ def test_preprocess_gzip_file(tmpdir):
     output_path, _ = processor.process_file(input_path)
 
     assert os.path.basename(output_path) == "input.en.tok"
-    assert sampler.count_lines(output_path)[1] == num_lines
+    assert utils.count_lines(output_path)[1] == num_lines
 
 
 def test_preprocess_empty_line(tmpdir):
