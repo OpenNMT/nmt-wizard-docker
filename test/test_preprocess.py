@@ -436,6 +436,19 @@ def test_preprocess_gzip_file(tmpdir):
     assert sampler.count_lines(output_path)[1] == num_lines
 
 
+def test_preprocess_empty_line(tmpdir):
+    processor = InferenceProcessor(config_base)
+    (source, _), _ = processor.process_input("")
+    assert source[0] == []
+
+    input_path = str(tmpdir.join("empty.txt"))
+    with open(input_path, "w") as input_file:
+        input_file.write("\n")
+    output_path, _ = processor.process_file(input_path)
+    with open(output_path) as output_file:
+        assert output_file.readlines() == ["\n"]
+
+
 def test_preprocess_align(tmpdir):
 
     preprocessor = TrainingProcessor(config_base, "", str(tmpdir))
