@@ -255,7 +255,23 @@ class InferenceProcessor(Processor):
                  input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
                  output is single-part postprocessed target."""
 
-        basic_loader = loader.BasicLoader(process_input, self._pipeline.start_state)
+        # TODO: pass explicit arguments instead of trying to unpack a single argument.
+        if isinstance(process_input, tuple):
+            source, target = process_input
+            if isinstance(source, tuple):
+                source, metadata = source
+            else:
+                metadata = None
+        else:
+            source = process_input
+            target = None
+            metadata = None
+
+        basic_loader = loader.BasicLoader(
+            source=source,
+            target=target,
+            metadata=metadata,
+            start_state=self._pipeline.start_state)
         basic_writer = consumer.BasicWriter(self._postprocess)
         self.process(basic_loader,
                      basic_writer)
