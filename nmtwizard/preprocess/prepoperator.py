@@ -65,8 +65,8 @@ def build_operator(operator_config,
                    global_config,
                    process_type,
                    state,
-                   override_label=None,
-                   index=None):
+                   index,
+                   override_label=None):
     """Creates an operator instance from its configuration."""
 
     operator_type = get_operator_type(operator_config)
@@ -84,12 +84,7 @@ def build_operator(operator_config,
     _add_lang_info(operator_params, global_config, "source")
     _add_lang_info(operator_params, global_config, "target")
 
-    name = operator_params.pop("name", None)
-    if name is None:
-        if index is not None:
-            name = "%s_%d" % (operator_type, index)
-        else:
-            name = operator_type
+    name = operator_params.pop("name", "%s_%d" % (operator_type, index))
     return name, operator_cls(operator_params, process_type, state)
 
 
@@ -140,8 +135,8 @@ class Pipeline(object):
                 self._config,
                 self._process_type,
                 self.build_state,
-                self.override_label,
-                index=i)
+                i,
+                self.override_label)
             if operator is not None:
                 self._ops.append(operator)
             if exit_step and i == exit_step:
