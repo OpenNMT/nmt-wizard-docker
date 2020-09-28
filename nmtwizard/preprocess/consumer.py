@@ -91,21 +91,15 @@ class OpsProfileLogger(Consumer):
 def _ingest_tokens(subword_learner, tu_side):
     if not tu_side.tokens:
         return
-    for part in tu_side.tokens:
+    for part in tu_side.token_objects:
         for token in part:
-            # This method ignores annotations and placeholder tokens.
             subword_learner.ingest_token(token)
 
-def _build_subword_learner(tok_config, result_dir, ref_tok_config=None):
+def _build_subword_learner(tok_config, result_dir):
     subword_config = tok_config.get('build_subword')
     if subword_config is None:
         return {}
-    if ref_tok_config is None:
-        ref_tok_config = tok_config
-    subword_info = tokenizer.make_subword_learner(
-        subword_config,
-        result_dir,
-        tokenizer=tokenizer.build_tokenizer(ref_tok_config))
+    subword_info = tokenizer.make_subword_learner(subword_config, result_dir)
     return subword_info
 
 def _build_vocabulary_counters(config):
@@ -136,8 +130,7 @@ class SubwordLearner(Consumer):
         # ignore them. We assume for a shared subword model that the source and target
         # tokenizers use the same type of annotations, and pass the source tokenization
         # config when building the shared learner.
-        # TODO: clean this up (this can be resolved using the "Token API" of the OpenNMT Tokenizer).
-        shared_subword_info = _build_subword_learner(shared_config, result_dir, source_config)
+        shared_subword_info = _build_subword_learner(shared_config, result_dir)
         if shared_subword_info:
             self._source_subword_info = shared_subword_info
             self._target_subword_info = shared_subword_info
