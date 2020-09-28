@@ -107,27 +107,21 @@ class TranslationSide(object):
                     tokens=None,
                     token_objects=None)
             else:
-                token_objects = self.__tokenizer.tokenize(self.__detok, as_token_objects=True)
-                tokens, _ = self.__tokenizer.serialize_tokens(token_objects)
-                self.__tok = ([tokens], [token_objects])
-        tokens, token_objects = self.__tok
+                self.__tok = [self.__tokenizer.tokenize(self.__detok, as_token_objects=True)]
+        tokens = [self.__tokenizer.serialize_tokens(part)[0] for part in self.__tok]
         return Tokenization(
             tokenizer=self.__tokenizer,
-            tokens=list(tokens),
-            token_objects=list(token_objects))
+            tokens=tokens,
+            token_objects=list(self.__tok))
 
     @tok.setter
     def tok(self, tok):
         tokenizer, tok = tok
         if tok is not None:
             # Set a new list of tokens and a new tokenizer.
-            if tok and tok[0] and isinstance(tok[0][0], pyonmttok.Token):
-                tokens = [tokenizer.serialize_tokens(part)[0] for part in tok]
-                token_objects = tok
-            else:
-                tokens = tok
-                token_objects = [tokenizer.deserialize_tokens(part) for part in tok]
-            self.__tok = (tokens, token_objects)
+            if tok and tok[0] and not isinstance(tok[0][0], pyonmttok.Token):
+                tok = [tokenizer.deserialize_tokens(part) for part in tok]
+            self.__tok = tok
             self.__tokenizer = tokenizer
             self.__detok = None
         else:
@@ -135,8 +129,7 @@ class TranslationSide(object):
             if self.__tok is not None:
                 if self.__tokenizer is None:
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-                _, token_objects = self.__tok
-                self.__detok = self.__tokenizer.detokenize(token_objects[0]) # TODO : preperly deal with multipart.
+                self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
             self.__tok = None
             self.__tokenizer = tokenizer
 
@@ -144,8 +137,7 @@ class TranslationSide(object):
     def detok(self):
         if self.__detok is None:
             if self.__tokenizer is not None and self.__tok is not None:
-                _, token_objects = self.__tok
-                self.__detok = self.__tokenizer.detokenize(token_objects[0])
+                self.__detok = self.__tokenizer.detokenize(self.__tok[0])
             else:
                 raise RuntimeError('Cannot perform detokenization.')
         return self.__detok
