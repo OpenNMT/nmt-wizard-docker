@@ -1,13 +1,12 @@
 import collections
 import copy
-
-from nmtwizard.preprocess import tokenizer
+import pyonmttok
 
 from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
-class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens"))):
+class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens", "token_objects"))):
     """Tuple structure to keep tokenizer and tokens together."""
 
 class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num", "new_tokens"))):
@@ -91,30 +90,44 @@ class TranslationSide(object):
             self.raw = line.strip()
             self.__detok = self.raw
             self.__tok = None
+            self.__tokenizer = tokenizer
         elif isinstance(line, list):
             self.raw = None
             self.__detok = None
-            self.__tok = line
+            self.tok = (tokenizer, line)
         else:
             raise TypeError("Can't build a TranslationSide from type %s" % type(line))
-        self.__tokenizer = tokenizer
 
     @property
     def tok(self):
         if self.__tok is None:
             if self.__tokenizer is None or self.__detok is None:
-                return Tokenization(tokenizer=self.__tokenizer, tokens=None)
+                return Tokenization(
+                    tokenizer=self.__tokenizer,
+                    tokens=None,
+                    token_objects=None)
             else:
-                tok,_ = self.__tokenizer.tokenize(self.__detok)
-                self.__tok = [tok]
-        return Tokenization(tokenizer=self.__tokenizer, tokens=list(self.__tok))
+                token_objects = self.__tokenizer.tokenize(self.__detok, as_token_objects=True)
+                tokens, _ = self.__tokenizer.serialize_tokens(token_objects)
+                self.__tok = ([tokens], [token_objects])
+        tokens, token_objects = self.__tok
+        return Tokenization(
+            tokenizer=self.__tokenizer,
+            tokens=list(tokens),
+            token_objects=list(token_objects))
 
     @tok.setter
     def tok(self, tok):
         tokenizer, tok = tok
         if tok is not None:
             # Set a new list of tokens and a new tokenizer.
-            self.__tok = tok
+            if tok and tok[0] and isinstance(tok[0][0], pyonmttok.Token):
+                tokens = [tokenizer.serialize_tokens(part)[0] for part in tok]
+                token_objects = tok
+            else:
+                tokens = tok
+                token_objects = [tokenizer.deserialize_tokens(part) for part in tok]
+            self.__tok = (tokens, token_objects)
             self.__tokenizer = tokenizer
             self.__detok = None
         else:
@@ -122,7 +135,8 @@ class TranslationSide(object):
             if self.__tok is not None:
                 if self.__tokenizer is None:
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-                self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
+                _, token_objects = self.__tok
+                self.__detok = self.__tokenizer.detokenize(token_objects[0]) # TODO : preperly deal with multipart.
             self.__tok = None
             self.__tokenizer = tokenizer
 
@@ -130,7 +144,8 @@ class TranslationSide(object):
     def detok(self):
         if self.__detok is None:
             if self.__tokenizer is not None and self.__tok is not None:
-                self.__detok = self.__tokenizer.detokenize(self.__tok[0])
+                _, token_objects = self.__tok
+                self.__detok = self.__tokenizer.detokenize(token_objects[0])
             else:
                 raise RuntimeError('Cannot perform detokenization.')
         return self.__detok
@@ -144,43 +159,45 @@ class TranslationSide(object):
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
         # check/initialize tokenization if not done already
-        if self.tok.tokens is not None:
-            if start_idx > len(self.__tok[part]):
+        tokenizer, _, cur_tokens = self.tok
+        if cur_tokens is not None:
+            if start_idx > len(cur_tokens[part]):
                 raise IndexError('Start index is too big for replacement.')
 
             end_idx = start_idx + tok_num
-            if end_idx > len(self.__tok[part]):
+            if end_idx > len(cur_tokens[part]):
                 raise IndexError('Too many tokens to delete.')
 
             # If we replace some tokens, check if they start or end with a joiner.
             joiner_start = False
             joiner_end = False
             if start_idx != end_idx and new_tokens is not None:
-                if start_idx < len(self.__tok[part]) and self.__tok[part][start_idx].startswith(tokenizer.joiner_marker):
-                    joiner_start = True
-                if end_idx <= len(self.__tok[part]) and self.__tok[part][end_idx-1].endswith(tokenizer.joiner_marker):
-                    joiner_end = True
+                if start_idx < len(cur_tokens[part]):
+                    joiner_start = cur_tokens[part][start_idx].join_left
+                if end_idx <= len(cur_tokens[part]):
+                    joiner_end = cur_tokens[part][end_idx - 1].join_right
 
             # Insert new tokens.
             for i, idx in enumerate(range(start_idx, start_idx + len(new_tokens))):
                 if idx < end_idx :
                     # replace existing tokens
-                    self.__tok[part][idx] = new_tokens[i]
+                    cur_tokens[part][idx] = pyonmttok.Token(new_tokens[i])
                 else:
                     # insert remaining tokens
-                    self.__tok[part][idx:idx] = new_tokens[i:]
+                    cur_tokens[part][idx:idx] = list(map(pyonmttok.Token, new_tokens[i:]))
                     break
 
             # Insert joiners if needed
             if joiner_start:
-                self.__tok[part][start_idx] = tokenizer.joiner_marker + self.__tok[part][start_idx]
+                cur_tokens[part][start_idx].join_left = True
             if joiner_end:
-                self.__tok[part][start_idx + len(new_tokens) - 1] = self.__tok[part][start_idx + len(new_tokens) - 1] + tokenizer.joiner_marker
+                cur_tokens[part][start_idx + len(new_tokens) - 1].join_right = True
 
             # Remove remaining tokens if deletion is bigger than insertion
             if end_idx > start_idx + len(new_tokens):
-                del self.__tok[part][start_idx + len(new_tokens):end_idx]
+                del cur_tokens[part][start_idx + len(new_tokens):end_idx]
 
+            self.tok = (tokenizer, cur_tokens)
         else:
             logger.warning("Cannot replace tokens, no tokenization is set.")
 
