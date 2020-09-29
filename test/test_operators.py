@@ -30,6 +30,7 @@ def _run_pipeline(config, process_type, tu_list):
     (dict(drop_word_prob=1), False, "hello world.", "hello world."),
     (dict(drop_space_prob=1), True, "hello world.", "helloworld."),
     (dict(drop_char_prob=1), True, "hello world.", ""),
+    (dict(drop_char_prob=1), True, "a｟a｠.", "｟a｠"),
     (dict(duplicate_char_prob=1), True, "hello.", "hheelllloo.."),
     (dict(swap_char_prob=1), True, "hello.", "ehllo."),
 ])

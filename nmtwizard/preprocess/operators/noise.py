@@ -42,7 +42,8 @@ class Noise(prepoperator.TUOperator):
             elif self._drop_space_prob > 0 and random.random() <= self._drop_space_prob:
                 token.join_left = True
 
-            token.surface = self._apply_character_noise(token.surface)
+            if not token.is_placeholder():
+                token.surface = self._apply_character_noise(token.surface)
             if len(token.surface) == 0:  # Delete token if empty.
                 index_to_delete.append(i)
         return index_to_delete
