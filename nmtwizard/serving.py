@@ -87,12 +87,11 @@ def start_server(host,
     global backend_process
     global backend_info
     backend_process, backend_info = backend_service_fn()
-    global_timeout = None
-    global_max_batch_size = None
     serving_config = config.get('serving')
-    if serving_config is not None and isinstance(serving_config, dict):
-        global_timeout = serving_config.get('timeout')
-        global_max_batch_size = serving_config.get('max_batch_size')
+    if serving_config is None:
+        serving_config = {}
+    global_timeout = serving_config.get('timeout')
+    global_max_batch_size = serving_config.get('max_batch_size')
 
     def _backend_is_reachable():
         return (backend_info is not None
