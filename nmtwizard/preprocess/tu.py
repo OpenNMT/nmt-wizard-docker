@@ -1,5 +1,4 @@
 import collections
-import copy
 import pyonmttok
 
 from nmtwizard.logger import get_logger
@@ -248,7 +247,7 @@ class TranslationUnit(object):
             return None
         if self.__alignment.alignments is None:
             self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
-        return copy.deepcopy(self.__alignment.alignments)
+        return [list(part) for part in self.__alignment.alignments]
 
     def set_aligner(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
