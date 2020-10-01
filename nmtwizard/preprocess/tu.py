@@ -33,10 +33,10 @@ class Alignment(object):
                 if isinstance(part, str):
                     # Initialize from pharaoh format
                     # TODO : add checks.
-                    self.__alignments[i] = {tuple(al.split('-')) for al in part.split()}
+                    self.__alignments[i] = [tuple(al.split('-')) for al in part.split()]
                 elif isinstance(part, list):
                     # Initialize from a list of tuples
-                    self.__alignments[i] = {tuple(al) for al in part}
+                    self.__alignments[i] = [tuple(al) for al in part]
                 else:
                     break
 
@@ -57,7 +57,7 @@ class Alignment(object):
         opp_side_idx = not side_idx
         # Check there is an alignment
         if self.__alignments is not None:
-            new_alignment = set()
+            new_alignment = []
 
             for al in self.__alignments[part]:
                 side_tok_idx = al[side_idx]
@@ -75,9 +75,9 @@ class Alignment(object):
                             side_tok_idx = start_idx
 
                 if side_idx:
-                    new_alignment.add((opp_side_tok_idx, side_tok_idx))
+                    new_alignment.append((opp_side_tok_idx, side_tok_idx))
                 else:
-                    new_alignment.add((side_tok_idx, opp_side_tok_idx))
+                    new_alignment.append((side_tok_idx, opp_side_tok_idx))
             self.__alignments[part] = new_alignment
 
 
