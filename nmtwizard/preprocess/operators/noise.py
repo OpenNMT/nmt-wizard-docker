@@ -18,35 +18,27 @@ class Noise(prepoperator.TUOperator):
         self._swap_char_prob = config.get("swap_char_prob", 0)
 
     def _preprocess_tu(self, tu, *args):
-        tokens = tu.src_tok.token_objects
-
-        index_to_delete = self._apply_word_noise(tokens[0])
-        if index_to_delete:
-            self._delete_tokens(tu, index_to_delete)
-        else:
-            # Invalidate detokenized representation because some token surface may have changed.
-            tu.src_detok = None
-
+        tokenizer, _, tokens = tu.src_tok
+        new_tokens = [self._apply_word_noise(tokens[0])]
+        tu.src_tok = (tokenizer, new_tokens)
         return [tu]
 
-    def _delete_tokens(self, tu, index_to_delete):
-        for i, index in enumerate(index_to_delete):
-            replacement = TokReplace(start_tok_idx=index - i, tok_num=1, new_tokens=[])
-            tu.replace_tokens(src_replace=replacement)
-
     def _apply_word_noise(self, tokens):
-        index_to_delete = []
-        for i, token in enumerate(tokens):
+        new_tokens = []
+        for token in tokens:
             if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
                 token.surface = ""
             elif self._drop_space_prob > 0 and random.random() <= self._drop_space_prob:
                 token.join_left = True
 
-            if not token.is_placeholder():
+            if ((self._drop_char_prob > 0
+                 or self._duplicate_char_prob > 0
+                 or self._swap_char_prob > 0)
+                and not token.is_placeholder()):
                 token.surface = self._apply_character_noise(token.surface)
-            if len(token.surface) == 0:  # Delete token if empty.
-                index_to_delete.append(i)
-        return index_to_delete
+            if len(token.surface) != 0:  # Delete token if empty.
+                new_tokens.append(token)
+        return new_tokens
 
     def _apply_character_noise(self, cur_surface):
         new_surface = ""

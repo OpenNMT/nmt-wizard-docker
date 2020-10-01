@@ -144,12 +144,8 @@ class TranslationSide(object):
 
     @detok.setter
     def detok(self, detok):
-        if detok is not None:
-            self.__tok = None
-        elif self.__tok is None:
-            raise ValueError('Cannot invalidate detokenized representation '
-                             'because no tokenized repesentation exists')
         self.__detok = detok
+        self.__tok = None
 
 
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
@@ -276,15 +272,13 @@ class TranslationUnit(object):
     @src_detok.setter
     def src_detok(self, detok):
         self.__source.detok = detok
-        if detok is not None:
-            self.__alignment = None
+        self.__alignment = None
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
         if self.__target is not None:
             self.__target.detok = detok
-            if detok is not None:
-                self.__alignment = None
+            self.__alignment = None
 
     @property
     def metadata(self):
