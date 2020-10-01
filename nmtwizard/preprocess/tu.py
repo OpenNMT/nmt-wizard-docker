@@ -6,8 +6,33 @@ from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
-class Tokenization(collections.namedtuple("Tokenization", ("tokenizer", "tokens", "token_objects"))):
-    """Tuple structure to keep tokenizer and tokens together."""
+
+class Tokenization(object):
+    """Structure to keep tokenizer and tokens together."""
+
+    def __init__(self, tokenizer, token_objects=None):
+        self._tokenizer = tokenizer
+        self._token_objects = token_objects
+        self._tokens = None  # String tokens are lazily generated.
+
+    @property
+    def tokenizer(self):
+        return self._tokenizer
+
+    @property
+    def token_objects(self):
+        return self._token_objects
+
+    @property
+    def tokens(self):
+        if self._token_objects is None:
+            return None
+        if self._tokens is None:
+            self._tokens = [
+                self._tokenizer.serialize_tokens(part)[0]
+                for part in self._token_objects]
+        return self._tokens
+
 
 class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num", "new_tokens"))):
         """Tuple structure for replacement in tokenization."""
@@ -102,17 +127,10 @@ class TranslationSide(object):
     def tok(self):
         if self.__tok is None:
             if self.__tokenizer is None or self.__detok is None:
-                return Tokenization(
-                    tokenizer=self.__tokenizer,
-                    tokens=None,
-                    token_objects=None)
+                return Tokenization(self.__tokenizer)
             else:
                 self.__tok = [self.__tokenizer.tokenize(self.__detok, as_token_objects=True)]
-        tokens = [self.__tokenizer.serialize_tokens(part)[0] for part in self.__tok]
-        return Tokenization(
-            tokenizer=self.__tokenizer,
-            tokens=tokens,
-            token_objects=list(self.__tok))
+        return Tokenization(self.__tokenizer, list(self.__tok))
 
     @tok.setter
     def tok(self, tok):
@@ -151,7 +169,8 @@ class TranslationSide(object):
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
         # check/initialize tokenization if not done already
-        tokenizer, _, cur_tokens = self.tok
+        tokenization = self.tok
+        cur_tokens = tokenization.token_objects
         if cur_tokens is not None:
             if start_idx > len(cur_tokens[part]):
                 raise IndexError('Start index is too big for replacement.')
@@ -189,7 +208,7 @@ class TranslationSide(object):
             if end_idx > start_idx + len(new_tokens):
                 del cur_tokens[part][start_idx + len(new_tokens):end_idx]
 
-            self.tok = (tokenizer, cur_tokens)
+            self.tok = (tokenization.tokenizer, cur_tokens)
         else:
             logger.warning("Cannot replace tokens, no tokenization is set.")
 
