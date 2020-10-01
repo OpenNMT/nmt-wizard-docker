@@ -27,7 +27,7 @@ class Noise(prepoperator.TUOperator):
         new_tokens = []
         for token in tokens:
             if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
-                token.surface = ""
+                continue
             elif self._drop_space_prob > 0 and random.random() <= self._drop_space_prob:
                 token.join_left = True
 
