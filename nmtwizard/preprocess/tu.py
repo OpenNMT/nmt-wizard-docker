@@ -234,13 +234,13 @@ class TranslationUnit(object):
     @src_tok.setter
     def src_tok(self, tok):
         self.__source.tok = tok
-        self.__alignment = None
+        self._invalidate_alignment()
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
         if self.__target is not None:
             self.__target.tok = tok
-            self.__alignment = None
+            self._invalidate_alignment()
 
     @property
     def alignment(self):
@@ -259,6 +259,10 @@ class TranslationUnit(object):
         else:
             self.__alignment = Alignment(aligner)
 
+    def _invalidate_alignment(self):
+        if self.__alignment is not None:
+            self.__alignment.alignments = None
+
     @property
     def src_detok(self):
         return self.__source.detok
@@ -272,13 +276,13 @@ class TranslationUnit(object):
     @src_detok.setter
     def src_detok(self, detok):
         self.__source.detok = detok
-        self.__alignment = None
+        self._invalidate_alignment()
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
         if self.__target is not None:
             self.__target.detok = detok
-            self.__alignment = None
+            self._invalidate_alignment()
 
     @property
     def metadata(self):
