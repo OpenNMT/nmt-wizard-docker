@@ -217,7 +217,7 @@ class TranslationUnit(object):
     def synchronize(self):
         _ = self.src_tok
         _ = self.tgt_tok
-        _ = self.alignment
+        self._initialize_alignment()
 
     @property
     def src_tok(self):
@@ -245,8 +245,7 @@ class TranslationUnit(object):
     def alignment(self):
         if self.__alignment is None:
             return None
-        if self.__alignment.alignments is None:
-            self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
+        self._initialize_alignment()
         return [list(part) for part in self.__alignment.alignments]
 
     def set_aligner(self, aligner):
@@ -257,6 +256,10 @@ class TranslationUnit(object):
             self.__alignment.alignments = None
         else:
             self.__alignment = Alignment(aligner)
+
+    def _initialize_alignment(self):
+        if self.__alignment is not None and self.__alignment.alignments is None:
+            self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
 
     def _invalidate_alignment(self):
         if self.__alignment is not None:
@@ -319,13 +322,13 @@ class TranslationUnit(object):
     def replace_tokens_side(self, side, replacement, part=0):
 
         # Initialize alignment
-        alignment = self.alignment
+        self._initialize_alignment()
 
         if side == "source":
             self.__source.replace_tokens(*replacement, part=part)
-            if alignment:
+            if self.__alignment is not None:
                 self.__alignment.adjust_alignment(0, *replacement, part=part)
         elif side == "target":
             self.__target.replace_tokens(*replacement, part=part)
-            if alignment:
+            if self.__alignment is not None:
                 self.__alignment.adjust_alignment(1, *replacement, part=part)
