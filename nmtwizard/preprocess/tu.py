@@ -1,5 +1,4 @@
 import collections
-import copy
 import pyonmttok
 
 from nmtwizard.logger import get_logger
@@ -71,7 +70,7 @@ class Alignment(object):
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
                 align_result = self.aligner.align(src_tok_part, tgt_tok_part)
                 # TODO : write fwd and bwd probs
-                alignments.append(align_result["alignments"])
+                alignments.append(set(align_result["alignments"]))
             self.__alignments = alignments
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
@@ -237,7 +236,7 @@ class TranslationUnit(object):
     def synchronize(self):
         _ = self.src_tok
         _ = self.tgt_tok
-        _ = self.alignment
+        self._initialize_alignment()
 
     @property
     def src_tok(self):
@@ -265,9 +264,8 @@ class TranslationUnit(object):
     def alignment(self):
         if self.__alignment is None:
             return None
-        if self.__alignment.alignments is None:
-            self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
-        return copy.deepcopy(self.__alignment.alignments)
+        self._initialize_alignment()
+        return [set(part) for part in self.__alignment.alignments]
 
     def set_aligner(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
@@ -277,6 +275,10 @@ class TranslationUnit(object):
             self.__alignment.alignments = None
         else:
             self.__alignment = Alignment(aligner)
+
+    def _initialize_alignment(self):
+        if self.__alignment is not None and self.__alignment.alignments is None:
+            self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
 
     def _invalidate_alignment(self):
         if self.__alignment is not None:
@@ -339,13 +341,13 @@ class TranslationUnit(object):
     def replace_tokens_side(self, side, replacement, part=0):
 
         # Initialize alignment
-        alignment = self.alignment
+        self._initialize_alignment()
 
         if side == "source":
             self.__source.replace_tokens(*replacement, part=part)
-            if alignment:
+            if self.__alignment is not None:
                 self.__alignment.adjust_alignment(0, *replacement, part=part)
         elif side == "target":
             self.__target.replace_tokens(*replacement, part=part)
-            if alignment:
+            if self.__alignment is not None:
                 self.__alignment.adjust_alignment(1, *replacement, part=part)
