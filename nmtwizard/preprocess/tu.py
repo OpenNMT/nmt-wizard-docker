@@ -171,41 +171,26 @@ class TranslationSide(object):
         tokenization = self.tok
         cur_tokens = tokenization.token_objects
         if cur_tokens is not None:
-            if start_idx > len(cur_tokens[part]):
+            cur_length = len(cur_tokens[part])
+            if start_idx > cur_length:
                 raise IndexError('Start index is too big for replacement.')
 
             end_idx = start_idx + tok_num
-            if end_idx > len(cur_tokens[part]):
+            if end_idx > cur_length:
                 raise IndexError('Too many tokens to delete.')
 
-            # If we replace some tokens, check if they start or end with a joiner.
-            joiner_start = False
-            joiner_end = False
-            if start_idx != end_idx and new_tokens is not None:
-                if start_idx < len(cur_tokens[part]):
-                    joiner_start = cur_tokens[part][start_idx].join_left
-                if end_idx <= len(cur_tokens[part]):
-                    joiner_end = cur_tokens[part][end_idx - 1].join_right
+            if not new_tokens:  # Deletion.
+                if start_idx < cur_length:
+                    del cur_tokens[part][start_idx:end_idx]
+            else:
+                new_tokens = list(map(pyonmttok.Token, new_tokens))
 
-            # Insert new tokens.
-            for i, idx in enumerate(range(start_idx, start_idx + len(new_tokens))):
-                if idx < end_idx :
-                    # replace existing tokens
-                    cur_tokens[part][idx] = pyonmttok.Token(new_tokens[i])
-                else:
-                    # insert remaining tokens
-                    cur_tokens[part][idx:idx] = list(map(pyonmttok.Token, new_tokens[i:]))
-                    break
-
-            # Insert joiners if needed
-            if joiner_start:
-                cur_tokens[part][start_idx].join_left = True
-            if joiner_end:
-                cur_tokens[part][start_idx + len(new_tokens) - 1].join_right = True
-
-            # Remove remaining tokens if deletion is bigger than insertion
-            if end_idx > start_idx + len(new_tokens):
-                del cur_tokens[part][start_idx + len(new_tokens):end_idx]
+                if start_idx == end_idx:  # Insertion.
+                    cur_tokens[part][start_idx:start_idx] = new_tokens
+                else:  # Replacement.
+                    new_tokens[0].join_left = cur_tokens[part][start_idx].join_left
+                    new_tokens[-1].join_right = cur_tokens[part][end_idx - 1].join_right
+                    cur_tokens[part][start_idx:end_idx] = new_tokens
 
             self.tok = (tokenization.tokenizer, cur_tokens)
         else:
