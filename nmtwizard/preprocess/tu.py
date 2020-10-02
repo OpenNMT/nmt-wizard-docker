@@ -32,10 +32,10 @@ class Alignment(object):
                 if isinstance(part, str):
                     # Initialize from pharaoh format
                     # TODO : add checks.
-                    self.__alignments[i] = [tuple(al.split('-')) for al in part.split()]
+                    self.__alignments[i] = {tuple(al.split('-')) for al in part.split()}
                 elif isinstance(part, list):
                     # Initialize from a list of tuples
-                    self.__alignments[i] = [tuple(al) for al in part]
+                    self.__alignments[i] = {tuple(al) for al in part}
                 else:
                     break
 
@@ -45,7 +45,7 @@ class Alignment(object):
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
                 align_result = self.aligner.align(src_tok_part, tgt_tok_part)
                 # TODO : write fwd and bwd probs
-                alignments.append(align_result["alignments"])
+                alignments.append(set(align_result["alignments"]))
             self.__alignments = alignments
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
@@ -56,7 +56,7 @@ class Alignment(object):
         opp_side_idx = not side_idx
         # Check there is an alignment
         if self.__alignments is not None:
-            new_alignment = []
+            new_alignment = set()
 
             for al in self.__alignments[part]:
                 side_tok_idx = al[side_idx]
@@ -74,9 +74,9 @@ class Alignment(object):
                             side_tok_idx = start_idx
 
                 if side_idx:
-                    new_alignment.append((opp_side_tok_idx, side_tok_idx))
+                    new_alignment.add((opp_side_tok_idx, side_tok_idx))
                 else:
-                    new_alignment.append((side_tok_idx, opp_side_tok_idx))
+                    new_alignment.add((side_tok_idx, opp_side_tok_idx))
             self.__alignments[part] = new_alignment
 
 
@@ -246,7 +246,7 @@ class TranslationUnit(object):
         if self.__alignment is None:
             return None
         self._initialize_alignment()
-        return [list(part) for part in self.__alignment.alignments]
+        return [set(part) for part in self.__alignment.alignments]
 
     def set_aligner(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
