@@ -447,6 +447,23 @@ def test_preprocess_empty_line(tmpdir):
     with open(output_path) as output_file:
         assert output_file.readlines() == ["\n"]
 
+def test_preprocess_inference_loadfile(tmpdir):
+    src_num_lines = 4
+    src_input_path = generate_pseudo_corpus(tmpdir, src_num_lines, "input", "en")
+    tgt_num_lines = 7
+    tgt_input_path = generate_pseudo_corpus(tmpdir, tgt_num_lines, "input", "de")
+    processor = InferenceProcessor(config_base, postprocess=True)
+
+    meta = []
+    meta.append([None, {'continuation': True}, {'continuation': True}])
+    meta.append([None, {'continuation': True}])
+    meta.append([{'continuation': False}])
+    meta.append([None])
+
+    output_path = processor.process_file(((src_input_path, meta), tgt_input_path))
+
+    assert os.path.basename(output_path) == "input.de.detok"
+    assert utils.count_lines(output_path)[1] == src_num_lines
 
 def test_preprocess_align(tmpdir):
 

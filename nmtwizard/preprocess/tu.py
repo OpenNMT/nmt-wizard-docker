@@ -146,7 +146,10 @@ class TranslationSide(object):
             if self.__tok is not None:
                 if self.__tokenizer is None:
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-                self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
+                part_detok = []
+                for part in self.__tok:
+                    part_detok.append(self.__tokenizer.detokenize(part))
+                self.__detok = " ".join(part_detok)
             self.__tok = None
             self.__tokenizer = tokenizer
 

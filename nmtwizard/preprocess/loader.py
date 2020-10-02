@@ -67,12 +67,28 @@ class FileLoader(Loader):
 
             # Postprocess.
             if len(self._files) > 1:
+                if len(self._files) != 2:
+                    raise RuntimeError('Should have only two files: source and target')
+                if len(files[0].readlines()) != len(self._metadata):
+                    raise RuntimeError('Number of lines in source file should be the same with meta data size')
+                files[0].seek(0)
                 for meta in self._metadata:
+                    # Long sentence process only
+                    # More features need to be considered
+                    src_lines = [next(files[0]).strip().split()]
+                    tgt_lines = [next(files[1]).strip().split()]
 
-                    # TODO : prefix, features
-                    num_parts = len(meta)
-                    src_lines = [next(files[0]).strip().split() for _ in range(num_parts)]
-                    tgt_lines = [next(files[1]).strip().split() for _ in range(num_parts)]
+                    idx = 0
+                    while idx < len(meta):
+                        if (idx+1 < len(meta) and "continuation" in meta[idx+1] and meta[idx+1]["continuation"]):
+                            local_idx = idx + 1
+                            while local_idx < len(meta):
+                                if( "continuation" not in meta[local_idx] or not meta[local_idx]["continuation"]):
+                                    break
+                                idx = idx + 1
+                                local_idx = local_idx + 1
+                                tgt_lines.append(next(files[1]).strip().split())
+                        idx = idx + 1
 
                     tu_list.append(tu.TranslationUnit(
                         source=src_lines,
