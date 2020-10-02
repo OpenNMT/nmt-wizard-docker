@@ -458,7 +458,7 @@ class SamplerFileWriter(Consumer):
                     alignment = tu.alignment
                     if alignment :
                         for part in alignment:
-                            part = " ".join(sorted("%s-%s" % tuple(pair) for pair in part))
+                            part = " ".join(sorted("%s-%s" % tup for tup in part))
                             align_file.write("%s\n" % part)
 
 
