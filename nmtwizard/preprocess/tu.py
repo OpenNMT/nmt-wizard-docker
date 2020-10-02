@@ -70,7 +70,7 @@ class Alignment(object):
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
                 align_result = self.aligner.align(src_tok_part, tgt_tok_part)
                 # TODO : write fwd and bwd probs
-                alignments.append(align_result["alignments"])
+                alignments.append(set(align_result["alignments"]))
             self.__alignments = alignments
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
@@ -250,7 +250,7 @@ class TranslationUnit(object):
         if self.__alignment is None:
             return None
         self._initialize_alignment()
-        return [part for part in self.__alignment.alignments]
+        return [set(part) for part in self.__alignment.alignments]
 
     def set_aligner(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
