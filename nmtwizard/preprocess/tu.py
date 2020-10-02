@@ -168,10 +168,10 @@ class TranslationSide(object):
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
         # check/initialize tokenization if not done already
-        tokenization = self.tok
-        cur_tokens = tokenization.token_objects
+        cur_tokens = self.__tok
         if cur_tokens is not None:
-            cur_length = len(cur_tokens[part])
+            cur_tokens = cur_tokens[part]
+            cur_length = len(cur_tokens)
             if start_idx > cur_length:
                 raise IndexError('Start index is too big for replacement.')
 
@@ -181,18 +181,18 @@ class TranslationSide(object):
 
             if not new_tokens:  # Deletion.
                 if start_idx < cur_length:
-                    del cur_tokens[part][start_idx:end_idx]
+                    del cur_tokens[start_idx:end_idx]
             else:
                 new_tokens = list(map(pyonmttok.Token, new_tokens))
 
                 if start_idx == end_idx:  # Insertion.
-                    cur_tokens[part][start_idx:start_idx] = new_tokens
+                    cur_tokens[start_idx:start_idx] = new_tokens
                 else:  # Replacement.
-                    new_tokens[0].join_left = cur_tokens[part][start_idx].join_left
-                    new_tokens[-1].join_right = cur_tokens[part][end_idx - 1].join_right
-                    cur_tokens[part][start_idx:end_idx] = new_tokens
+                    new_tokens[0].join_left = cur_tokens[start_idx].join_left
+                    new_tokens[-1].join_right = cur_tokens[end_idx - 1].join_right
+                    cur_tokens[start_idx:end_idx] = new_tokens
 
-            self.tok = (tokenization.tokenizer, cur_tokens)
+            self.__detok = None
         else:
             logger.warning("Cannot replace tokens, no tokenization is set.")
 
