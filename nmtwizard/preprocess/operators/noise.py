@@ -18,9 +18,10 @@ class Noise(prepoperator.TUOperator):
         self._swap_char_prob = config.get("swap_char_prob", 0)
 
     def _preprocess_tu(self, tu, *args):
-        tokenizer, _, tokens = tu.src_tok
+        src_tok = tu.src_tok
+        tokens = src_tok.token_objects
         new_tokens = [self._apply_word_noise(tokens[0])]
-        tu.src_tok = (tokenizer, new_tokens)
+        tu.src_tok = (src_tok.tokenizer, new_tokens)
         return [tu]
 
     def _apply_word_noise(self, tokens):
