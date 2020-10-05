@@ -51,3 +51,22 @@ def test_noise(config, training, text, expected):
                     else prepoperator.ProcessType.INFERENCE)
     tu_list = _run_pipeline(config_base, process_type, text)
     assert tu_list[0].src_detok == expected
+
+
+def test_identity_filter():
+    process_type = prepoperator.ProcessType.TRAINING
+    config = [
+        {
+            "op": "identity_filter",
+            "min_characters": 0,
+        },
+    ]
+
+    tu_list = _run_pipeline(config, process_type, tu.TranslationUnit("Hello world!", "Hello world!"))
+    assert len(tu_list) == 0
+    tu_list = _run_pipeline(config, process_type, tu.TranslationUnit("Hello world!", "Hello world"))
+    assert len(tu_list) == 1
+
+    config[0]["min_characters"] = 20
+    tu_list = _run_pipeline(config, process_type, tu.TranslationUnit("Hello world!", "Hello world!"))
+    assert len(tu_list) == 1

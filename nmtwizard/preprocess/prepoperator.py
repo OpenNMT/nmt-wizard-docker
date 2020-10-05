@@ -249,9 +249,11 @@ class TUOperator(Operator):
 
 class Filter(TUOperator):
 
-    def __init__(self):
+    def __init__(self, criteria=None):
         # TODO: Sub-criteria for source_detok, target_detok, source_tok, target_tok, or both with alignment ?
-        self._criteria = []
+        if criteria is None:
+            criteria = []
+        self._criteria = criteria
 
 
     @staticmethod
