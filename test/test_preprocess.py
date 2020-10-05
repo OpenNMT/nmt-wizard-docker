@@ -448,6 +448,37 @@ def test_preprocess_empty_line(tmpdir):
         assert output_file.readlines() == ["\n"]
 
 
+def test_postprocess_multipart_file_loader(tmpdir):
+    src_num_lines = 8
+    src_input_path = generate_pseudo_corpus(tmpdir, src_num_lines, "input", "en")
+    tgt_num_lines = 8
+    tgt_input_path = generate_pseudo_corpus(tmpdir, tgt_num_lines, "input", "de")
+    processor = InferenceProcessor(config_base, postprocess=True)
+
+    meta = [
+        [None, None, None],
+        [None, None],
+        [None],
+        [None, None],
+    ]
+
+    output_path = processor.process_file(((src_input_path, meta), tgt_input_path))
+
+    assert os.path.basename(output_path) == "input.de.detok"
+    assert utils.count_lines(output_path)[1] == 4
+
+
+def test_postprocess_multipart_batch_loader(tmpdir):
+    processor = InferenceProcessor(config_base, postprocess=True)
+
+    source = [["Hello"], ["world"]]
+    target = [["Bonjour"], ["monde"]]
+    metadata = [None, None]
+
+    target = processor.process_input(((source, metadata), target))
+    assert target == "Bonjour monde"
+
+
 def test_preprocess_align(tmpdir):
 
     preprocessor = TrainingProcessor(config_base, "", str(tmpdir))

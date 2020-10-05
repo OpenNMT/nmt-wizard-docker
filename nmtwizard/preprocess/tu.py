@@ -1,4 +1,5 @@
 import collections
+import itertools
 import pyonmttok
 
 from nmtwizard.logger import get_logger
@@ -118,7 +119,9 @@ class TranslationSide(object):
         elif isinstance(line, list):
             self.raw = None
             self.__detok = None
-            self.tok = (tokenizer, line)
+            # Merge multi-parts.
+            tokens = list(itertools.chain.from_iterable(line))
+            self.tok = (tokenizer, [tokens])
         else:
             raise TypeError("Can't build a TranslationSide from type %s" % type(line))
 
