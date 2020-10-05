@@ -4,14 +4,46 @@ from nmtwizard.preprocess import prepoperator
 class LengthFilter(prepoperator.Filter):
 
     def __init__(self, config, process_type, build_state):
+        source_config = config.get('source', {})
+        target_config = config.get('target', {})
 
-        super(LengthFilter, self).__init__()
+        filters = []
+        filters.extend(_get_side_filters(
+            source_config,
+            lambda tu: tu.src_detok,
+            lambda tu: tu.src_tok.token_objects[0]))
+        filters.extend(_get_side_filters(
+            target_config,
+            lambda tu: tu.tgt_detok,
+            lambda tu: tu.tgt_tok.token_objects[0]))
 
-        self._source_max = config.get('source', {}).get('max_length_char')
-        self._target_max = config.get('target', {}).get('max_length_char')
 
-        if self._source_max:
-            self._criteria.append(lambda x:len(x.src_detok) > self._source_max)
+        min_words_ratio = config.get('min_words_ratio')
+        if min_words_ratio is not None:
+            filters.append(lambda tu: (
+                len(tu.src_tok.token_objects[0]) / len(tu.tgt_tok.token_objects[0]) < min_words_ratio))
 
-        if self._target_max:
-            self._criteria.append(lambda x:len(x.tgt_detok) > self._target_max)
+        max_words_ratio = config.get('max_words_ratio')
+        if max_words_ratio is not None:
+            filters.append(lambda tu: (
+                len(tu.src_tok.token_objects[0]) / len(tu.tgt_tok.token_objects[0]) > max_words_ratio))
+
+        super(LengthFilter, self).__init__(filters)
+
+
+def _get_side_filters(config, chars_fn, words_fn):
+    filters = []
+
+    max_chars = config.get('max_characters')
+    if max_chars is not None:
+        filters.append(lambda tu: len(chars_fn(tu)) > max_chars)
+
+    max_words = config.get('max_words')
+    if max_words is not None:
+        filters.append(lambda tu: len(words_fn(tu)) > max_words)
+
+    min_words = config.get('min_words')
+    if min_words is not None:
+        filters.append(lambda tu: len(words_fn(tu)) < min_words)
+
+    return filters
