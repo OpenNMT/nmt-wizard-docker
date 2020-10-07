@@ -17,7 +17,7 @@ class Aligner(prepoperator.Operator):
 
     def _preprocess(self, tu_batch):
         tu_list, meta_batch = tu_batch
-        if self._process_type == prepoperator.ProcessType.TRAINING:
+        if self.process_type == prepoperator.ProcessType.TRAINING:
             meta_batch['write_alignment'] = self._write_alignment
         self._build_aligner()
         tu_list = self._set_aligner(tu_list)
