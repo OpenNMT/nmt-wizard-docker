@@ -48,7 +48,7 @@ foreach my $stem (@ARGV) {
 sub add_to_ref {
     my ($file,$REF) = @_;
     my $s=0;
-    if ($file =~ /.gz$/) {
+    if ($file =~ /\.gz$/) {
 	open(REF, '<:encoding(UTF-8)', "gzip -dc $file|") or die "Can't read $file";
     } else { 
 	open(REF, '<:encoding(UTF-8)', $file) or die "Can't read $file";
