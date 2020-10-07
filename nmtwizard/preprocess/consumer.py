@@ -350,8 +350,10 @@ class BasicWriter(Consumer):
         # Preprocess in inference.
         else:
             # target should contain as may parts as source
-            target = tu.tgt_tok.tokens if tu.tgt_tok else [None for _ in range(len(tu.src_tok.tokens))]
-            self.output = ((tu.src_tok.tokens, tu.metadata), target)
+            self.output = (
+                tu.src_tok.tokens,
+                tu.tgt_tok.tokens if tu.tgt_tok else [None for _ in tu.src_tok.tokens],
+                tu.metadata)
 
 
 class FileWriter(Consumer):

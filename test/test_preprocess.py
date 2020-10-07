@@ -371,18 +371,16 @@ def test_preprocess_pipeline(tmpdir):
             assert f_info['linefiltered'] == 0
 
     prep = InferenceProcessor(config)
-    source, target = prep.process_input("This is a test.")
-    source_no_meta = source[0]
-    assert source_no_meta[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
-    assert target == [None]
+    source, target, _ = prep.process_input("This is a test.")
+    assert source[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
+    assert target[0] == None
 
-    source2, target = prep.process_input(("This is a test.", "Das ist..."))
+    source2, target, _ = prep.process_input("This is a test.", "Das ist...")
     assert source2 == source
     assert target[0] == ['Das', 'ist', '￭.', '￭.', '￭.']
 
     post = InferenceProcessor(config, postprocess=True)
-    target_postprocessed = post.process_input((source, target))
-    assert target_postprocessed == "Das ist..."
+    assert post.process_input(source, target) == "Das ist..."
 
 
 config_base = {
@@ -437,7 +435,7 @@ def test_preprocess_gzip_file(tmpdir):
 
 def test_preprocess_empty_line(tmpdir):
     processor = InferenceProcessor(config_base)
-    (source, _), _ = processor.process_input("")
+    source, _, _ = processor.process_input("")
     assert source[0] == []
 
     input_path = str(tmpdir.join("empty.txt"))
@@ -475,7 +473,7 @@ def test_postprocess_multipart_batch_loader(tmpdir):
     target = [["Bonjour"], ["monde"]]
     metadata = [None, None]
 
-    target = processor.process_input(((source, metadata), target))
+    target = processor.process_input(source, target, metadata)
     assert target == "Bonjour monde"
 
 
