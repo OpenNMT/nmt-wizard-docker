@@ -319,7 +319,7 @@ def test_preprocess_pipeline(tmpdir):
             {
                 "op" : "length_filter",
                 "source": {
-                    "max_length_char" : 3
+                    "max_characters" : 3
                 },
                 "overrides": {
                     "generic_tag": {
@@ -327,7 +327,7 @@ def test_preprocess_pipeline(tmpdir):
                     },
                     "news_tag": {
                         "source": {
-                            "max_length_char" : 6
+                            "max_characters" : 6
                         }
                     }
                 }
