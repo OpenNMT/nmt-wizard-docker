@@ -500,8 +500,6 @@ def test_release_change_file(tmpdir):
 # Dummy domain classifier operator.
 @prepoperator.register_operator("domain")
 class _DomainClassifier(prepoperator.Operator):
-    def __init__(self, *arg, **kwargs):
-        pass
     def _preprocess(self, tu_batch):
         return tu_batch
 

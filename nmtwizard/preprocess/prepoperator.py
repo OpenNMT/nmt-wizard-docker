@@ -80,8 +80,12 @@ def build_operator(operator_config,
     _add_lang_info(operator_params, global_config, "source")
     _add_lang_info(operator_params, global_config, "target")
 
-    name = operator_params.pop("name", "%s_%d" % (operator_type, index))
-    return name, operator_cls(operator_params, process_type, state)
+    operator = operator_cls(operator_params, process_type, state)
+    # We set common private attributes here so that operators do not need to call
+    # the base constructor.
+    operator._name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    operator._process_type = process_type
+    return operator
 
 
 class ProcessType(object):
@@ -169,15 +173,15 @@ class Pipeline(object):
         else:
             ops_profile = None
 
-        for i, (op_name, op) in enumerate(self._ops):
+        for op in self._ops:
             if ops_profile is not None:
                 start = time.time()
 
-            tu_batch = op(tu_batch, self._process_type)
+            tu_batch = op(tu_batch)
 
             if ops_profile is not None:
                 end = time.time()
-                ops_profile[op_name] += end - start
+                ops_profile[op.name] += end - start
 
         tu_list, batch_meta = tu_batch
         if ops_profile is not None:
@@ -194,9 +198,21 @@ class Pipeline(object):
 class Operator(object):
     """Base class for preprocessing operators."""
 
-    def __call__(self, tu_batch, process_type):
-        self._process_type = process_type
-        if process_type == ProcessType.POSTPROCESS:
+    def __init__(self, params, process_type, build_state):
+        pass
+
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def process_type(self):
+        return self._process_type
+
+
+    def __call__(self, tu_batch):
+        if self.process_type == ProcessType.POSTPROCESS:
             tu_batch = self._postprocess(tu_batch)
         else:
             tu_batch = self._preprocess(tu_batch)
