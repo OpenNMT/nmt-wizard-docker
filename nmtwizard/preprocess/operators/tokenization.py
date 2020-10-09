@@ -20,8 +20,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
                 build_state["tgt_tokenizer"] = current_tokenizer
         if self._process_type == prepoperator.ProcessType.POSTPROCESS and not self._postprocess_only:
             return previous_tokenizer
-        else:
-            return current_tokenizer
+        return current_tokenizer
 
 
     def _apply_processor(self, tokenizer, src_tok):
