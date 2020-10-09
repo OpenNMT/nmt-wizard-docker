@@ -8,7 +8,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
     def _detok(self):
         return False
 
-    def _build_processor(self, config, side, build_state):
+    def _build_process(self, config, side, build_state):
         current_tokenizer = tokenizer.build_tokenizer(config)
         previous_tokenizer = None
         if build_state:
@@ -23,5 +23,5 @@ class Tokenizer(prepoperator.MonolingualOperator):
         return current_tokenizer
 
 
-    def _apply_processor(self, tokenizer, src_tok):
+    def _apply_process(self, tokenizer, src_tok):
         return (tokenizer, None)
