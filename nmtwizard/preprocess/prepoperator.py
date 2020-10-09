@@ -263,6 +263,73 @@ class TUOperator(Operator):
         raise NotImplementedError()
 
 
+class MonolingualOperator(TUOperator):
+    """Base class for operations applying monolingual processing in each TU in a batch."""
+
+    def __init__(self, config, process_type, build_state):
+        self._postprocess_only = build_state.get("postprocess_only")
+        self._process_type = process_type
+        self._source_processor = None
+        self._target_processor = None
+
+        if self._postprocess_only:
+            # For postprocess only, the config only applies to the target.
+            self._target_processor = self._build_processor(config, "target", build_state)
+        else:
+            source_config = config.get("source", None)
+            if source_config is not None:
+                self._source_processor = self._build_processor(source_config, "source", build_state)
+            target_config = config.get("target", None)
+            if target_config is not None:
+                self._target_processor = self._build_processor(target_config, "target", build_state)
+
+
+    @abc.abstractmethod
+    def _build_processor(self, config):
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def _detok(self):
+        raise NotImplementedError()
+
+
+    def _preprocess_tu(self, tu, meta_batch):
+
+        if self._source_processor is not None:
+            for idx in range(tu.source_num):
+                if self._detok:
+                    src_detok = self._apply_processor(self._source_processor, tu.get_src_detok(idx))
+                    tu.set_src_detok(src_detok, idx)
+                else:
+                    src_tok = self._apply_processor(self._source_processor, tu.get_src_tok(idx))
+                    tu.set_src_tok(src_tok, idx)
+
+        if self._target_processor is not None:
+            for idx in range(tu.target_num):
+                if self._detok:
+                    tgt_detok = tu.get_tgt_detok(idx)
+                    if tgt_detok is not None:
+                        tgt_detok = self._apply_processor(self._target_processor, tgt_detok)
+                        tu.set_tgt_detok(tgt_detok, idx)
+                else:
+                    tgt_tok = tu.get_tgt_tok(idx)
+                    if tgt_tok is not None:
+                        tgt_tok = self._apply_processor(self._target_processor, tgt_tok)
+                        tu.set_tgt_tok(tgt_tok, idx)
+        return [tu]
+
+
+    def _postprocess_tu(self, tu, *args):
+        if self._postprocess_only:
+            if self._target_processor is not None:
+                if self._detok:
+                    tu.tgt_detok = self._target_processor.apply(tu.tgt_detok)
+                else:
+                    tu.tgt_tok = self._target_processor.apply(tu.tgt_tok)
+        return tu
+
+
 class Filter(TUOperator):
 
     def __init__(self, criteria=None):
