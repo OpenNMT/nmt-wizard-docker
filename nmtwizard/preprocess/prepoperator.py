@@ -279,7 +279,7 @@ class MonolingualOperator(TUOperator):
             source_config = config.get("source")
             if source_config is not None:
                 self._source_processor = self._build_processor(source_config, "source", build_state)
-            target_config = config.get("target", None)
+            target_config = config.get("target")
             if target_config is not None:
                 self._target_processor = self._build_processor(target_config, "target", build_state)
 
