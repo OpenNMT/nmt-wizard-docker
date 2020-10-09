@@ -224,8 +224,8 @@ class TranslationUnit(object):
     def add_source(self, source, tokenizer=None):
         self.__source.append(TranslationSide(source, tokenizer=tokenizer))
 
-    def add_target(self, target, target_tokenizer=None):
-        self.__target.append(TranslationSide(target, tokenizer=target_tokenizer))
+    def add_target(self, target, tokenizer=None):
+        self.__target.append(TranslationSide(target, tokenizer=tokenizer))
 
     @property
     def source_num(self):
