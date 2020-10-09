@@ -210,16 +210,31 @@ class TranslationUnit(object):
                  alignment=None,
                  source_tokenizer=None,
                  target_tokenizer=None):
-        self.__source = TranslationSide(source, tokenizer=source_tokenizer)
+        self.__source = [TranslationSide(source, tokenizer=source_tokenizer)]
         self.__target = None
         self.__metadata = metadata if metadata is not None else [None] #TODO: proper metadata
         self.__annotations = annotations
         self.__alignment = None
 
         if target is not None:
-            self.__target = TranslationSide(target, tokenizer=target_tokenizer)
+            self.__target = [TranslationSide(target, tokenizer=target_tokenizer)]
             if alignment is not None:
                 self.__alignment = Alignment(alignments=alignment)
+
+    def add_source(self, source, tokenizer=None):
+        self.__source.append(TranslationSide(source, tokenizer=tokenizer))
+
+    def add_target(self, target, tokenizer=None):
+        self.__target.append(TranslationSide(target, tokenizer=tokenizer))
+
+    @property
+    def num_sources(self):
+        return len(self.__source)
+
+    @property
+    def num_targets(self):
+        return len(self.__target) if self.__target is not None else 0
+
 
     def synchronize(self):
         _ = self.src_tok
@@ -228,25 +243,38 @@ class TranslationUnit(object):
 
     @property
     def src_tok(self):
-        return self.__source.tok
+        return self.get_src_tok(0)
+
+    def get_src_tok(self, idx):
+        return self.__source[idx].tok
 
     @property
     def tgt_tok(self):
-        if self.__target is not None:
-            return self.__target.tok
-        return None
+        return self.get_tgt_tok(0)
 
+    def get_tgt_tok(self, idx):
+        if self.__target is not None:
+            return self.__target[idx].tok
+        return None
 
     @src_tok.setter
     def src_tok(self, tok):
-        self.__source.tok = tok
-        self._invalidate_alignment()
+        self.set_src_tok(tok, 0)
+
+    def set_src_tok(self, tok, idx):
+        self.__source[idx].tok = tok
+        if idx == 0:
+            self._invalidate_alignment()
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
+        self.set_tgt_tok(tok, 0)
+
+    def set_tgt_tok(self, tok, idx):
         if self.__target is not None:
-            self.__target.tok = tok
-            self._invalidate_alignment()
+            self.__target[idx].tok = tok
+            if idx == 0:
+                self._invalidate_alignment()
 
     @property
     def alignment(self):
@@ -274,24 +302,41 @@ class TranslationUnit(object):
 
     @property
     def src_detok(self):
-        return self.__source.detok
+        return self.get_src_detok(0)
+
+    def get_src_detok(self, idx):
+        return self.__source[idx].detok
 
     @property
     def tgt_detok(self):
+        return self.get_tgt_detok(0)
+
+    def get_tgt_detok(self, idx):
         if self.__target is not None:
-            return self.__target.detok
+            return self.__target[idx].detok
         return None
+
 
     @src_detok.setter
     def src_detok(self, detok):
-        self.__source.detok = detok
-        self._invalidate_alignment()
+        self.set_src_detok(detok, 0)
+
+    def set_src_detok(self, detok, idx):
+        self.__source[idx].detok = detok
+        if idx == 0:
+            self._invalidate_alignment()
+
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
+        self.set_tgt_detok(detok, 0)
+
+    def set_tgt_detok(self, detok, idx):
         if self.__target is not None:
-            self.__target.detok = detok
-            self._invalidate_alignment()
+            self.__target[idx].detok = detok
+            if idx == 0:
+                self._invalidate_alignment()
+
 
     @property
     def metadata(self):
@@ -332,10 +377,10 @@ class TranslationUnit(object):
         self._initialize_alignment()
 
         if side == "source":
-            self.__source.replace_tokens(*replacement, part=part)
+            self.__source[0].replace_tokens(*replacement, part=part)
             if self.__alignment is not None:
                 self.__alignment.adjust_alignment(0, *replacement, part=part)
         elif side == "target":
-            self.__target.replace_tokens(*replacement, part=part)
+            self.__target[0].replace_tokens(*replacement, part=part)
             if self.__alignment is not None:
                 self.__alignment.adjust_alignment(1, *replacement, part=part)
