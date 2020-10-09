@@ -228,11 +228,11 @@ class TranslationUnit(object):
         self.__target.append(TranslationSide(target, tokenizer=tokenizer))
 
     @property
-    def source_num(self):
+    def num_sources(self):
         return len(self.__source)
 
     @property
-    def target_num(self):
+    def num_targets(self):
         return len(self.__target) if self.__target is not None else 0
 
 
