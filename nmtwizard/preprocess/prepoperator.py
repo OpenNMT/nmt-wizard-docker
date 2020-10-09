@@ -276,7 +276,7 @@ class MonolingualOperator(TUOperator):
             # For postprocess only, the config only applies to the target.
             self._target_processor = self._build_processor(config, "target", build_state)
         else:
-            source_config = config.get("source", None)
+            source_config = config.get("source")
             if source_config is not None:
                 self._source_processor = self._build_processor(source_config, "source", build_state)
             target_config = config.get("target", None)
