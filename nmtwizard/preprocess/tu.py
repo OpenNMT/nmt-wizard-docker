@@ -221,8 +221,8 @@ class TranslationUnit(object):
             if alignment is not None:
                 self.__alignment = Alignment(alignments=alignment)
 
-    def add_source(self, source, source_tokenizer=None):
-        self.__source.append(TranslationSide(source, tokenizer=source_tokenizer))
+    def add_source(self, source, tokenizer=None):
+        self.__source.append(TranslationSide(source, tokenizer=tokenizer))
 
     def add_target(self, target, target_tokenizer=None):
         self.__target.append(TranslationSide(target, tokenizer=target_tokenizer))
