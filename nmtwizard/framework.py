@@ -917,34 +917,16 @@ class Framework(utility.Utility):
         return VocabInfo(current=current_vocab, previous=previous_vocab)
 
     def _preprocess_input(self, source, target, config):
-        metadata = None
-        if not isinstance(source, list) and not isinstance(target, list):
-            self._set_preprocessor(config, train=False)
-
-            if target is not None:
-                preprocess_input = (source, target)
-            else :
-                preprocess_input = source
-
-            preprocess_output = self._preprocessor.process_input(preprocess_input)
-            if preprocess_output != preprocess_input:
-                (source, metadata), target = preprocess_output
-            else: # no preprocess is done
-                source = source.split()
-                if target is not None:
-                    target = target.split()
-
-        return source, target, metadata
+        if isinstance(source, list):
+            return source, target, None
+        self._set_preprocessor(config, train=False)
+        return self._preprocessor.process_input(source, target)
 
     def _postprocess_output(self, source, target, config):
         if not isinstance(target, list):
             return target
         self._set_postprocessor(config)
-        postprocess_input = (source,target)
-        postprocess_output = self._postprocessor.process_input(postprocess_input)
-        if postprocess_output == postprocess_input: # no postprocess is done
-            return ' '.join(target)
-        return postprocess_output
+        return self._postprocessor.process_input(source, target)
 
     def _preprocess_file(self, preprocess_input):
         return self._preprocessor.process_file(preprocess_input)

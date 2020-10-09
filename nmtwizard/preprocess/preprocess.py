@@ -244,7 +244,7 @@ class InferenceProcessor(Processor):
         self._postprocess = postprocess
         self._pipeline = self.build_pipeline()
 
-    def process_input(self, process_input):
+    def process_input(self, source, target=None, metadata=None):
         """Processes one translation example at inference.
 
               In preprocess:
@@ -254,19 +254,6 @@ class InferenceProcessor(Processor):
              In postprocess:
                  input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
                  output is single-part postprocessed target."""
-
-        # TODO: pass explicit arguments instead of trying to unpack a single argument.
-        if isinstance(process_input, tuple):
-            source, target = process_input
-            if isinstance(source, tuple):
-                source, metadata = source
-            else:
-                metadata = None
-        else:
-            source = process_input
-            target = None
-            metadata = None
-
         basic_loader = loader.BasicLoader(
             source=source,
             target=target,
