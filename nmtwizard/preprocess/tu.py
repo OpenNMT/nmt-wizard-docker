@@ -267,9 +267,11 @@ class TranslationUnit(object):
     def src_tok(self):
         return self.get_src_tok("main")
 
-    def get_src_tok(self, key=None):
-        if key is not None:
-            return self.__source[key].tok if key in self.__source else None
+    def get_src_tok(self, key):
+        source = self.__source.get(key)
+        if source is None:
+            return None
+        return source.tok
 
     def src_tok_gen(self):
         if self.__source is not None:
@@ -281,8 +283,10 @@ class TranslationUnit(object):
         return self.get_tgt_tok("main")
 
     def get_tgt_tok(self, key):
-        if self.__target is not None and key in self.__target:
-            return self.__target[key].tok
+        if self.__target is not None:
+            target = self.__target.get(key)
+            if target is not None:
+                return target.tok
         return None
 
     def tgt_tok_gen(self):
@@ -295,8 +299,9 @@ class TranslationUnit(object):
         self.set_src_tok(tok, "main")
 
     def set_src_tok(self, tok, key):
-        if key in self.__source:
-            self.__source[key].tok = tok
+        source = self.__source.get(key)
+        if source is not None:
+            source.tok = tok
         if key == "main":
             self._invalidate_alignment()
 
@@ -305,8 +310,10 @@ class TranslationUnit(object):
         self.set_tgt_tok(tok, "main")
 
     def set_tgt_tok(self, tok, key):
-        if self.__target is not None and key in self.__target:
-            self.__target[key].tok = tok
+        if self.__target is not None:
+            target = self.__target.get(key)
+            if target is not None:
+                target.tok = tok
             if key == "main":
                 self._invalidate_alignment()
 
@@ -339,7 +346,10 @@ class TranslationUnit(object):
         return self.get_src_detok("main")
 
     def get_src_detok(self, key):
-        return self.__source[key].detok if key in self.__source else None
+        source = self.__source.get(key)
+        if source is None:
+            return None
+        return source.detok
 
     def src_detok_gen(self):
         if self.__source is not None:
@@ -351,8 +361,10 @@ class TranslationUnit(object):
         return self.get_tgt_detok("main")
 
     def get_tgt_detok(self, key):
-        if self.__target is not None and key in self.__target:
-            return self.__target[key].detok
+        if self.__target is not None:
+            target = self.__target.get(key)
+            if target is not None:
+                return target.detok
         return None
 
     def tgt_detok_gen(self):
@@ -365,8 +377,9 @@ class TranslationUnit(object):
         self.set_src_detok(detok, "main")
 
     def set_src_detok(self, detok, key):
-        if key in self.__source:
-            self.__source[key].detok = detok
+        source = self.__source.get(key)
+        if source is not None:
+            source.detok = detok
         if key == "main":
             self._invalidate_alignment()
 
@@ -376,8 +389,10 @@ class TranslationUnit(object):
         self.set_tgt_detok(detok, "main")
 
     def set_tgt_detok(self, detok, key):
-        if self.__target is not None and key in self.__target:
-            self.__target[key].detok = detok
+        if self.__target is not None:
+            target = self.__target.get(key)
+            if target is not None:
+                target.detok = detok
             if key == "main":
                 self._invalidate_alignment()
 
@@ -385,12 +400,15 @@ class TranslationUnit(object):
         tok = None
         if side == "source":
             tok = self.__source
-        else:
+        elif side == "target":
             tok = self.__target
+        else:
+            raise ValueError("Invalid side value when building output: %s" % side)
 
         if tok is not None:
-            if 'main' in tok:
-                tok = tok["main"].tok.tokens
+            main_side = tok.get("main")
+            if main_side is not None:
+                tok = main_side.tok.tokens
             else:
                 tok = None
 

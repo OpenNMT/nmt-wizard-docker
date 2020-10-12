@@ -298,23 +298,23 @@ class MonolingualOperator(TUOperator):
 
         if self._source_process is not None:
             if self._detok:
-                for k, s in tu.src_detok_gen():
-                    src_detok = self._apply_process(self._source_process, s)
-                    tu.set_src_detok(src_detok, k)
+                for name, detok in tu.src_detok_gen():
+                    src_detok = self._apply_process(self._source_process, detok)
+                    tu.set_src_detok(src_detok, name)
             else:
-                for k, s in tu.src_tok_gen():
-                    src_tok = self._apply_process(self._source_process, s)
-                    tu.set_src_tok(src_tok, k)
+                for name, tok in tu.src_tok_gen():
+                    src_tok = self._apply_process(self._source_process, tok)
+                    tu.set_src_tok(src_tok, name)
 
         if self._target_process is not None:
             if self._detok:
-                for k, t in tu.tgt_detok_gen():
-                    tgt_detok = self._apply_process(self._target_process, t)
-                    tu.set_tgt_detok(tgt_detok, k)
+                for name, detok in tu.tgt_detok_gen():
+                    tgt_detok = self._apply_process(self._target_process, detok)
+                    tu.set_tgt_detok(tgt_detok, name)
             else:
-                for k, t in tu.tgt_tok_gen():
-                    tgt_tok = self._apply_process(self._target_process, t)
-                    tu.set_tgt_tok(tgt_tok, k)
+                for name, tok in tu.tgt_tok_gen():
+                    tgt_tok = self._apply_process(self._target_process, tok)
+                    tu.set_tgt_tok(tgt_tok, name)
 
         return [tu]
 
