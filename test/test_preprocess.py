@@ -631,7 +631,7 @@ def test_extra_target(tmpdir):
             return process_type != prepoperator.ProcessType.POSTPROCESS
 
         def _preprocess_tu(self, tu, training):
-            tu.add_target("Das ist ein neues Ziel.", "source", output_delimiter="｟delimiter_token｠")
+            tu.add_target("Das ist ein neues Ziel.", "source", name="extra", output_delimiter="｟delimiter_token｠")
             return [tu]
 
     config_extra_target = deepcopy(config_base)

@@ -231,7 +231,7 @@ class TranslationUnit(object):
             if alignment is not None:
                 self.__alignment = Alignment(alignments=alignment)
 
-    def add_source(self, source, output_side, name="extra", tokenizer=None, output_delimiter=None):
+    def add_source(self, source, output_side, name, tokenizer=None, output_delimiter=None):
         ts = TranslationSide(source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
         if self.__source is not None:
             if name in self.__source:
@@ -240,7 +240,7 @@ class TranslationUnit(object):
         else:
             self.__source = {name:ts}
 
-    def add_target(self, target, output_side, name="extra", tokenizer=None, output_delimiter=None):
+    def add_target(self, target, output_side, name, tokenizer=None, output_delimiter=None):
         ts = TranslationSide(target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
         if self.__target is not None:
             if name in self.__target:
