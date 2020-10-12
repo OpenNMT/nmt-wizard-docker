@@ -108,7 +108,9 @@ class Alignment(object):
 
 class TranslationSide(object):
 
-    def __init__(self, line, tokenizer=None):
+    def __init__(self, line, output_side, output_delimiter=None, tokenizer=None):
+        self._output_side = output_side
+        self._output_delimiter = output_delimiter
         if isinstance(line, bytes):
             line = line.decode("utf-8")  # Ensure Unicode string.
         if isinstance(line, str):
@@ -167,6 +169,14 @@ class TranslationSide(object):
         self.__detok = detok
         self.__tok = None
 
+    @property
+    def output_side(self):
+        return self._output_side
+
+    @property
+    def output_delimiter(self):
+        return self._output_delimiter
+
 
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
@@ -210,22 +220,34 @@ class TranslationUnit(object):
                  alignment=None,
                  source_tokenizer=None,
                  target_tokenizer=None):
-        self.__source = [TranslationSide(source, tokenizer=source_tokenizer)]
+        self.__source = {"main": TranslationSide(source, "source", tokenizer=source_tokenizer)}
         self.__target = None
         self.__metadata = metadata if metadata is not None else [None] #TODO: proper metadata
         self.__annotations = annotations
         self.__alignment = None
 
         if target is not None:
-            self.__target = [TranslationSide(target, tokenizer=target_tokenizer)]
+            self.__target = {"main": TranslationSide(target, "target", tokenizer=target_tokenizer)}
             if alignment is not None:
                 self.__alignment = Alignment(alignments=alignment)
 
-    def add_source(self, source, tokenizer=None):
-        self.__source.append(TranslationSide(source, tokenizer=tokenizer))
+    def add_source(self, source, output_side, name="extra", tokenizer=None, output_delimiter=None):
+        ts = TranslationSide(source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
+        if self.__source is not None:
+            if name in self.__source:
+                raise RuntimeError("The source named '{}' already exists.".format(name))
+            self.__source[name] = ts
+        else:
+            self.__source = {name:ts}
 
-    def add_target(self, target, tokenizer=None):
-        self.__target.append(TranslationSide(target, tokenizer=tokenizer))
+    def add_target(self, target, output_side, name="extra", tokenizer=None, output_delimiter=None):
+        ts = TranslationSide(target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
+        if self.__target is not None:
+            if name in self.__target:
+                raise RuntimeError("The target named '{}' already exists.".format(name))
+            self.__target[name] = ts
+        else:
+            self.__target = {name: ts}
 
     @property
     def num_sources(self):
@@ -243,37 +265,49 @@ class TranslationUnit(object):
 
     @property
     def src_tok(self):
-        return self.get_src_tok(0)
+        return self.get_src_tok("main")
 
-    def get_src_tok(self, idx):
-        return self.__source[idx].tok
+    def get_src_tok(self, key=None):
+        if key is not None:
+            return self.__source[key].tok if key in self.__source else None
+
+    def src_tok_gen(self):
+        if self.__source is not None:
+            for i,s in self.__source.items():
+                yield i, s.tok
 
     @property
     def tgt_tok(self):
-        return self.get_tgt_tok(0)
+        return self.get_tgt_tok("main")
 
-    def get_tgt_tok(self, idx):
-        if self.__target is not None:
-            return self.__target[idx].tok
+    def get_tgt_tok(self, key):
+        if self.__target is not None and key in self.__target:
+            return self.__target[key].tok
         return None
+
+    def tgt_tok_gen(self):
+        if self.__target is not None:
+            for i,t in self.__target.items():
+                yield i, t.tok
 
     @src_tok.setter
     def src_tok(self, tok):
-        self.set_src_tok(tok, 0)
+        self.set_src_tok(tok, "main")
 
-    def set_src_tok(self, tok, idx):
-        self.__source[idx].tok = tok
-        if idx == 0:
+    def set_src_tok(self, tok, key):
+        if key in self.__source:
+            self.__source[key].tok = tok
+        if key == "main":
             self._invalidate_alignment()
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
-        self.set_tgt_tok(tok, 0)
+        self.set_tgt_tok(tok, "main")
 
-    def set_tgt_tok(self, tok, idx):
-        if self.__target is not None:
-            self.__target[idx].tok = tok
-            if idx == 0:
+    def set_tgt_tok(self, tok, key):
+        if self.__target is not None and key in self.__target:
+            self.__target[key].tok = tok
+            if key == "main":
                 self._invalidate_alignment()
 
     @property
@@ -302,41 +336,87 @@ class TranslationUnit(object):
 
     @property
     def src_detok(self):
-        return self.get_src_detok(0)
+        return self.get_src_detok("main")
 
-    def get_src_detok(self, idx):
-        return self.__source[idx].detok
+    def get_src_detok(self, key):
+        return self.__source[key].detok if key in self.__source else None
+
+    def src_detok_gen(self):
+        if self.__source is not None:
+            for i,s in self.__source.items():
+                yield i, s.detok
 
     @property
     def tgt_detok(self):
-        return self.get_tgt_detok(0)
+        return self.get_tgt_detok("main")
 
-    def get_tgt_detok(self, idx):
-        if self.__target is not None:
-            return self.__target[idx].detok
+    def get_tgt_detok(self, key):
+        if self.__target is not None and key in self.__target:
+            return self.__target[key].detok
         return None
 
+    def tgt_detok_gen(self):
+        if self.__target is not None:
+            for i,t in self.__target.items():
+                yield i, t.detok
 
     @src_detok.setter
     def src_detok(self, detok):
-        self.set_src_detok(detok, 0)
+        self.set_src_detok(detok, "main")
 
-    def set_src_detok(self, detok, idx):
-        self.__source[idx].detok = detok
-        if idx == 0:
+    def set_src_detok(self, detok, key):
+        if key in self.__source:
+            self.__source[key].detok = detok
+        if key == "main":
             self._invalidate_alignment()
 
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
-        self.set_tgt_detok(detok, 0)
+        self.set_tgt_detok(detok, "main")
 
-    def set_tgt_detok(self, detok, idx):
-        if self.__target is not None:
-            self.__target[idx].detok = detok
-            if idx == 0:
+    def set_tgt_detok(self, detok, key):
+        if self.__target is not None and key in self.__target:
+            self.__target[key].detok = detok
+            if key == "main":
                 self._invalidate_alignment()
 
+    def build_preprocessed_tokens(self, side):
+        tok = None
+        if side == "source":
+            tok = self.__source
+        else:
+            tok = self.__target
+
+        if tok is not None:
+            if 'main' in tok:
+                tok = tok["main"].tok.tokens
+            else:
+                tok = None
+
+        if tok is None or len(tok) > 1:
+            # Main side tokenization doesn't exist OR
+            # Main side tokenization is multipart
+            return tok
+
+        # We suppose here that extra sources and targets are all single-part.
+        # Can be changed/improved later.
+
+        all_translation_sides = [ts for k, ts  in self.__source.items() if k != "main"]
+        if self.__target is not None:
+            all_translation_sides += [ts for k, ts  in self.__target.items() if k != "main"]
+
+        for ts in all_translation_sides:
+            if ts.output_side == side:
+                tokens = ts.tok.tokens
+                if not tokens:
+                    continue
+                if tok[0] and ts.output_delimiter is not None:
+                    # Some previous tokens exist, we need to insert the delimiter.
+                    tok[0].append(ts.output_delimiter)
+                tok[0].extend(tokens[0])
+
+        return tok
 
     @property
     def metadata(self):
@@ -377,10 +457,10 @@ class TranslationUnit(object):
         self._initialize_alignment()
 
         if side == "source":
-            self.__source[0].replace_tokens(*replacement, part=part)
+            self.__source["main"].replace_tokens(*replacement, part=part)
             if self.__alignment is not None:
                 self.__alignment.adjust_alignment(0, *replacement, part=part)
         elif side == "target":
-            self.__target[0].replace_tokens(*replacement, part=part)
+            self.__target["main"].replace_tokens(*replacement, part=part)
             if self.__alignment is not None:
                 self.__alignment.adjust_alignment(1, *replacement, part=part)

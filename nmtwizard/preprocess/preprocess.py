@@ -288,7 +288,7 @@ class InferenceProcessor(Processor):
             output_suffix)
 
         file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
-        with consumer.FileWriter(output_file) as file_consumer:
+        with consumer.FileWriter(output_file, self._postprocess) as file_consumer:
             self.process(file_loader, file_consumer)
 
             if file_consumer.metadata:

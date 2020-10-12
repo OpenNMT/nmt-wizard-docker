@@ -619,3 +619,38 @@ def test_replace_tokens(tmpdir):
     preprocessor = TrainingProcessor(config_replace, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
         preprocessor.generate_preprocessed_data()
+
+
+def test_extra_target(tmpdir):
+
+    # Dummy operator that inserts extra target.
+    @prepoperator.register_operator("extra_target")
+    class ExtraTargetOperator(prepoperator.TUOperator):
+
+        def is_applied_for(process_type):
+            return process_type != prepoperator.ProcessType.POSTPROCESS
+
+        def _preprocess_tu(self, tu, training):
+            tu.add_target("Das ist ein neues Ziel.", "source", output_delimiter="｟delimiter_token｠")
+            return [tu]
+
+    config_extra_target = deepcopy(config_base)
+
+    config_extra_target['preprocess'].insert(0, { "op": "extra_target" })
+
+    preprocessor = TrainingProcessor(config_extra_target, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, metadata = \
+        preprocessor.generate_preprocessed_data()
+
+    with open(str(tmpdir.join("preprocess/europarl-v7.de-en.10K.tok.en"))) as f :
+        for l in f:
+            assert (l.strip().endswith("｟delimiter_token｠ Das ist ein neues Ziel ￭.") or l.strip().endswith("Das ist ein neues Ziel ￭."))
+
+    preprocessor = InferenceProcessor(config_extra_target)
+    source, target, _ = preprocessor.process_input("This is a test.")
+    assert (source[0] == ['This', 'is', 'a', 'test', '￭.', '｟delimiter_token｠', 'Das', 'ist', 'ein', 'neues', 'Ziel', '￭.'])
+    assert (target[0] == None)
+
+    target = [['Das', 'ist', 'ein', 'Test', '￭.']]
+    post = InferenceProcessor(config_extra_target, postprocess=True)
+    assert post.process_input(source, target) == "Das ist ein Test."
