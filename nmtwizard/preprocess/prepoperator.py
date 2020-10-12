@@ -297,26 +297,25 @@ class MonolingualOperator(TUOperator):
     def _preprocess_tu(self, tu, meta_batch):
 
         if self._source_process is not None:
-            for idx in range(tu.num_sources):
-                if self._detok:
-                    src_detok = self._apply_process(self._source_process, tu.get_src_detok(idx))
-                    tu.set_src_detok(src_detok, idx)
-                else:
-                    src_tok = self._apply_process(self._source_process, tu.get_src_tok(idx))
-                    tu.set_src_tok(src_tok, idx)
+            if self._detok:
+                for name, detok in tu.src_detok_gen():
+                    src_detok = self._apply_process(self._source_process, detok)
+                    tu.set_src_detok(src_detok, name)
+            else:
+                for name, tok in tu.src_tok_gen():
+                    src_tok = self._apply_process(self._source_process, tok)
+                    tu.set_src_tok(src_tok, name)
 
         if self._target_process is not None:
-            for idx in range(tu.num_targets):
-                if self._detok:
-                    tgt_detok = tu.get_tgt_detok(idx)
-                    if tgt_detok is not None:
-                        tgt_detok = self._apply_process(self._target_process, tgt_detok)
-                        tu.set_tgt_detok(tgt_detok, idx)
-                else:
-                    tgt_tok = tu.get_tgt_tok(idx)
-                    if tgt_tok is not None:
-                        tgt_tok = self._apply_process(self._target_process, tgt_tok)
-                        tu.set_tgt_tok(tgt_tok, idx)
+            if self._detok:
+                for name, detok in tu.tgt_detok_gen():
+                    tgt_detok = self._apply_process(self._target_process, detok)
+                    tu.set_tgt_detok(tgt_detok, name)
+            else:
+                for name, tok in tu.tgt_tok_gen():
+                    tgt_tok = self._apply_process(self._target_process, tok)
+                    tu.set_tgt_tok(tgt_tok, name)
+
         return [tu]
 
 

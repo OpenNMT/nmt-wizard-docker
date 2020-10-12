@@ -345,27 +345,31 @@ class BasicWriter(Consumer):
         tu_list, _ = tu_batch
         tu = tu_list[0]
         # Postprocess.
-        if self._postprocess:
+        tgt_detok = tu.tgt_detok
+        if self._postprocess and tgt_detok is not None :
             self.output = tu.tgt_detok
         # Preprocess in inference.
         else:
-            # target should contain as may parts as source
+            src_tokens = tu.build_preprocessed_tokens("source")
+            tgt_tokens = tu.build_preprocessed_tokens("target")
+            # target should contain as many parts as source
             self.output = (
-                tu.src_tok.tokens,
-                tu.tgt_tok.tokens if tu.tgt_tok else [None for _ in tu.src_tok.tokens],
+                src_tokens,
+                tgt_tokens if tgt_tokens else [None for _ in src_tokens],
                 tu.metadata)
 
 
 class FileWriter(Consumer):
     """FileWriter writes pre/postprocessed TUs into files at inference."""
 
-    def __init__(self, output_file):
+    def __init__(self, output_file, postprocess):
         # A basic file writer only opens one file.
         # In preprocess, it is used to store preprocessed source.
         # In postprocess, it is used to store postprocessed target.
         # TODO V2 : multiple files
         super().__init__()
         self._output_file = output_file
+        self._postprocess = postprocess
         self._file = None
         self.metadata = []
 
@@ -384,13 +388,14 @@ class FileWriter(Consumer):
         tu_list, _ = tu_batch
         # Write lines to files from TUs
         for tu in tu_list :
-            tgt_detok = tu.tgt_detok
             # Postprocess.
-            if tgt_detok is not None:
-                self._file.write("%s\n" % tgt_detok)
+            tgt_detok = tu.tgt_detok
+            if self._postprocess and tgt_detok is not None:
+                self._file.write("%s\n" % tu.tgt_detok)
             # Preprocess.
             else:
-                for part in tu.src_tok.tokens:
+                src_tokens = tu.build_preprocessed_tokens("source")
+                for part in src_tokens:
                     part = " ".join(part)
                     self._file.write("%s\n" % part)
                 self.metadata.append(tu.metadata)
@@ -438,7 +443,7 @@ class SamplerFileWriter(Consumer):
         # Write lines to file from TUs
         with open(src_path, "a") as src_file, open(tgt_path, "a") as tgt_file:
             for tu in tu_list :
-                src_tokens = tu.src_tok.tokens
+                src_tokens = tu.build_preprocessed_tokens("source")
                 if src_tokens :
                     for part in src_tokens :
                         part = " ".join(part)
@@ -446,7 +451,7 @@ class SamplerFileWriter(Consumer):
                 else:
                     src_file.write("%s\n" % tu.src_detok)
 
-                tgt_tokens = tu.tgt_tok.tokens
+                tgt_tokens = tu.build_preprocessed_tokens("target")
                 if tgt_tokens :
                     for part in tgt_tokens :
                         part = " ".join(part)
