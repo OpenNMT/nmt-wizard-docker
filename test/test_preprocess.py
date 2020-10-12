@@ -373,7 +373,7 @@ def test_preprocess_pipeline(tmpdir):
     prep = InferenceProcessor(config)
     source, target, _ = prep.process_input("This is a test.")
     assert source[0] == ['This', 'is', 'a', 'test', '￭.'] # First and only part.
-    assert target[0] == None
+    assert target[0] is None
 
     source2, target, _ = prep.process_input("This is a test.", "Das ist...")
     assert source2 == source
@@ -649,7 +649,7 @@ def test_extra_target(tmpdir):
     preprocessor = InferenceProcessor(config_extra_target)
     source, target, _ = preprocessor.process_input("This is a test.")
     assert (source[0] == ['This', 'is', 'a', 'test', '￭.', '｟delimiter_token｠', 'Das', 'ist', 'ein', 'neues', 'Ziel', '￭.'])
-    assert (target[0] == None)
+    assert (target[0] is None)
 
     target = [['Das', 'ist', 'ein', 'Test', '￭.']]
     post = InferenceProcessor(config_extra_target, postprocess=True)
