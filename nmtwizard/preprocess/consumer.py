@@ -88,6 +88,35 @@ class OpsProfileLogger(Consumer):
                 (value / total_time) * 100)
 
 
+class FilterSummaryLogger(Consumer):
+    """A consumer that reduces operators filter information and logs the result."""
+
+    def __init__(self):
+        super().__init__()
+        self._summary = collections.defaultdict(int)
+
+    def _consume(self, tu_batch):
+        _, batch_meta = tu_batch
+        summary = batch_meta.get("filter_summary")
+        if not summary:
+            return
+        for name, value in summary.items():
+            self._summary[name] += value
+
+    def finalize(self):
+        if not self._summary:
+            return
+        logger.info(
+            "Summary of filtered sentences (%d sentences dropped in total):",
+            sum(self._summary.values()))
+        sorted_summary = sorted(
+            self._summary.items(),
+            key=lambda item: item[1],
+            reverse=True)
+        for name, value in sorted_summary:
+            logger.info("\t%s dropped %d sentences", name, value)
+
+
 def _ingest_tokens(subword_learner, tu_side):
     if not tu_side.tokens:
         return

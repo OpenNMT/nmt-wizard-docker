@@ -134,6 +134,7 @@ class TrainingProcessor(Processor):
             sampler_loader = loader.SamplerFilesLoader(all_files, batch_size)
             sampler_consumer = consumer.MultiConsumer([
                 consumer.OpsProfileLogger(),
+                consumer.FilterSummaryLogger(),
             ])
 
             if result == 'subword':

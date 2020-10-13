@@ -346,5 +346,8 @@ class Filter(TUOperator):
     def _preprocess_tu(self, tu, meta_batch):
         for c in self._criteria:
             if (c(tu)):
+                filter_summary = meta_batch.setdefault(
+                    "filter_summary", collections.defaultdict(int))
+                filter_summary[self.name] += 1
                 return []
         return [tu]
