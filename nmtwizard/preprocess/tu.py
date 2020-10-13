@@ -196,7 +196,8 @@ class TranslationSide(object):
                 if start_idx < cur_length:
                     del cur_tokens[start_idx:end_idx]
             else:
-                new_tokens = list(map(pyonmttok.Token, new_tokens))
+                if not isinstance(new_tokens[0], pyonmttok.Token):
+                    new_tokens = self.__tokenizer.deserialize_tokens(new_tokens)
 
                 if start_idx == end_idx:  # Insertion.
                     cur_tokens[start_idx:start_idx] = new_tokens
