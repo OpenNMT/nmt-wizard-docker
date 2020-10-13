@@ -132,7 +132,13 @@ def test_sampler(tmpdir, batch_size, num_threads):
     del os.environ["NB_CPU"]
 
 
-def test_sampler_with_annotations(tmpdir):
+@pytest.mark.parametrize("similarity_filter_config,expected_num_samples", [
+    (dict(mode="hard"), 4),
+    (dict(mode="soft_linear"), None),   # Just check that it runs without error.
+    (dict(mode="soft_sigmoid"), None),  # Same.
+])
+def test_sampler_with_annotations(tmpdir, similarity_filter_config, expected_num_samples):
+    similarity_filter_config.update({"op": "similarity_filter"})
 
     with open(str(tmpdir.join("train.en")), "w") as en:
         en.write("\n".join(["1", "2", "3", "4", "5", "6"]))
@@ -161,13 +167,16 @@ def test_sampler_with_annotations(tmpdir):
                     }
                 }
             ]
-        }
+        },
+        "preprocess": [similarity_filter_config],
     }
 
     preprocessor = TrainingProcessor(config, from_dir, to_dir)
     data_path, train_dir, num_samples, summary, metadata = preprocessor.generate_preprocessed_data()
 
     assert 'annotations' in summary['train'] and summary['train']['annotations'] == ['similarity']
+    if expected_num_samples is not None:
+        assert num_samples == expected_num_samples
 
 
 # TODO : test generate vocabularies with several tokenizations
