@@ -76,4 +76,3 @@ def load_vocabulary(vocabulary_path):
                 vocabulary.append(line.strip())
             return set(vocabulary)
     return vocabulary_path
-    
