@@ -67,10 +67,12 @@ def make_subword_learner(subword_config, subword_dir, tokenizer=None):
 def load_vocabulary(vocabulary_path):
     if vocabulary_path and isinstance(vocabulary_path, str):
         vocabulary = []
-        with open(vocabulary_path, "rt") as vocabfile:
+        header = True
+        with open(vocabulary_path) as vocabfile:
             for line in vocabfile:
-                if line.startswith('#'):
+                if header and line.startswith('#'):
                     continue
+                header = False
                 vocabulary.append(line.strip())
             return set(vocabulary)
     return vocabulary_path
