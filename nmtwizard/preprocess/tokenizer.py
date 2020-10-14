@@ -63,3 +63,16 @@ def make_subword_learner(subword_config, subword_dir, tokenizer=None):
         "subword_type": subword_type,
         "size": vocab_size
     }
+
+def load_vocabulary(vocabulary_path):
+    if vocabulary_path and isinstance(vocabulary_path, str):
+        vocabulary = []
+        header = True
+        with open(vocabulary_path) as vocabfile:
+            for line in vocabfile:
+                if header and line.startswith('#'):
+                    continue
+                header = False
+                vocabulary.append(line.strip())
+            return set(vocabulary)
+    return vocabulary_path

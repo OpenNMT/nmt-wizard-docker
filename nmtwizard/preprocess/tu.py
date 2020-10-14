@@ -428,7 +428,7 @@ class TranslationUnit(object):
         for ts in all_translation_sides:
             if ts.output_side == side:
                 tokens = ts.tok.tokens
-                if not tokens:
+                if not tokens or len(tokens[0]) == 0:
                     continue
                 if tok[0] and ts.output_delimiter is not None:
                     # Some previous tokens exist, we need to insert the delimiter.
