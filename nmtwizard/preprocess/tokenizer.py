@@ -63,3 +63,13 @@ def make_subword_learner(subword_config, subword_dir, tokenizer=None):
         "subword_type": subword_type,
         "size": vocab_size
     }
+
+def load_vocabulary(state, vocab_name):
+    if state[vocab_name] and isinstance(state[vocab_name], str):
+        # Vocabulary wasn't yet read, we only have the path.
+        # Read it and keep the reference in build_state.
+        # This creates common vocabulary reference for all placeholders.
+        with open(state[vocab_name], "r") as vocabfile:
+            state[vocab_name] = set(vocabfile.read().splitlines())
+    return state[vocab_name]
+    
