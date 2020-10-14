@@ -343,11 +343,17 @@ class Filter(TUOperator):
         return process_type == ProcessType.TRAINING
 
 
+    def __call__(self, tu_batch):
+        before = len(tu_batch[0])
+        tu_batch = super().__call__(tu_batch)
+        after = len(tu_batch[0])
+        filter_summary = tu_batch[1].setdefault("filter_summary", collections.defaultdict(int))
+        filter_summary[self.name] += before - after
+        return tu_batch
+
+
     def _preprocess_tu(self, tu, meta_batch):
         for c in self._criteria:
             if (c(tu)):
-                filter_summary = meta_batch.setdefault(
-                    "filter_summary", collections.defaultdict(int))
-                filter_summary[self.name] += 1
                 return []
         return [tu]
