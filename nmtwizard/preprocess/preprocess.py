@@ -301,5 +301,4 @@ class InferenceProcessor(Processor):
             self.process(file_loader, file_consumer)
             if self._postprocess:
                 return output_file
-            else:
-                return output_file, file_consumer.metadata
+            return output_file, file_consumer.metadata
