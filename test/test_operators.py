@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+import pyonmttok
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import loader
@@ -27,6 +28,17 @@ def _run_pipeline(config, process_type, tu_list):
 def _is_filtered(config, tu_list):
     tu_list = _run_pipeline(config, prepoperator.ProcessType.TRAINING, tu_list)
     return len(tu_list) == 0
+
+class _MockAligner:
+    def __init__(self, alignments=None, forward_log_prob=0, backward_log_prob=0):
+        self._result = {
+            "forward_log_prob": forward_log_prob,
+            "backward_log_prob": backward_log_prob,
+            "alignments": alignments or [],
+        }
+
+    def align(self, *args):
+        return self._result
 
 
 @pytest.mark.parametrize("config,training,text,expected", [
@@ -97,3 +109,83 @@ def test_length_filter(filter_config, filtered):
     source = "Hello world!"
     target = "Bonjour le monde !"
     assert filtered == _is_filtered(config, tu.TranslationUnit(source, target))
+
+
+@pytest.mark.parametrize("lower,upper,src_length,tgt_length,fwd_log_prob,bwd_log_prob,filtered", [
+    (None, None, 5, 7, -5.1, -8.2, False),
+    (2, None, 5, 5, 0, 0, True),  # ppl = 1
+    (0, 10, 5, 5, 0, 0, False),  # ppl = 1
+    (None, 0.5, 5, 5, 0, 0, True),  # ppl = 1
+])
+def test_align_perplexity_hard_threshold(lower,
+                                         upper,
+                                         src_length,
+                                         tgt_length,
+                                         fwd_log_prob,
+                                         bwd_log_prob,
+                                         filtered):
+    config = [
+        {
+            "op": "align_perplexity_filter",
+            "hard_threshold": {
+                "lower": lower,
+                "upper": upper,
+            }
+        }
+    ]
+
+    tokenizer = pyonmttok.Tokenizer("conservative", joiner_annotate=True)
+    single_tu = tu.TranslationUnit(
+        " ".join(str(i) for i in range(src_length)),
+        " ".join(str(i) for i in range(tgt_length)),
+        source_tokenizer=tokenizer,
+        target_tokenizer=tokenizer)
+    single_tu.set_aligner(_MockAligner(
+        forward_log_prob=fwd_log_prob,
+        backward_log_prob=bwd_log_prob))
+    assert filtered == _is_filtered(config, single_tu)
+
+
+@pytest.mark.parametrize("lower,upper,log_probs,expected_log_probs", [
+    (0, 0,
+     [-1.2, -3.5, -0.5, -7.0, -5.0, -1.3, -2.2, -5.8, -6.7, -18.1],
+     None),
+    (0.1, 0,
+     [-1.2, -3.5, -0.5, -7.0, -5.0, -1.3, -5.8, -6.7, -18.1],
+     None),
+    (0.2, 0.1,
+     [-1.2, -3.5, -0.5, -7.0, -5.0, -1.3, -2.2, -5.8, -6.7, -18.1],
+     [-1.2, -3.5, -5.0, -1.3, -2.2, -5.8, -6.7]),
+])
+def test_align_perplexity_percent_threshold(lower, upper, log_probs, expected_log_probs):
+    if expected_log_probs is None:
+        expected_log_probs = log_probs
+    tu_list = []
+    tokenizer = pyonmttok.Tokenizer("conservative", joiner_annotate=True)
+    for log_prob in log_probs:
+        single_tu = tu.TranslationUnit(
+            "a b c",
+            "a b c",
+            source_tokenizer=tokenizer,
+            target_tokenizer=tokenizer)
+        single_tu.set_aligner(_MockAligner(forward_log_prob=log_prob, backward_log_prob=log_prob))
+        tu_list.append(single_tu)
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": [
+            {
+                "op": "align_perplexity_filter",
+                "percent_threshold": {
+                    "lower": lower,
+                    "upper": upper,
+                }
+            }
+        ]
+    }
+
+    tu_list = _run_pipeline(config, prepoperator.ProcessType.TRAINING, tu_list)
+    assert len(tu_list) == len(expected_log_probs)
+    for single_tu, log_prob in zip(tu_list, expected_log_probs):
+        assert single_tu.alignment_log_probs[0][0] == log_prob
