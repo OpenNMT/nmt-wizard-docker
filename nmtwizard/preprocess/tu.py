@@ -44,11 +44,16 @@ class Alignment(object):
             raise RuntimeError('Cannot set an empty alignment.')
         # A list of alignments, one for each part
         self.__alignments = alignments
+        self.__log_probs = None
         self.aligner = aligner
 
     @property
     def alignments(self):
         return self.__alignments
+
+    @property
+    def log_probs(self):
+        return self.__log_probs
 
     @alignments.setter
     def alignments(self, alignments):
@@ -68,11 +73,14 @@ class Alignment(object):
     def align(self, src_tok, tgt_tok):
         if self.__alignments is None and self.aligner is not None:
             alignments = []
+            log_probs = []
             for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
                 align_result = self.aligner.align(src_tok_part, tgt_tok_part)
-                # TODO : write fwd and bwd probs
                 alignments.append(set(align_result["alignments"]))
+                log_probs.append((
+                    align_result["forward_log_prob"], align_result["backward_log_prob"]))
             self.__alignments = alignments
+            self.__log_probs = log_probs
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
         # Shift alignments behind insertion/deletion.
@@ -324,6 +332,16 @@ class TranslationUnit(object):
             return None
         self._initialize_alignment()
         return [set(part) for part in self.__alignment.alignments]
+
+    @property
+    def alignment_log_probs(self):
+        if self.__alignment is None:
+            return None
+        self._initialize_alignment()
+        log_probs = self.__alignment.log_probs
+        if log_probs is None:
+            return None
+        return list(log_probs)
 
     def set_aligner(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:

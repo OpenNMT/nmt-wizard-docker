@@ -1,3 +1,4 @@
+from nmtwizard.preprocess.operators import align_perplexity_filter
 from nmtwizard.preprocess.operators import alignment
 from nmtwizard.preprocess.operators import identity_filter
 from nmtwizard.preprocess.operators import length_filter
