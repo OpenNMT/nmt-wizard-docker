@@ -167,7 +167,7 @@ class Pipeline(object):
                 self._add_op_list(postprocess_config)
 
 
-    def __call__(self, tu_batch):
+    def __call__(self, tu_batch, options=None):
         if self._process_type == ProcessType.TRAINING:
             ops_profile = collections.defaultdict(float)
         else:
@@ -177,7 +177,13 @@ class Pipeline(object):
             if ops_profile is not None:
                 start = time.time()
 
-            tu_batch = op(tu_batch)
+            kwargs = {}
+            op_options = options.get(op.name) if options else None
+            if op_options is not None:
+                if not op.accept_options():
+                    raise RuntimeError("Operator %s does not accept runtime options" % op.name)
+                kwargs["options"] = op_options
+            tu_batch = op(tu_batch, **kwargs)
 
             if ops_profile is not None:
                 end = time.time()
@@ -211,21 +217,21 @@ class Operator(object):
         return self._process_type
 
 
-    def __call__(self, tu_batch):
+    def __call__(self, tu_batch, **kwargs):
         if self.process_type == ProcessType.POSTPROCESS:
-            tu_batch = self._postprocess(tu_batch)
+            tu_batch = self._postprocess(tu_batch, **kwargs)
         else:
-            tu_batch = self._preprocess(tu_batch)
+            tu_batch = self._preprocess(tu_batch, **kwargs)
         # TODO : do we need a separate function for inference ?
         return tu_batch
 
 
     @abc.abstractmethod
-    def _preprocess(self, tu_batch):
+    def _preprocess(self, tu_batch, **kwargs):
         raise NotImplementedError()
 
 
-    def _postprocess(self, tu_batch):
+    def _postprocess(self, tu_batch, **kwargs):
         # Postprocess is not mandatorily reimplemented by each operator.
         # If the operator has no postprocess, it should implement "is_applied_for" function correctly and never get here.
         raise NotImplementedError()
@@ -236,30 +242,35 @@ class Operator(object):
         return True
 
 
+    @staticmethod
+    def accept_options():
+        return False
+
+
 class TUOperator(Operator):
     """Base class for operations iterating on each TU in a batch."""
 
-    def _preprocess(self, tu_batch):
+    def _preprocess(self, tu_batch, **kwargs):
         # TU operator applies an action to each tu.
         # The action yields zero, one or more element for the new list
         tu_list, meta_batch = tu_batch
-        tu_list = list(chain.from_iterable(self._preprocess_tu(tu, meta_batch) for tu in tu_list))
-
+        tu_list = list(chain.from_iterable(
+            self._preprocess_tu(tu, meta_batch, **kwargs) for tu in tu_list))
         return tu_list, meta_batch
 
 
-    def _postprocess(self, tu_batch):
+    def _postprocess(self, tu_batch, **kwargs):
         tu_list, meta_batch = tu_batch
-        tu_list = [self._postprocess_tu(tu) for tu in tu_list]
+        tu_list = [self._postprocess_tu(tu, **kwargs) for tu in tu_list]
         return tu_list, meta_batch
 
 
     @abc.abstractmethod
-    def _preprocess_tu(self, tu, meta_batch):
+    def _preprocess_tu(self, tu, meta_batch, **kwargs):
         raise NotImplementedError()
 
 
-    def _postprocess_tu(self, tu):
+    def _postprocess_tu(self, tu, **kwargs):
         raise NotImplementedError()
 
 
@@ -288,44 +299,48 @@ class MonolingualOperator(TUOperator):
     def _build_process(self, config):
         raise NotImplementedError()
 
+    @abc.abstractmethod
+    def _apply_process(self, process, arg, **kwargs):
+        raise NotImplementedError()
+
     @property
     @abc.abstractmethod
     def _detok(self):
         raise NotImplementedError()
 
 
-    def _preprocess_tu(self, tu, meta_batch):
+    def _preprocess_tu(self, tu, meta_batch, **kwargs):
 
         if self._source_process is not None:
             if self._detok:
                 for name, detok in tu.src_detok_gen():
-                    src_detok = self._apply_process(self._source_process, detok)
+                    src_detok = self._apply_process(self._source_process, detok, **kwargs)
                     tu.set_src_detok(src_detok, name)
             else:
                 for name, tok in tu.src_tok_gen():
-                    src_tok = self._apply_process(self._source_process, tok)
+                    src_tok = self._apply_process(self._source_process, tok, **kwargs)
                     tu.set_src_tok(src_tok, name)
 
         if self._target_process is not None:
             if self._detok:
                 for name, detok in tu.tgt_detok_gen():
-                    tgt_detok = self._apply_process(self._target_process, detok)
+                    tgt_detok = self._apply_process(self._target_process, detok, **kwargs)
                     tu.set_tgt_detok(tgt_detok, name)
             else:
                 for name, tok in tu.tgt_tok_gen():
-                    tgt_tok = self._apply_process(self._target_process, tok)
+                    tgt_tok = self._apply_process(self._target_process, tok, **kwargs)
                     tu.set_tgt_tok(tgt_tok, name)
 
         return [tu]
 
 
-    def _postprocess_tu(self, tu, *args):
+    def _postprocess_tu(self, tu, **kwargs):
         if self._postprocess_only:
             if self._target_process is not None:
                 if self._detok:
-                    tu.tgt_detok = self._apply_process(self._target_process, tu.tgt_detok)
+                    tu.tgt_detok = self._apply_process(self._target_process, tu.tgt_detok, **kwargs)
                 else:
-                    tu.tgt_tok = self._apply_process(self._target_process, tu.tgt_tok)
+                    tu.tgt_tok = self._apply_process(self._target_process, tu.tgt_tok, **kwargs)
         return tu
 
 

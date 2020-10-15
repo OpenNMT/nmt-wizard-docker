@@ -47,21 +47,26 @@ class Processor(object):
             override_label=override_label
         )
 
-    def process_batch(self, tu_batch):
+    def process_batch(self, tu_batch, options=None):
         # Lazily create the pipeline so that it is created in each worker process.
         _, batch_meta = tu_batch
         override_label = batch_meta.get('label', None) if batch_meta else None
         if self._pipeline is None or self._pipeline.override_label != override_label:
             self._pipeline = self.build_pipeline(override_label=override_label)
-        return self._pipeline(tu_batch)
+        return self._pipeline(tu_batch, options=options)
 
-    def process(self, loader, consumer, num_workers=0, preprocess_exit_step=None):
+    def process(self,
+                loader,
+                consumer,
+                num_workers=0,
+                preprocess_exit_step=None,
+                options=None):
         self._preprocess_exit_step = preprocess_exit_step
 
         if num_workers == 0:
 
             for tu_batch in loader():
-                tu_batch = self.process_batch(tu_batch)
+                tu_batch = self.process_batch(tu_batch, options=options)
                 consumer(tu_batch)
 
         else:
@@ -76,7 +81,7 @@ class Processor(object):
 
                 for tu_batch in loader():
                     # Push the batch in the process queue and get a handle on the result.
-                    results.append(pool.apply_async(self.process_batch, (tu_batch,)))
+                    results.append(pool.apply_async(self.process_batch, (tu_batch, options)))
 
                     # Limit the queue max size to avoid loading too many batches in advance.
                     if len(results) == 2 * num_workers:
@@ -245,7 +250,7 @@ class InferenceProcessor(Processor):
         self._postprocess = postprocess
         self._pipeline = self.build_pipeline()
 
-    def process_input(self, source, target=None, metadata=None):
+    def process_input(self, source, target=None, metadata=None, options=None):
         """Processes one translation example at inference.
 
               In preprocess:
@@ -261,8 +266,7 @@ class InferenceProcessor(Processor):
             metadata=metadata,
             start_state=self._pipeline.start_state)
         basic_writer = consumer.BasicWriter(self._postprocess)
-        self.process(basic_loader,
-                     basic_writer)
+        self.process(basic_loader, basic_writer, options=options)
 
         return basic_writer.output
 

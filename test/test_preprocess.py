@@ -432,6 +432,56 @@ config_base = {
 }
 
 
+def test_pipeline_with_options():
+
+    @prepoperator.register_operator("dummy_op_without_options")
+    class DummyOpWithoutOptions(prepoperator.TUOperator):
+
+        def _preprocess_tu(self, tu, meta_batch):
+            return [tu]
+
+    @prepoperator.register_operator("dummy_op_with_options")
+    class DummyOpWithOptions(prepoperator.TUOperator):
+
+        @staticmethod
+        def accept_options():
+            return True
+
+        def _preprocess_tu(self, tu, meta_batch, options=None):
+            assert isinstance(options, dict)
+            return [tu]
+
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "conservative", "joiner_annotate": True},
+                "target": {"mode": "conservative", "joiner_annotate": True},
+            },
+            {
+                "op": "dummy_op_without_options",
+                "name": "wo_opts",
+            },
+            {
+                "op": "dummy_op_with_options",
+                "name": "w_opts",
+            },
+        ],
+    }
+
+    processor = InferenceProcessor(config)
+
+    options = {"wo_opts": {"my-option": 42}}
+    with pytest.raises(RuntimeError):
+        processor.process_input("Hello", options=options)
+
+    options = {"w_opts": {"my-option": 42}}
+    processor.process_input("Hello", options=options)
+
+
 def test_preprocess_gzip_file(tmpdir):
     num_lines = 10
     input_path = generate_pseudo_corpus(tmpdir, num_lines, "input", "en.gz")
