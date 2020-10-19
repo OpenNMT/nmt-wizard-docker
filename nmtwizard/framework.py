@@ -562,23 +562,18 @@ class Framework(utility.Utility):
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input_preprocessed = self._preprocess_file(path_input_unzipped)
-                metadata = None
-                if isinstance(path_input_preprocessed, tuple):
-                    path_input_preprocessed, metadata = path_input_preprocessed
+                path_input_preprocessed, metadata = self._preprocess_file(path_input_unzipped)
                 translate_fn(local_config,
                              model_path,
                              path_input_preprocessed,
                              path_output,
                              gpuid=gpuid)
-                path_postprocess_input = path_input_preprocessed
-                if metadata is not None:
-                    path_postprocess_input = (path_input_preprocessed, metadata)
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
                 if not no_postprocess:
-                    path_output = self._postprocess_file(path_postprocess_input, path_output)
+                    path_output = self._postprocess_file(
+                        path_input_preprocessed, path_output, metadata)
 
                 if copy_source:
                     copied_input = output
@@ -928,11 +923,11 @@ class Framework(utility.Utility):
         self._set_postprocessor(config)
         return self._postprocessor.process_input(source, target)
 
-    def _preprocess_file(self, preprocess_input):
-        return self._preprocessor.process_file(preprocess_input)
+    def _preprocess_file(self, source_file):
+        return self._preprocessor.process_file(source_file)
 
-    def _postprocess_file(self, source, target):
-        return self._postprocessor.process_file((source, target))
+    def _postprocess_file(self, source_file, target_file, metadata=None):
+        return self._postprocessor.process_file(source_file, target_file, metadata=metadata)
 
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:

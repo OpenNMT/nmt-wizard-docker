@@ -45,16 +45,18 @@ class BasicLoader(Loader):
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
-    def __init__(self, input_files, start_state, batch_size=None):
+    def __init__(self,
+                 source_file,
+                 target_file=None,
+                 metadata=None,
+                 start_state=None,
+                 batch_size=None):
         super().__init__(batch_size)
+        if start_state is None:
+            start_state = {}
         self._source_tokenizer = start_state.get('src_tokenizer')
         self._target_tokenizer = start_state.get('tgt_tokenizer')
-        source_file = input_files
-        target_file = None
-        if isinstance(source_file, tuple):
-            source_file, target_file = source_file
-        if isinstance(source_file, tuple):
-            source_file, self._metadata = source_file
+        self._metadata = metadata
         self._files = [source_file]
         if target_file:
             self._files.append(target_file)

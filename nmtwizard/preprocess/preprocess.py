@@ -271,7 +271,7 @@ class InferenceProcessor(Processor):
         return basic_writer.output
 
 
-    def process_file(self, input_files):
+    def process_file(self, source_file, target_file=None, metadata=None):
         """Process translation file at inference.
 
               In preprocess:
@@ -281,22 +281,24 @@ class InferenceProcessor(Processor):
                  input is ((source, metadata), target), where source and target are files with tokenized and multi-part data
                  output is a file with postprocessed single-part targets."""
 
-        input_file = input_files
-        if isinstance(input_files, tuple):
-            input_file = input_files[-1]
+        if self._postprocess:
+            output_prefix = target_file
             output_suffix = 'detok'
         else:
+            output_prefix = source_file
             output_suffix = 'tok'
 
         output_file = '%s.%s' % (
-            input_file if not utils.is_gzip_file(input_file) else input_file[:-3],
+            output_prefix if not utils.is_gzip_file(output_prefix) else output_prefix[:-3],
             output_suffix)
 
-        file_loader = loader.FileLoader(input_files, self._pipeline.start_state)
+        file_loader = loader.FileLoader(
+            source_file,
+            target_file=target_file,
+            metadata=metadata,
+            start_state=self._pipeline.start_state)
         with consumer.FileWriter(output_file, self._postprocess) as file_consumer:
             self.process(file_loader, file_consumer)
-
-            if file_consumer.metadata:
-                output_file = (output_file, file_consumer.metadata)
-
-        return output_file
+            if self._postprocess:
+                return output_file
+            return output_file, file_consumer.metadata
