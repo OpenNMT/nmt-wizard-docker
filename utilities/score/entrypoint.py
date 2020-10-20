@@ -83,7 +83,7 @@ class ScoreUtility(Utility):
         outfile = tempfile.NamedTemporaryFile(delete=False)
         with open(filename, 'r') as input_file, open(outfile.name, 'w') as output_file:
             for line in input_file:
-                line = re.sub(r"｟.+?：(.+?)｠", self.remove_ph_escape, line)
+                line = re.sub(r"｟.+：(.+?)｠", self.remove_ph_escape, line)
                 output_file.write(line)
         return outfile.name
 
