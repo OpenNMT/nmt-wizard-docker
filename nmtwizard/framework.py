@@ -80,7 +80,8 @@ class Framework(utility.Utility):
           gpuid: The GPU identifier.
 
         Returns:
-          A dictionary of filenames to paths of objects to save in the model package.
+          A dictionary of filenames to paths of objects to save in the model package,
+          and an optional dictionary with a summary of the training.
         """
         raise NotImplementedError()
 
@@ -436,6 +437,10 @@ class Framework(utility.Utility):
             num_samples=num_samples,
             samples_metadata=samples_metadata,
             gpuid=gpuid)
+        if isinstance(objects, tuple):
+            objects, training_summary = objects
+        else:
+            training_summary = {}
 
         end_time = time.time()
         logger.info('Finished training model %s in %s seconds', model_id, str(end_time-start_time))
@@ -467,9 +472,10 @@ class Framework(utility.Utility):
         utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
             storage.push(objects_dir, storage.join(model_storage, model_id))
-        return {
+        training_summary.update({
             'num_sentences': config['build'].get('sentenceCount')
-        }
+        })
+        return training_summary
 
     def build_vocab(self,
                     model_id,

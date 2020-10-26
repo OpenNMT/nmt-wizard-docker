@@ -56,8 +56,10 @@ class OpenNMTTFFramework(Framework):
                 tgt_vocab=tgt_vocab_info.current if prev_tgt_vocab else None)
             shutil.rmtree(previous_model_dir)
 
-        output_dir = runner.train(num_devices=utils.count_devices(gpuid))
-        return _list_checkpoint_files(output_dir)
+        output_dir, summary = runner.train(
+            num_devices=utils.count_devices(gpuid),
+            return_summary=True)
+        return _list_checkpoint_files(output_dir), summary
 
     def trans(self, config, model_path, input, output, gpuid=0):
         runner = self._build_runner(config, model_path=model_path)
