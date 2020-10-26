@@ -457,19 +457,25 @@ def test_train_chain(tmpdir):
     assert config["modelType"] == "checkpoint"
     assert DummyCheckpoint(model_dir).index() == 1
 
-def test_config_replace(tmpdir):
-    config = copy.deepcopy(config_base)
-    config["custom_field"] = {"a": 1, "b": 2}
+# For V2 configuration, the default config update mode is "replace" while it is "merge"
+# for V1 configuration.
+@pytest.mark.parametrize("config,custom_field,new_field,mode,expected_field", [
+    (config_base, {"a": 1, "b": 2}, {"a": 3}, "default", {"a": 3}),
+    (config_base_old, {"a": 1, "b": 2}, {"a": 3}, "default", {"a": 3, "b": 2}),
+    (config_base_old, {"a": 1, "b": 2}, {"a": 3}, "replace", {"a": 3}),
+])
+def test_config_update(tmpdir, config, custom_field, new_field, mode, expected_field):
+    config["custom_field"] = custom_field
     _run_framework(tmpdir, "model0", "train", config=config)
     new_config = {"custom_field": {"a": 3}}
     model_dir = _run_framework(
         tmpdir,
         "model1",
-        ["--config_update_mode", "replace", "train"],
+        ["--config_update_mode", mode, "train"],
         parent="model0",
         config=new_config)
     config = _read_config(model_dir)
-    assert config["custom_field"] == new_config["custom_field"]
+    assert config["custom_field"] == expected_field
 
 def test_model_storage(tmpdir):
     ms1 = tmpdir.join("ms1")

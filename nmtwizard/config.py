@@ -22,8 +22,10 @@ def replace_config(a, b):
     a.update(b)
     return a
 
-def update_config(a, b, mode='merge'):
+def update_config(a, b, mode='default'):
     """Update the configuration a with b."""
+    if mode == 'default':
+        mode = 'merge' if is_v1_config(a) else 'replace'
     if mode == 'merge':
         return merge_config(a, b)
     if mode == 'replace':
@@ -114,6 +116,16 @@ def update_config_with_options(config, options):
         dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
         dst_config[dst_key] = option_value
 
+def is_v2_config(config):
+    """Returns True if config is a V2 configuration."""
+    preprocess = config.get("preprocess")
+    return ("tokenization" not in config
+            and preprocess is not None
+            and isinstance(preprocess, list))
+
+def is_v1_config(config):
+    """Returns True if config is a V1 configuration."""
+    return not is_v2_config(config)
 
 def old_to_new_config(config):
     """Locally update old configuration with 'tokenization' field to include new 'vocabulary' and 'preprocess" fields.

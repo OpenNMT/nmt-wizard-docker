@@ -154,10 +154,14 @@ class Utility(object):
         parser.add_argument('-c', '--config', default=None,
                             help=('Configuration as a file or a JSON string. '
                                   'Setting "-" will read from the standard input.'))
-        parser.add_argument('--config_update_mode', choices=['merge', 'replace'], default='merge',
+        parser.add_argument('--config_update_mode',
+                            choices=['default', 'merge', 'replace'],
+                            default='default',
                             help=('How to update the parent task configuration with the given '
-                                  'configuration. "merge": recursively update configuration '
-                                  'fields, "replace": replace the top-most fields.'))
+                                  'configuration. '
+                                  '"default": automatic mode based on the configuration, '
+                                  '"merge": recursively update configuration fields, '
+                                  '"replace": replace the top-most fields.'))
         parser.add_argument('-m', '--model', default=None,
                             help='Model to load.')
         parser.add_argument('-g', '--gpuid', default="0",
