@@ -193,9 +193,8 @@ class Pipeline(object):
         if ops_profile is not None:
             batch_meta['ops_profile'] = ops_profile
 
-        if self._process_type != ProcessType.POSTPROCESS:
-            for tu in tu_list:
-                tu.synchronize()
+        for tu in tu_list:
+            tu.finalize(self._process_type)
 
         return tu_list, batch_meta
 
