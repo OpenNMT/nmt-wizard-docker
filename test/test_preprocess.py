@@ -60,7 +60,14 @@ def test_sampler(tmpdir, batch_size, num_threads):
                     ]
                 }
             ]
-        }
+        },
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "space"},
+                "target": {"mode": "space"},
+            }
+        ],
     }
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))

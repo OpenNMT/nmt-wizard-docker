@@ -3,6 +3,7 @@ import itertools
 import pyonmttok
 
 from nmtwizard.logger import get_logger
+from nmtwizard.preprocess import prepoperator
 
 logger = get_logger(__name__)
 
@@ -10,10 +11,10 @@ logger = get_logger(__name__)
 class Tokenization(object):
     """Structure to keep tokenizer and tokens together."""
 
-    def __init__(self, tokenizer, token_objects=None):
+    def __init__(self, tokenizer, token_objects=None, tokens=None):
         self._tokenizer = tokenizer
         self._token_objects = token_objects
-        self._tokens = None  # String tokens are lazily generated.
+        self._tokens = tokens
 
     @property
     def tokenizer(self):
@@ -25,12 +26,6 @@ class Tokenization(object):
 
     @property
     def tokens(self):
-        if self._token_objects is None:
-            return None
-        if self._tokens is None:
-            self._tokens = [
-                self._tokenizer.serialize_tokens(part)[0]
-                for part in self._token_objects]
         return self._tokens
 
 
@@ -125,6 +120,7 @@ class TranslationSide(object):
             self.raw = line.strip()
             self.__detok = self.raw
             self.__tok = None
+            self.__tok_str = None
             self.__tokenizer = tokenizer
         elif isinstance(line, list):
             self.raw = None
@@ -142,7 +138,9 @@ class TranslationSide(object):
                 return Tokenization(self.__tokenizer)
             else:
                 self.__tok = [self.__tokenizer.tokenize(self.__detok, as_token_objects=True)]
-        return Tokenization(self.__tokenizer, list(self.__tok))
+        if self.__tok_str is None:
+            self.__tok_str = [self.__tokenizer.serialize_tokens(part)[0] for part in self.__tok]
+        return Tokenization(self.__tokenizer, list(self.__tok), list(self.__tok_str))
 
     @tok.setter
     def tok(self, tok):
@@ -150,7 +148,10 @@ class TranslationSide(object):
         if tok is not None:
             # Set a new list of tokens and a new tokenizer.
             if tok and tok[0] and not isinstance(tok[0][0], pyonmttok.Token):
+                self.__tok_str = tok
                 tok = [tokenizer.deserialize_tokens(part) for part in tok]
+            else:
+                self.__tok_str = None
             self.__tok = tok
             self.__tokenizer = tokenizer
             self.__detok = None
@@ -161,6 +162,7 @@ class TranslationSide(object):
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
                 self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
             self.__tok = None
+            self.__tok_str = None
             self.__tokenizer = tokenizer
 
     @property
@@ -176,6 +178,7 @@ class TranslationSide(object):
     def detok(self, detok):
         self.__detok = detok
         self.__tok = None
+        self.__tok_str = None
 
     @property
     def output_side(self):
@@ -185,6 +188,35 @@ class TranslationSide(object):
     def output_delimiter(self):
         return self._output_delimiter
 
+    def finalize(self):
+        _ = self.tok
+        _ = self.detok
+        self.__tokenizer = None
+
+    def append(self, other):
+        other_token_objects = other.tok.token_objects
+        if other_token_objects is None:
+            if not other.detok:
+                return False
+            self.detok = (
+                self.detok
+                + ((' ' + other.output_delimiter) if other.output_delimiter is not None else '')
+                + ' ' + other.detok)
+        else:
+            if not other_token_objects[0]:
+                return False
+            tok = self.tok
+            tokenizer = tok.tokenizer
+            token_objects = tok.token_objects
+            if token_objects is None:
+                token_objects = [[]]
+            elif len(token_objects) > 1:
+                return False
+            elif token_objects[0] and other.output_delimiter is not None:
+                token_objects[0].append(pyonmttok.Token(other.output_delimiter))
+            token_objects[0].extend(other_token_objects[0])
+            self.tok = (tokenizer, token_objects)
+        return True
 
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
@@ -215,6 +247,7 @@ class TranslationSide(object):
                     cur_tokens[start_idx:end_idx] = new_tokens
 
             self.__detok = None
+            self.__tok_str = None
         else:
             logger.warning("Cannot replace tokens, no tokenization is set.")
 
@@ -266,11 +299,6 @@ class TranslationUnit(object):
     def num_targets(self):
         return len(self.__target) if self.__target is not None else 0
 
-
-    def synchronize(self):
-        _ = self.src_tok
-        _ = self.tgt_tok
-        self._initialize_alignment()
 
     @property
     def src_tok(self):
@@ -415,45 +443,37 @@ class TranslationUnit(object):
             if key == "main":
                 self._invalidate_alignment()
 
-    def build_preprocessed_tokens(self, side):
-        tok = None
-        if side == "source":
-            tok = self.__source
-        elif side == "target":
-            tok = self.__target
-        else:
-            raise ValueError("Invalid side value when building output: %s" % side)
+    def _finalize_side(self, name, side):
+        main_side = side.get("main")
+        if main_side is None:
+            return
 
-        if tok is not None:
-            main_side = tok.get("main")
-            if main_side is not None:
-                tok = main_side.tok.tokens
-            else:
-                tok = None
-
-        if tok is None or len(tok) > 1:
-            # Main side tokenization doesn't exist OR
-            # Main side tokenization is multipart
-            return tok
-
-        # We suppose here that extra sources and targets are all single-part.
-        # Can be changed/improved later.
-
-        all_translation_sides = [ts for k, ts  in self.__source.items() if k != "main"]
+        # Merge secondary sides into the main side.
+        all_sides = self.__source.items()
         if self.__target is not None:
-            all_translation_sides += [ts for k, ts  in self.__target.items() if k != "main"]
+            all_sides = itertools.chain(all_sides, self.__target.items())
+        sides_to_merge = (ts for k, ts in all_sides if k != "main" and ts.output_side == name)
+        for ts in sides_to_merge:
+            main_side.append(ts)
 
-        for ts in all_translation_sides:
-            if ts.output_side == side:
-                tokens = ts.tok.tokens
-                if not tokens or len(tokens[0]) == 0:
-                    continue
-                if tok[0] and ts.output_delimiter is not None:
-                    # Some previous tokens exist, we need to insert the delimiter.
-                    tok[0].append(ts.output_delimiter)
-                tok[0].extend(tokens[0])
+        # Synchronize the main side and detach the Tokenizer instance.
+        main_side.finalize()
 
-        return tok
+        # Remove secondary sides.
+        for key in list(side.keys()):
+            if key != "main":
+                side.pop(key)
+
+    def finalize(self, process_type):
+        if process_type != prepoperator.ProcessType.POSTPROCESS:
+            # Synchronize alignments and detach the Aligner instance.
+            self._initialize_alignment()
+            if self.__alignment is not None:
+                self.__alignment.aligner = None
+
+            self._finalize_side("source", self.__source)
+            if self.__target is not None:
+                self._finalize_side("target", self.__target)
 
     @property
     def metadata(self):
