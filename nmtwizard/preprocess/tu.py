@@ -190,6 +190,7 @@ class TranslationSide(object):
 
     def finalize(self):
         _ = self.tok
+        _ = self.detok
         self.__tokenizer = None
 
     def append(self, other):
