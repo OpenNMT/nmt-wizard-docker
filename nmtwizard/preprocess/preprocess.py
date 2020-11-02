@@ -324,7 +324,6 @@ class InferenceProcessor(Processor):
 
 class SharedManager(multiprocessing.managers.BaseManager):
     """Custom manager for shared resources with multiprocessing."""
-    pass
 
 
 class SharedState:
