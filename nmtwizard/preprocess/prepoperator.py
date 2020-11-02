@@ -39,6 +39,12 @@ def get_operator_type(config):
         raise ValueError("Missing 'op' field in operator configuration: %s" % str(config))
     return op
 
+def get_operator_class(op):
+    operator_cls = _OPERATORS_REGISTRY.get(op)
+    if operator_cls is None:
+        raise ValueError("Unknown operator '%s'" % op)
+    return operator_cls
+
 def get_operator_params(config, override_label=None):
     """Returns the operator parameters from the configuration."""
     config = copy.deepcopy(config)
@@ -60,15 +66,14 @@ def _add_lang_info(operator_params, config, side):
 def build_operator(operator_config,
                    global_config,
                    process_type,
-                   state,
+                   build_state,
                    index,
-                   override_label=None):
+                   override_label=None,
+                   shared_state=None):
     """Creates an operator instance from its configuration."""
 
     operator_type = get_operator_type(operator_config)
-    operator_cls = _OPERATORS_REGISTRY.get(operator_type)
-    if operator_cls is None:
-        raise ValueError("Unknown operator '%s'" % operator_type)
+    operator_cls = get_operator_class(operator_type)
     if not operator_cls.is_applied_for(process_type):
         return None
     operator_params = get_operator_params(operator_config, override_label)
@@ -80,7 +85,10 @@ def build_operator(operator_config,
     _add_lang_info(operator_params, global_config, "source")
     _add_lang_info(operator_params, global_config, "target")
 
-    operator = operator_cls(operator_params, process_type, state)
+    args = []
+    if shared_state:
+        args.append(shared_state)
+    operator = operator_cls(operator_params, process_type, build_state, *args)
     # We set common private attributes here so that operators do not need to call
     # the base constructor.
     operator._name = operator_params.pop("name", "%s_%d" % (operator_type, index))
@@ -105,7 +113,14 @@ class ProcessType(object):
 class Pipeline(object):
     """Pipeline for building and applying pre/postprocess operators in order."""
 
-    def __init__(self, config, process_type, preprocess_exit_step=None, override_label=None):
+    def __init__(
+            self,
+            config,
+            process_type,
+            preprocess_exit_step=None,
+            override_label=None,
+            shared_state=None,
+    ):
         self._process_type = process_type
 
         # When building a pipeline, a special label can be activated to override operator configuration in some cases (e.g. for some corpora).
@@ -123,10 +138,10 @@ class Pipeline(object):
         # Passed to and modified by operator initializers if necessary.
         self.build_state = dict(self.start_state)
 
-        self._build_pipeline(config, preprocess_exit_step)
+        self._build_pipeline(config, preprocess_exit_step, shared_state)
 
 
-    def _add_op_list(self, op_list_config, exit_step=None):
+    def _add_op_list(self, op_list_config, exit_step=None, shared_state=None):
         # Parameters from global configuration that can be useful for individual operators.
 
         for i, op_config in enumerate(op_list_config):
@@ -136,19 +151,25 @@ class Pipeline(object):
                 self._process_type,
                 self.build_state,
                 i,
-                self.override_label)
+                self.override_label,
+                shared_state=shared_state.get(i) if shared_state else None,
+            )
             if operator is not None:
                 self._ops.append(operator)
             if exit_step and i == exit_step:
                 break
 
 
-    def _build_pipeline(self, config, preprocess_exit_step=None):
+    def _build_pipeline(self, config, preprocess_exit_step=None, shared_state=None):
         self._ops = []
         self._config = config
         preprocess_config = config.get("preprocess")
         if preprocess_config:
-            self._add_op_list(preprocess_config, exit_step=preprocess_exit_step)
+            self._add_op_list(
+                preprocess_config,
+                exit_step=preprocess_exit_step,
+                shared_state=shared_state,
+            )
 
         if self._process_type == ProcessType.POSTPROCESS:
             # Reverse preprocessing operators.
@@ -244,6 +265,23 @@ class Operator(object):
     @staticmethod
     def accept_options():
         return False
+
+
+    # When the preprocessing is running in parallel, the state of each operator is
+    # duplicated in each worker process. This can be an issue for resources that
+    # use a lot of memory. The methods below allow building objects that will be
+    # shared across workers. Operators with a shared state will take an additional
+    # "shared_state" argument in the their constructor.
+    #
+    # See the alignment operator for an example.
+
+    @staticmethod
+    def get_shared_classes():
+        return None
+
+    @staticmethod
+    def get_shared_builders(config, process_type):
+        return None
 
 
 class TUOperator(Operator):
