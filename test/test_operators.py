@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import pytest
 import pyonmttok
 
@@ -39,6 +40,56 @@ class _MockAligner:
 
     def align(self, *args):
         return self._result
+
+
+def test_tokenization_with_vocabulary_restriction(tmpdir):
+    sp_model_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "corpus", "resources", "subword", "en_de.sp")
+    config = {
+        "source": "en",
+        "target": "de",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {
+                    "mode": "none",
+                    "sp_model_path": sp_model_path,
+                    "restrict_subword_vocabulary": True,
+                },
+                "target": {
+                    "mode": "none",
+                    "sp_model_path": sp_model_path,
+                },
+            },
+        ],
+    }
+
+    process_type = prepoperator.ProcessType.INFERENCE
+    example = tu.TranslationUnit("World", "World")
+
+    with pytest.raises(ValueError, match="restrict_subword_vocabulary"):
+        pipeline = prepoperator.Pipeline(config, process_type)
+
+    vocab_path = str(tmpdir.join("vocab.txt"))
+    with open(vocab_path, "w") as vocab_file:
+        vocab_file.write("▁Wor\n")
+    config.update({
+        "vocabulary": {
+            "source": {
+                "path": vocab_path,
+            },
+            "target": {
+                "path": vocab_path,
+            },
+        },
+    })
+
+    pipeline = prepoperator.Pipeline(config, process_type)
+    tu_list, _ = pipeline(([example], {}))
+
+    assert tu_list[0].src_tok.tokens[0] == ["▁Wor", "l", "d"]
+    assert tu_list[0].tgt_tok.tokens[0] == ["▁World"]
 
 
 @pytest.mark.parametrize("config,training,text,expected", [

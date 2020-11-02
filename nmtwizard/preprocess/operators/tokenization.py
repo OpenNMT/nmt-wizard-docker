@@ -9,6 +9,12 @@ class Tokenizer(prepoperator.MonolingualOperator):
         return False
 
     def _build_process(self, config, side, build_state):
+        if config.get("restrict_subword_vocabulary", False):
+            vocabulary_path = build_state.get(
+                "src_vocabulary" if side == "source" else "tgt_vocabulary")
+            if vocabulary_path is None:
+                raise ValueError("restrict_subword_vocabulary is set but no vocabulary is set")
+            config["vocabulary_path"] = vocabulary_path
         current_tokenizer = tokenizer.build_tokenizer(config)
         previous_tokenizer = None
         if build_state:
