@@ -42,6 +42,12 @@ class Processor(object):
         self._preprocess_exit_step = None
         self._pipeline = None
 
+    def _build_shared_state(self, num_workers=0):
+        return SharedState(self._config, self._pipeline_type, num_workers)
+
+    def _get_shared_state(self, shared_state, override_label=None):
+        return shared_state.get(override_label)
+
     def build_pipeline(self, config=None, override_label=None, shared_state=None):
         if config is None:
             config = self._config
@@ -68,8 +74,7 @@ class Processor(object):
                 preprocess_exit_step=None,
                 options=None):
         self._preprocess_exit_step = preprocess_exit_step
-
-        shared_state = SharedState(self._pipeline_type, num_workers)
+        shared_state = self._build_shared_state(num_workers)
 
         if num_workers == 0:
 
@@ -78,7 +83,7 @@ class Processor(object):
                 tu_batch = self.process_batch(
                     tu_batch,
                     options=options,
-                    shared_state=shared_state.get_state(self._config, override_label))
+                    shared_state=self._get_shared_state(shared_state, override_label))
                 consumer(tu_batch)
 
         else:
@@ -98,7 +103,7 @@ class Processor(object):
                     results.append(pool.apply_async(self.process_batch, (
                         tu_batch,
                         options,
-                        shared_state.get_state(self._config, override_label))))
+                        self._get_shared_state(shared_state, override_label))))
 
                     # Limit the queue max size to avoid loading too many batches in advance.
                     if len(results) == 2 * num_workers:
@@ -266,6 +271,12 @@ class InferenceProcessor(Processor):
         super().__init__(config, pipeline_type)
         self._postprocess = postprocess
         self._pipeline = self.build_pipeline()
+        self._shared_state = None
+
+    def _build_shared_state(self, num_workers=0):
+        if self._shared_state is None:
+            self._shared_state = SharedState(self._config, self._pipeline_type)
+        return self._shared_state
 
     def process_input(self, source, target=None, metadata=None, options=None):
         """Processes one translation example at inference.
@@ -321,7 +332,6 @@ class InferenceProcessor(Processor):
             return output_file, file_consumer.metadata
 
 
-
 class SharedManager(multiprocessing.managers.BaseManager):
     """Custom manager for shared resources with multiprocessing."""
 
@@ -329,15 +339,21 @@ class SharedManager(multiprocessing.managers.BaseManager):
 class SharedState:
     """A class collecting shared objects created by operators."""
 
-    def __init__(self, process_type, num_workers=0):
+    def __init__(self, config, process_type, num_workers=0):
         self._all_state = collections.defaultdict(dict)
+        self._cached_state = {}
+        self._config = config
         self._process_type = process_type
         self._num_workers = num_workers
         self._manager = None
+        self.get()  # Cache default shared state.
 
-    def get_state(self, config, override_label=None):
+    def get(self, override_label=None):
         """Returns the shared state for this configuration and corpus label."""
-        preprocess_config = config.get("preprocess")
+        cached_state = self._cached_state.get(override_label)
+        if cached_state is not None:
+            return cached_state
+        preprocess_config = self._config.get("preprocess")
         if not preprocess_config:
             return {}
 
@@ -382,4 +398,6 @@ class SharedState:
                         shared_instance = cls(*args)
                     existing_state[key] = shared_instance
                 shared_state[i].update({name: existing_state[key]})
+
+        self._cached_state[override_label] = shared_state
         return shared_state
