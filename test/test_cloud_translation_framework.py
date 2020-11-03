@@ -1,9 +1,11 @@
 import sys
 import os
 import pytest
-import filecmp
+import json
+import functools
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
+from nmtwizard import serving
 
 
 def _generate_numbers_file(path, max_count=12):
@@ -30,9 +32,13 @@ def _test_framework(tmpdir, framework_class):
     input_path = str(tmpdir.join("input.txt"))
     output_path = str(tmpdir.join("output.txt"))
     _generate_numbers_file(input_path)
-    framework.trans(config, None, input_path, output_path)
-    with open(output_path) as o:
-        print(o.read())
+    args = [
+        "-c", json.dumps(config),
+        "trans",
+        "-i", input_path,
+        "-o", output_path,
+    ]
+    framework.run(args=args)
     assert os.path.isfile(output_path)
     assert _count_lines(input_path) == _count_lines(output_path)
 
@@ -51,6 +57,25 @@ def _test_real_framework(tmpdir, directory):
 
 def test_cloud_translation_framework(tmpdir):
     _test_framework(tmpdir, _CopyTranslationFramework)
+
+def test_serve_cloud_translation_framework():
+    class _ReverseTranslationFramework(CloudTranslationFramework):
+        def translate_batch(self, batch, source_lang, target_lang):
+            assert source_lang == "en"
+            assert target_lang == "fr"
+            return ["".join(reversed(list(text))) for text in batch]
+
+    framework = _ReverseTranslationFramework()
+    config = {"source": "en", "target": "fr"}
+    _, service_info = framework.serve(config, None)
+    request = {"src": [{"text": "Hello"}]}
+    result = serving.run_request(
+        request,
+        framework._preprocess_input,
+        functools.partial(framework.forward_request, service_info),
+        framework._postprocess_output)
+    _, service_info = framework.serve(config, None)
+    assert result["tgt"][0][0]["text"] == "olleH"
 
 @pytest.mark.skipif(
     "BAIDU_APPID" not in os.environ or "BAIDU_KEY" not in os.environ,
