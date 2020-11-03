@@ -8,11 +8,12 @@ import json
 import copy
 import filecmp
 import six
+import functools
 
 from nmtwizard.framework import Framework
 from nmtwizard.preprocess import preprocess
 from nmtwizard.preprocess import prepoperator
-from nmtwizard.serving import TranslationOutput
+from nmtwizard.serving import TranslationOutput, run_request
 
 class DummyCheckpoint(object):
     """Dummy checkpoint files for testing."""
@@ -134,7 +135,6 @@ class DummyFramework(_TestFramework):
         for i, source in enumerate(inputs):
             target = outputs[i] if outputs is not None else None
             output = translate_fn(source, target)
-            print(output)
             hypotheses.append([TranslationOutput(output)])
         return hypotheses
 
@@ -1113,26 +1113,20 @@ def test_translation_add_bt_tag(tmpdir):
 
 def test_serve(tmpdir):
     framework = DummyFramework(stateless=True)
-    # Init serve.
     _, model_info = framework.serve(config_base, None)
 
-    # Preprocess inputs.
-    sources = ["Hello world!", "How are you?"]
-    targets = ["Bonjour", "Comment"]
-    for i, (source, target) in enumerate(zip(sources, targets)):
-        source, target, _ = framework._preprocess_input(source, target, config_base)
-        sources[i] = source[0]  # Take first part only.
-        targets[i] = target[0]
+    request = {"src": [
+        {"text": "Hello world!", "target_prefix": "Bonjour"},
+        {"text": "How are you?", "target_prefix": "Comment"},
+    ]}
 
-    # Forward request to "backend".
-    outputs = framework.forward_request(model_info, sources, targets)
-    assert len(outputs) == 2
-
-    ## Postprocess results.
-    for i, (source, output) in enumerate(zip(sources, outputs)):
-        output = output[0].output  # output is a TranslationOutput class.
-        outputs[i] = framework._postprocess_output([source], [output], config_base)
+    result = run_request(
+        request,
+        framework._preprocess_input,
+        functools.partial(framework.forward_request, model_info),
+        framework._postprocess_output,
+        config=config_base)
 
     # Dummy translation does "target + reversed(source)".
-    assert outputs[0] == "Bonjour! world Hello"
-    assert outputs[1] == "Comment? you are How"
+    assert result["tgt"][0][0]["text"] == "Bonjour! world Hello"
+    assert result["tgt"][1][0]["text"] == "Comment? you are How"
