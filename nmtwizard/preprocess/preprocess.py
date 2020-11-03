@@ -253,13 +253,18 @@ class InferenceProcessor(Processor):
     def process_input(self, source, target=None, metadata=None, options=None):
         """Processes one translation example at inference.
 
-              In preprocess:
-                 input is source or (source, target), single-part and raw string, with incomplete translation in target (if any).
-                 output is ((source, metadata), target), tokenized and possibly multipart, where target can be None.
+        Args:
+          source: In preprocess, a string. In postprocess, a (possibly multipart)
+            list of tokens.
+          target: In preprocess, a string. In postprocess, a (possibly multipart)
+            list of tokens.
+          metadata: Additional metadata of the input.
+          options: A dictionary with operators options.
 
-             In postprocess:
-                 input is ((source, metadata), target), where source and target are tokenized and possibly multipart.
-                 output is single-part postprocessed target."""
+        Returns:
+          - In preprocess, a tuple (source_tokens, target_tokens, metadata).
+          - In postprocess, a string (the postprocessed target)
+        """
         basic_loader = loader.BasicLoader(
             source=source,
             target=target,
@@ -274,13 +279,16 @@ class InferenceProcessor(Processor):
     def process_file(self, source_file, target_file=None, metadata=None):
         """Process translation file at inference.
 
-              In preprocess:
-                 input is a file with raw sources
-                 output is (source, metadata), where source is a file with tokenized and possibly multipart sources.
-              In postprocess:
-                 input is ((source, metadata), target), where source and target are files with tokenized and multi-part data
-                 output is a file with postprocessed single-part targets."""
+        Args:
+          source_file: Path to the source file.
+          target_file: Path to the target file (for postprocess).
+          metadata: A list of metadata, one per example. (Note that in multipart translation,
+            multiple lines can refer to the same example.)
 
+        Returns:
+          - In preprocess: a tuple with the path to the preprocessed source file and the metadata.
+          - In postprocess: the path to the postprocessed target file.
+        """
         if self._postprocess:
             output_prefix = target_file
             output_suffix = 'detok'
