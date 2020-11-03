@@ -927,7 +927,11 @@ class Framework(utility.Utility):
         if not isinstance(target, list):
             return target
         self._set_postprocessor(config)
-        return self._postprocessor.process_input(source, target)
+        if isinstance(source, tuple):
+            source, metadata = source
+        else:
+            metadata = None
+        return self._postprocessor.process_input(source, target, metadata=metadata)
 
     def _preprocess_file(self, source_file):
         return self._preprocessor.process_file(source_file)
