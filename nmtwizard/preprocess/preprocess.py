@@ -385,7 +385,7 @@ class SharedState:
             self._manager = SharedManager()
             self._manager.start()
 
-        # Create all new proxy instances.
+        # Create all new shared instances.
         shared_state = collections.defaultdict(dict)
         for i, builders in all_builders.items():
             existing_state = self._all_state[i]
