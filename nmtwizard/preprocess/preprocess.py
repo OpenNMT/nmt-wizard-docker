@@ -2,6 +2,7 @@
 
 import collections
 import multiprocessing
+import multiprocessing.managers
 import os
 
 from nmtwizard import utils
@@ -28,6 +29,10 @@ def _get_num_workers():
     num_cpus = int(os.environ.get('NB_CPU', '1'))
     return num_cpus if num_cpus > 1 else 0  # Run the sequential path if only 1 CPU is available.
 
+def _get_corpus_label(tu_batch):
+    _, batch_meta = tu_batch
+    return batch_meta.get('label') if batch_meta else None
+
 
 class Processor(object):
 
@@ -37,22 +42,29 @@ class Processor(object):
         self._preprocess_exit_step = None
         self._pipeline = None
 
-    def build_pipeline(self, config=None, override_label=None):
+    def _build_shared_state(self, num_workers=0):
+        return SharedState(self._config, self._pipeline_type, num_workers)
+
+    def _get_shared_state(self, shared_state, override_label=None):
+        return shared_state.get(override_label)
+
+    def build_pipeline(self, config=None, override_label=None, shared_state=None):
         if config is None:
             config = self._config
         return prepoperator.Pipeline(
             config,
             self._pipeline_type,
             preprocess_exit_step=self._preprocess_exit_step,
-            override_label=override_label
+            override_label=override_label,
+            shared_state=shared_state,
         )
 
-    def process_batch(self, tu_batch, options=None):
+    def process_batch(self, tu_batch, options=None, shared_state=None):
         # Lazily create the pipeline so that it is created in each worker process.
-        _, batch_meta = tu_batch
-        override_label = batch_meta.get('label', None) if batch_meta else None
+        override_label = _get_corpus_label(tu_batch)
         if self._pipeline is None or self._pipeline.override_label != override_label:
-            self._pipeline = self.build_pipeline(override_label=override_label)
+            self._pipeline = self.build_pipeline(
+                override_label=override_label, shared_state=shared_state)
         return self._pipeline(tu_batch, options=options)
 
     def process(self,
@@ -62,11 +74,16 @@ class Processor(object):
                 preprocess_exit_step=None,
                 options=None):
         self._preprocess_exit_step = preprocess_exit_step
+        shared_state = self._build_shared_state(num_workers)
 
         if num_workers == 0:
 
             for tu_batch in loader():
-                tu_batch = self.process_batch(tu_batch, options=options)
+                override_label = _get_corpus_label(tu_batch)
+                tu_batch = self.process_batch(
+                    tu_batch,
+                    options=options,
+                    shared_state=self._get_shared_state(shared_state, override_label))
                 consumer(tu_batch)
 
         else:
@@ -80,8 +97,13 @@ class Processor(object):
                 results = collections.deque()
 
                 for tu_batch in loader():
+                    override_label = _get_corpus_label(tu_batch)
+
                     # Push the batch in the process queue and get a handle on the result.
-                    results.append(pool.apply_async(self.process_batch, (tu_batch, options)))
+                    results.append(pool.apply_async(self.process_batch, (
+                        tu_batch,
+                        options,
+                        self._get_shared_state(shared_state, override_label))))
 
                     # Limit the queue max size to avoid loading too many batches in advance.
                     if len(results) == 2 * num_workers:
@@ -249,6 +271,12 @@ class InferenceProcessor(Processor):
         super().__init__(config, pipeline_type)
         self._postprocess = postprocess
         self._pipeline = self.build_pipeline()
+        self._shared_state = None
+
+    def _build_shared_state(self, num_workers=0):
+        if self._shared_state is None:
+            self._shared_state = SharedState(self._config, self._pipeline_type)
+        return self._shared_state
 
     def process_input(self, source, target=None, metadata=None, options=None):
         """Processes one translation example at inference.
@@ -302,3 +330,74 @@ class InferenceProcessor(Processor):
             if self._postprocess:
                 return output_file
             return output_file, file_consumer.metadata
+
+
+class SharedManager(multiprocessing.managers.BaseManager):
+    """Custom manager for shared resources with multiprocessing."""
+
+
+class SharedState:
+    """A class collecting shared objects created by operators."""
+
+    def __init__(self, config, process_type, num_workers=0):
+        self._all_state = collections.defaultdict(dict)
+        self._cached_state = {}
+        self._config = config
+        self._process_type = process_type
+        self._num_workers = num_workers
+        self._manager = None
+        self.get()  # Cache default shared state.
+
+    def get(self, override_label=None):
+        """Returns the shared state for this configuration and corpus label."""
+        cached_state = self._cached_state.get(override_label)
+        if cached_state is not None:
+            return cached_state
+        preprocess_config = self._config.get("preprocess")
+        if not preprocess_config:
+            return {}
+
+        all_builders = {}
+        for i, operator_config in enumerate(preprocess_config):
+            # Get operator class and config.
+            operator_type = prepoperator.get_operator_type(operator_config)
+            operator_cls = prepoperator.get_operator_class(operator_type)
+            if not operator_cls.is_applied_for(self._process_type):
+                continue
+            operator_params = prepoperator.get_operator_params(
+                operator_config, override_label=override_label)
+            if operator_params.get("disabled", False):
+                continue
+
+            # On initialization, register all classes that can be shared by this operator.
+            if self._num_workers > 0 and self._manager is None:
+                shared_classes = operator_cls.get_shared_classes()
+                if shared_classes is not None:
+                    for cls in operator_cls.get_shared_classes():
+                        SharedManager.register(cls.__name__, cls)
+
+            # Save how to build shared classes for this operator.
+            builders = operator_cls.get_shared_builders(operator_params, self._process_type)
+            if builders:
+                all_builders[i] = builders
+
+        if self._num_workers > 0 and self._manager is None:
+            self._manager = SharedManager()
+            self._manager.start()
+
+        # Create all new shared instances.
+        shared_state = collections.defaultdict(dict)
+        for i, builders in all_builders.items():
+            existing_state = self._all_state[i]
+            for name, (cls, args) in builders.items():
+                key = "%s_%s" % (cls.__name__, str(args))
+                if key not in existing_state:
+                    if self._manager is not None:
+                        shared_instance = getattr(self._manager, cls.__name__)(*args)
+                    else:
+                        shared_instance = cls(*args)
+                    existing_state[key] = shared_instance
+                shared_state[i].update({name: existing_state[key]})
+
+        self._cached_state[override_label] = shared_state
+        return shared_state

@@ -7,7 +7,10 @@ from copy import deepcopy
 import random
 
 from nmtwizard import utils
-from nmtwizard.preprocess.preprocess import InferenceProcessor, TrainingProcessor
+from nmtwizard.preprocess.consumer import Consumer
+from nmtwizard.preprocess.loader import Loader
+from nmtwizard.preprocess.preprocess import Processor, InferenceProcessor, TrainingProcessor
+from nmtwizard.preprocess.tu import TranslationUnit
 from nmtwizard.preprocess import prepoperator
 
 def generate_pseudo_corpus(corpus_dir, size, name, suffix):
@@ -543,7 +546,9 @@ def test_postprocess_multipart_batch_loader(tmpdir):
     assert target == "Bonjour monde"
 
 
-def test_preprocess_align(tmpdir):
+@pytest.mark.parametrize("num_cpus", [1, 2])
+def test_preprocess_align(tmpdir, num_cpus):
+    os.environ["NB_CPU"] = str(num_cpus)
 
     preprocessor = TrainingProcessor(config_base, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, metadata = \
@@ -551,6 +556,8 @@ def test_preprocess_align(tmpdir):
 
     with open(os.path.join(str(tmpdir), "preprocess", "europarl-v7.de-en.10K.tok.align")) as align:
         assert align.readline().strip() == "0-0 1-0 2-1 3-2"
+
+    del os.environ["NB_CPU"]
 
 
 def test_replace_tokens(tmpdir):
@@ -720,3 +727,74 @@ def test_extra_target(tmpdir):
     target = [['Das', 'ist', 'ein', 'Test', '￭.']]
     post = InferenceProcessor(config_extra_target, postprocess=True)
     assert post.process_input(source, target) == "Das ist ein Test."
+
+
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_shared_state_with_overrides(num_workers):
+
+    class CustomLoader(Loader):
+        def __init__(self, labels):
+            super().__init__(batch_size=1)
+            self._labels = labels
+
+        def __call__(self):
+            for label in self._labels:
+                yield [TranslationUnit("")], {"label": label}
+
+    class CustomConsumer(Consumer):
+        def _consume(self, tu_batch):
+            pass
+
+    class SharedClass:
+        def __init__(self, value):
+            self._value = value
+
+        def value(self):
+            return self._value
+
+    op_name = "op_with_shared_state_%d" % num_workers
+    @prepoperator.register_operator(op_name)
+    class OpWithSharedState(prepoperator.Operator):
+
+        @staticmethod
+        def get_shared_classes():
+            return [SharedClass]
+
+        @staticmethod
+        def get_shared_builders(config, process_type):
+            return {"shared_obj": (SharedClass, (config["value"],))}
+
+        def __init__(self, config, process_type, build_state, shared_state):
+            assert len(shared_state) == 1
+            obj = shared_state["shared_obj"]
+            assert obj.value() == config["value"]
+            if num_workers == 0:
+                assert isinstance(obj, SharedClass)
+            else:
+                import multiprocessing.managers
+                assert isinstance(obj, multiprocessing.managers.BaseProxy)
+
+        def _preprocess(self, tu_batch, **kwargs):
+            return tu_batch
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": [
+            {
+                "op": op_name,
+                "value": "one",
+                "overrides": {
+                    "two": {
+                        "value": "two",
+                    },
+                },
+            },
+        ],
+    }
+
+    processor = Processor(config, prepoperator.ProcessType.TRAINING)
+    loader = CustomLoader([None, "two", "one", None])
+    consumer = CustomConsumer()
+
+    processor.process(loader, consumer, num_workers=num_workers)
