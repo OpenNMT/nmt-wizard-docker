@@ -76,8 +76,20 @@ class CloudTranslationFramework(Framework):
         return [[TranslationOutput(translation)] for translation in self.translate_batch(
             inputs, model_info['source'], model_info['target'])]
 
-    def _preprocess_input(self, state, input):
-        return input
+    def _preprocess_input(self, source, target, config):
+        return source, target
 
-    def _postprocess_output(self, state, output):
-        return output
+    def _postprocess_output(self, source, target, config):
+        return target[0]
+
+    def _preprocess_file(self, source_file):
+        return source_file, None
+
+    def _postprocess_file(self, source_file, target_file, metadata=None):
+        return target_file
+
+    def _set_preprocessor(self, config, train=True):
+        pass
+
+    def _set_postprocessor(self, config):
+        pass
