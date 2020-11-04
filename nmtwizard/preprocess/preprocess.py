@@ -360,16 +360,10 @@ class SharedState:
 
         all_builders = {}
         for i, operator_config in enumerate(preprocess_config):
-            # Get operator class and config.
-            operator_type = prepoperator.get_operator_type(operator_config)
-            operator_cls = prepoperator.get_operator_class(operator_type)
-            if not operator_cls.is_applied_for(self._process_type):
+            operator_info = prepoperator.get_operator_info(operator_config, self._process_type, override_label)
+            if operator_info is None:
                 continue
-            operator_params = prepoperator.get_operator_params(
-                operator_config, override_label=override_label)
-            if operator_params.get("disabled", False):
-                continue
-
+            _, operator_cls, operator_params = operator_info
 
             # On initialization, register all classes that can be shared by this operator.
             if self._num_workers > 0 and self._manager is None:

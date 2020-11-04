@@ -32,6 +32,18 @@ def register_operator(name):
     return _decorator
 
 
+def get_operator_info(config, process_type, override_label):
+    # Get operator class and config.
+    operator_type = get_operator_type(config)
+    operator_cls = get_operator_class(operator_type)
+    if not operator_cls.is_applied_for(process_type):
+        return None
+    operator_params = get_operator_params(config, override_label=override_label)
+    if operator_params.get("disabled", False):
+        return None
+    return operator_type, operator_cls, operator_params
+
+
 def get_operator_type(config):
     """Returns the operator type from the configuration."""
     op = config.get("op")
@@ -72,14 +84,10 @@ def build_operator(operator_config,
                    shared_state=None):
     """Creates an operator instance from its configuration."""
 
-    operator_type = get_operator_type(operator_config)
-    operator_cls = get_operator_class(operator_type)
-    if not operator_cls.is_applied_for(process_type):
+    operator_info = get_operator_info(operator_config, process_type, override_label)
+    if operator_info is None:
         return None
-    operator_params = get_operator_params(operator_config, override_label)
-    disabled = operator_params.get("disabled", False)
-    if disabled:
-        return None
+    operator_type, operator_cls, operator_params = operator_info
 
     # Propagate source and target languages
     _add_lang_info(operator_params, global_config, "source")
