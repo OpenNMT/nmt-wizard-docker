@@ -156,7 +156,7 @@ class Pipeline(object):
             )
             if operator is not None:
                 self._ops.append(operator)
-            if exit_step and i == exit_step:
+            if exit_step is not None and i == exit_step:
                 break
 
 
