@@ -359,11 +359,11 @@ class SharedState:
             return {}
 
         all_builders = {}
-        for i, operator_config in enumerate(preprocess_config):
-            operator_info = prepoperator.get_operator_info(operator_config, self._process_type, override_label)
-            if operator_info is None:
-                continue
-            _, operator_cls, operator_params = operator_info
+        for operator_info in prepoperator.operator_info_generator(preprocess_config,
+                                                                  self._process_type,
+                                                                  override_label,
+                                                                  self._preprocess_exit_step):
+            operator_cls, operator_params, operator_type, i = operator_info
 
             # On initialization, register all classes that can be shared by this operator.
             if self._num_workers > 0 and self._manager is None:
@@ -376,9 +376,6 @@ class SharedState:
             builders = operator_cls.get_shared_builders(operator_params, self._process_type)
             if builders:
                 all_builders[i] = builders
-
-            if self._preprocess_exit_step is not None and i == self._preprocess_exit_step:
-                break
 
         if self._num_workers > 0 and self._manager is None:
             self._manager = SharedManager()
