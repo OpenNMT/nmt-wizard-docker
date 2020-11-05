@@ -32,6 +32,21 @@ def register_operator(name):
     return _decorator
 
 
+def operator_info_generator(config, process_type, override_label, preprocess_exit_step):
+    for i, operator_config in enumerate(config):
+        if preprocess_exit_step is not None and i > preprocess_exit_step:
+            return
+        # Get operator class and config.
+        operator_type = get_operator_type(operator_config)
+        operator_cls = get_operator_class(operator_type)
+        if not operator_cls.is_applied_for(process_type):
+            continue
+        operator_params = get_operator_params(operator_config, override_label=override_label)
+        if operator_params.get("disabled", False):
+            continue
+        yield  operator_cls, operator_params, operator_type, i
+
+
 def get_operator_type(config):
     """Returns the operator type from the configuration."""
     op = config.get("op")
@@ -63,23 +78,15 @@ def _add_lang_info(operator_params, config, side):
     else:
         operator_params["%s_lang" % side] = config[side]
 
-def build_operator(operator_config,
+def build_operator(operator_type,
+                   operator_cls,
+                   operator_params,
                    global_config,
                    process_type,
                    build_state,
                    index,
-                   override_label=None,
                    shared_state=None):
     """Creates an operator instance from its configuration."""
-
-    operator_type = get_operator_type(operator_config)
-    operator_cls = get_operator_class(operator_type)
-    if not operator_cls.is_applied_for(process_type):
-        return None
-    operator_params = get_operator_params(operator_config, override_label)
-    disabled = operator_params.get("disabled", False)
-    if disabled:
-        return None
 
     # Propagate source and target languages
     _add_lang_info(operator_params, global_config, "source")
@@ -144,20 +151,21 @@ class Pipeline(object):
     def _add_op_list(self, op_list_config, exit_step=None, shared_state=None):
         # Parameters from global configuration that can be useful for individual operators.
 
-        for i, op_config in enumerate(op_list_config):
+        for operator_info in operator_info_generator(op_list_config, self._process_type, self.override_label, exit_step):
+            operator_cls, operator_params, operator_type, i  = operator_info
+
             operator = build_operator(
-                op_config,
+                operator_type,
+                operator_cls,
+                operator_params,
                 self._config,
                 self._process_type,
                 self.build_state,
                 i,
-                self.override_label,
                 shared_state=shared_state.get(i) if shared_state else None,
             )
             if operator is not None:
                 self._ops.append(operator)
-            if exit_step and i == exit_step:
-                break
 
 
     def _build_pipeline(self, config, preprocess_exit_step=None, shared_state=None):

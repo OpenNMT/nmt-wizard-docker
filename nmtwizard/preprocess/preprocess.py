@@ -43,7 +43,7 @@ class Processor(object):
         self._pipeline = None
 
     def _build_shared_state(self, num_workers=0):
-        return SharedState(self._config, self._pipeline_type, num_workers)
+        return SharedState(self._config, self._pipeline_type, self._preprocess_exit_step, num_workers)
 
     def _get_shared_state(self, shared_state, override_label=None):
         return shared_state.get(override_label)
@@ -275,7 +275,7 @@ class InferenceProcessor(Processor):
 
     def _build_shared_state(self, num_workers=0):
         if self._shared_state is None:
-            self._shared_state = SharedState(self._config, self._pipeline_type)
+            self._shared_state = SharedState(self._config, self._pipeline_type, self._preprocess_exit_step)
         return self._shared_state
 
     def process_input(self, source, target=None, metadata=None, options=None):
@@ -339,11 +339,12 @@ class SharedManager(multiprocessing.managers.BaseManager):
 class SharedState:
     """A class collecting shared objects created by operators."""
 
-    def __init__(self, config, process_type, num_workers=0):
+    def __init__(self, config, process_type, preprocess_exit_step, num_workers=0):
         self._all_state = collections.defaultdict(dict)
         self._cached_state = {}
         self._config = config
         self._process_type = process_type
+        self._preprocess_exit_step = preprocess_exit_step
         self._num_workers = num_workers
         self._manager = None
         self.get()  # Cache default shared state.
@@ -358,16 +359,11 @@ class SharedState:
             return {}
 
         all_builders = {}
-        for i, operator_config in enumerate(preprocess_config):
-            # Get operator class and config.
-            operator_type = prepoperator.get_operator_type(operator_config)
-            operator_cls = prepoperator.get_operator_class(operator_type)
-            if not operator_cls.is_applied_for(self._process_type):
-                continue
-            operator_params = prepoperator.get_operator_params(
-                operator_config, override_label=override_label)
-            if operator_params.get("disabled", False):
-                continue
+        for operator_info in prepoperator.operator_info_generator(preprocess_config,
+                                                                  self._process_type,
+                                                                  override_label,
+                                                                  self._preprocess_exit_step):
+            operator_cls, operator_params, operator_type, i = operator_info
 
             # On initialization, register all classes that can be shared by this operator.
             if self._num_workers > 0 and self._manager is None:

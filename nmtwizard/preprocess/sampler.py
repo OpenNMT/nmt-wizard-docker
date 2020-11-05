@@ -59,7 +59,7 @@ def sample(config, source_dir):
 
         return files, src_lines
 
-    def _discover_files():
+    def _discover_files(source_dir):
 
         all_files = {}
         pattern_weights_sum = 0
@@ -221,7 +221,7 @@ def sample(config, source_dir):
     assert isinstance(sample_dist, list), "sample_dist json should be a list"
 
     # Find all consistent files in the directory.
-    all_files, pattern_weights_sum, pattern_sizes = _discover_files()
+    all_files, pattern_weights_sum, pattern_sizes = _discover_files(source_dir)
 
     # In strict mode, check that all patterns have been triggered
     if 'data' in config and 'mode_strict' in config['data'] and config['data']['mode_strict']:
