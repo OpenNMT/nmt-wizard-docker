@@ -4,5 +4,5 @@ pyonmttok>=1.18.5,<2
 requests
 six>=1.13,<2
 systran-align
-mecab-python3
+mecab-python3==1.0.1
 ipadic
