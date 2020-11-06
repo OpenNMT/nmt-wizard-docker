@@ -13,6 +13,7 @@ import sys
 import requests
 import io
 import tempfile
+import functools
 
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.utils import md5files
@@ -237,7 +238,7 @@ class Utility(object):
         return new_val
 
 
-def build_model_dir(model_dir, objects, config, check_integrity_fn):
+def build_model_dir(model_dir, objects, config, should_check_integrity_fn):
     """Prepares the model directory based on the model package."""
     if os.path.exists(model_dir):
         raise ValueError("model directory %s already exists" % model_dir)
@@ -256,7 +257,7 @@ def build_model_dir(model_dir, objects, config, check_integrity_fn):
         with io.open(readme_path, 'w', encoding='utf-8') as readme_file:
             readme_file.write(config['description'])
         objects['README.md'] = readme_path
-    md5 = md5files((k, v) for k, v in six.iteritems(objects) if check_integrity_fn(k))
+    md5 = md5files((k, v) for k, v in six.iteritems(objects) if should_check_integrity_fn(k))
     with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
         f.write(md5)
 
@@ -276,22 +277,27 @@ def load_model_config(model_dir):
     with open(config_path, 'r') as config_file:
         return json.load(config_file)
 
-def check_model_dir(model_dir, check_integrity_fn):
+def check_model_dir(should_check_integrity_fn, model_dir, force=False):
     """Compares model package MD5."""
     logger.info("Checking integrity of model package %s", model_dir)
     md5_file = os.path.join(model_dir, "checksum.md5")
     if not os.path.exists(md5_file):
-        return True
+        return not force
     md5ref = None
     with open(md5_file, "r") as f:
         md5ref = f.read().strip()
     files = os.listdir(model_dir)
-    md5check = md5files([(f, os.path.join(model_dir, f)) for f in files if check_integrity_fn(f)])
+    md5check = md5files([
+        (f, os.path.join(model_dir, f)) for f in files if should_check_integrity_fn(f)])
     return md5check == md5ref
 
-def fetch_model(storage, remote_model_path, model_path, check_integrity_fn):
+def fetch_model(storage, remote_model_path, model_path, should_check_integrity_fn):
     """Downloads the remote model."""
-    storage.get(remote_model_path, model_path, directory=True,
-                check_integrity_fn=lambda m: check_model_dir(m, check_integrity_fn))
+    check_integrity_fn = functools.partial(check_model_dir, should_check_integrity_fn)
+    storage.get(
+        remote_model_path,
+        model_path,
+        directory=True,
+        check_integrity_fn=check_integrity_fn)
     os.environ['MODEL_DIR'] = model_path
     return load_model_config(model_path)
