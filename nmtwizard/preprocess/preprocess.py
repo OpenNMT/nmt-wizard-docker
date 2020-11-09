@@ -359,7 +359,9 @@ class SharedState:
 
     def get(self, override_label=None):
         """Returns the shared state for this configuration and corpus label."""
-        cached_state = self._cached_state.get(str(override_label))
+        if isinstance(override_label, dict):
+            return None
+        cached_state = self._cached_state.get(override_label)
         if cached_state is not None:
             return cached_state
         preprocess_config = self._config.get("preprocess")
@@ -403,5 +405,5 @@ class SharedState:
                     existing_state[key] = shared_instance
                 shared_state[i].update({name: existing_state[key]})
 
-        self._cached_state[str(override_label)] = shared_state
+        self._cached_state[override_label] = shared_state
         return shared_state
