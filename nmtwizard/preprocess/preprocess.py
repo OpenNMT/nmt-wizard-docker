@@ -359,6 +359,8 @@ class SharedState:
 
     def get(self, override_label=None):
         """Returns the shared state for this configuration and corpus label."""
+        if isinstance(override_label, dict):
+            return None
         cached_state = self._cached_state.get(override_label)
         if cached_state is not None:
             return cached_state
