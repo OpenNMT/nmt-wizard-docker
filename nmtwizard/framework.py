@@ -540,9 +540,8 @@ class Framework(utility.Utility):
                 return self.trans(*args, **kwargs)
 
         local_config = self._finalize_config(config, training=False)
-
-        self._set_preprocessor(local_config, train=False)
-        self._set_postprocessor(local_config)
+        preprocessor = self._get_preprocessor(local_config, train=False)
+        postprocessor = self._get_postprocessor(local_config)
 
         failed_translation = 0
         translated_lines = 0
@@ -568,7 +567,12 @@ class Framework(utility.Utility):
 
                 logger.info('Starting translation %s to %s', path_input, path_output)
                 start_time = time.time()
-                path_input_preprocessed, metadata = self._preprocess_file(path_input_unzipped)
+                if preprocessor is not None:
+                    path_input_preprocessed, metadata = preprocessor.process_file(
+                        path_input_unzipped)
+                else:
+                    path_input_preprocessed = path_input_unzipped
+                    metadata = None
                 translate_fn(local_config,
                              model_path,
                              path_input_preprocessed,
@@ -577,8 +581,8 @@ class Framework(utility.Utility):
                 num_lines, num_tokens = file_stats(path_output)
                 translated_lines += num_lines
                 generated_tokens += num_tokens
-                if not no_postprocess:
-                    path_output = self._postprocess_file(
+                if not no_postprocess and postprocessor is not None:
+                    path_output = postprocessor.process_file(
                         path_input_preprocessed, path_output, metadata)
 
                 if copy_source:
@@ -667,14 +671,16 @@ class Framework(utility.Utility):
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
         local_config = self._finalize_config(config, training=False)
+        preprocessor = self._get_preprocessor(local_config, train=False)
+        postprocessor = self._get_postprocessor(local_config)
         serving.start_server(
             host,
             port,
             local_config,
             lambda: self.serve(local_config, model_path, gpuid=gpuid),
-            self._preprocess_input,
             self.forward_request,
-            self._postprocess_output,
+            preprocessor=preprocessor,
+            postprocessor=postprocessor,
             backend_info_fn=self.backend_info,
             rebatch_request=not self.has_own_request_batching)
 
@@ -917,28 +923,6 @@ class Framework(utility.Utility):
         VocabInfo = collections.namedtuple('VocabInfo', ['current', 'previous'])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
 
-    def _preprocess_input(self, source, target, config):
-        if isinstance(source, list):
-            return source, target, None
-        self._set_preprocessor(config, train=False)
-        return self._preprocessor.process_input(source, target)
-
-    def _postprocess_output(self, source, target, config):
-        if not isinstance(target, list):
-            return target
-        self._set_postprocessor(config)
-        if isinstance(source, tuple):
-            source, metadata = source
-        else:
-            metadata = None
-        return self._postprocessor.process_input(source, target, metadata=metadata)
-
-    def _preprocess_file(self, source_file):
-        return self._preprocessor.process_file(source_file)
-
-    def _postprocess_file(self, source_file, target_file, metadata=None):
-        return self._postprocessor.process_file(source_file, target_file, metadata=metadata)
-
     def _convert_vocab(self, vocab_file, basename=None):
         if basename is None:
             basename = os.path.basename(vocab_file)
@@ -979,22 +963,21 @@ class Framework(utility.Utility):
         data_util.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
-    def _set_preprocessor(self, config, train=True):
+    def _get_preprocessor(self, config, train=True):
         if train:
-            self._preprocessor = preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
-        else:
-            self._preprocessor = preprocess.InferenceProcessor(config)
+            return preprocess.TrainingProcessor(config, self._corpus_dir, self._data_dir)
+        return preprocess.InferenceProcessor(config)
 
-    def _set_postprocessor(self, config):
-        self._postprocessor = preprocess.InferenceProcessor(config, postprocess=True)
+    def _get_postprocessor(self, config):
+        return preprocess.InferenceProcessor(config, postprocess=True)
 
     def _generate_training_data(self, config):
-        self._set_preprocessor(config)
-        return self._preprocessor.generate_preprocessed_data()
+        preprocessor = self._get_preprocessor(config)
+        return preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        self._set_preprocessor(config)
-        return self._preprocessor.generate_vocabularies()
+        preprocessor = self._get_preprocessor(config)
+        return preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(self, build_info, distribution, parent_build_info=None):
         build_info['distribution'] = distribution

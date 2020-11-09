@@ -1122,9 +1122,9 @@ def test_serve(tmpdir):
 
     result = run_request(
         request,
-        framework._preprocess_input,
         functools.partial(framework.forward_request, model_info),
-        framework._postprocess_output,
+        preprocessor=framework._get_preprocessor(config_base, train=False),
+        postprocessor=framework._get_postprocessor(config_base),
         config=config_base)
 
     # Dummy translation does "target + reversed(source)".
