@@ -347,7 +347,7 @@ class SharedManager(multiprocessing.managers.BaseManager):
 class SharedState:
     """A class collecting shared objects created by operators."""
 
-    def __init__(self, config, process_type, preprocess_exit_step, num_workers=0):
+    def __init__(self, config, process_type, preprocess_exit_step=None, num_workers=0):
         self._all_state = collections.defaultdict(dict)
         self._cached_state = {}
         self._config = config
@@ -366,28 +366,32 @@ class SharedState:
         if not preprocess_config:
             return {}
 
-        all_builders = {}
-        for operator_info in prepoperator.operator_info_generator(preprocess_config,
-                                                                  self._process_type,
-                                                                  override_label,
-                                                                  self._preprocess_exit_step):
-            operator_cls, operator_params, operator_type, i = operator_info
-
-            # On initialization, register all classes that can be shared by this operator.
-            if self._num_workers > 0 and self._manager is None:
+        if self._num_workers > 0 and self._manager is None:
+            # On initialization, register all classes that can be shared.
+            for operator_cls, _, _, _ in prepoperator.operator_info_generator(
+                    preprocess_config,
+                    self._process_type,
+                    override_label,
+                    self._preprocess_exit_step,
+                    ignore_disabled=False):
                 shared_classes = operator_cls.get_shared_classes()
                 if shared_classes is not None:
                     for cls in operator_cls.get_shared_classes():
                         SharedManager.register(cls.__name__, cls)
 
+            self._manager = SharedManager()
+            self._manager.start()
+
+        all_builders = {}
+        for operator_cls, operator_params, _, i in prepoperator.operator_info_generator(
+                preprocess_config,
+                self._process_type,
+                override_label,
+                self._preprocess_exit_step):
             # Save how to build shared classes for this operator.
             builders = operator_cls.get_shared_builders(operator_params, self._process_type)
             if builders:
                 all_builders[i] = builders
-
-        if self._num_workers > 0 and self._manager is None:
-            self._manager = SharedManager()
-            self._manager.start()
 
         # Create all new shared instances.
         shared_state = collections.defaultdict(dict)
