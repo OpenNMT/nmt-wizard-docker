@@ -32,7 +32,11 @@ def register_operator(name):
     return _decorator
 
 
-def operator_info_generator(config, process_type, override_label, preprocess_exit_step):
+def operator_info_generator(config,
+                            process_type,
+                            override_label=None,
+                            preprocess_exit_step=None,
+                            ignore_disabled=True):
     for i, operator_config in enumerate(config):
         if preprocess_exit_step is not None and i > preprocess_exit_step:
             return
@@ -42,9 +46,9 @@ def operator_info_generator(config, process_type, override_label, preprocess_exi
         if not operator_cls.is_applied_for(process_type):
             continue
         operator_params = get_operator_params(operator_config, override_label=override_label)
-        if operator_params.get("disabled", False):
+        if ignore_disabled and operator_params.get("disabled", False):
             continue
-        yield  operator_cls, operator_params, operator_type, i
+        yield operator_cls, operator_params, operator_type, i
 
 
 def get_operator_type(config):
