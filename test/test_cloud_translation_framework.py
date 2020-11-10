@@ -71,9 +71,7 @@ def test_serve_cloud_translation_framework():
     request = {"src": [{"text": "Hello"}]}
     result = serving.run_request(
         request,
-        framework._preprocess_input,
-        functools.partial(framework.forward_request, service_info),
-        framework._postprocess_output)
+        functools.partial(framework.forward_request, service_info))
     assert result["tgt"][0][0]["text"] == "olleH"
 
 @pytest.mark.skipif(

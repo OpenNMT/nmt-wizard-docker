@@ -61,9 +61,9 @@ def start_server(host,
                  port,
                  config,
                  backend_service_fn,
-                 preprocess_fn,
                  translate_fn,
-                 postprocess_fn,
+                 preprocessor=None,
+                 postprocessor=None,
                  backend_info_fn=None,
                  rebatch_request=True):
     """Start a serving service.
@@ -74,12 +74,11 @@ def start_server(host,
       host: The hostname of the service.
       port: The port used by the service.
       backend_service_fn: A callable to start the framework dependent backend service.
-      preprocess_fn: A callable taking (text, config) and returning tokens.
       translation_fn: A callable that forwards the request to the translation backend.
-      postprocess_fn: A callable taking (src_tokens, tgt_tokens, config)
-        and returning text.
       backend_info_fn: A callable returning some information about the backend service,
         and whether it can accept new requests or not.
+      preprocessor: A Processor instance for preprocessing.
+      postprocessor: A Processor instance for postprocessing.
       rebatch_request: If True, incoming requests are rebatched according to
         max_batch_size. Otherwise, max_batch_size is passed as a translation option
         to translate_fn which takes responsibility over batching.
@@ -141,9 +140,9 @@ def start_server(host,
             try:
                 result = run_request(
                     json.loads(six.ensure_str(post_body)),
-                    preprocess_fn,
                     functools.partial(translate_fn, backend_info),
-                    postprocess_fn,
+                    preprocessor=preprocessor,
+                    postprocessor=postprocessor,
                     config=config,
                     rebatch_request=rebatch_request,
                     max_batch_size=global_max_batch_size,
@@ -213,9 +212,9 @@ def start_server(host,
 
 
 def run_request(request,
-                preprocess_fn,
                 translate_fn,
-                postprocess_fn,
+                preprocessor=None,
+                postprocessor=None,
                 config=None,
                 rebatch_request=True,
                 max_batch_size=None,
@@ -244,13 +243,13 @@ def run_request(request,
             options['max_batch_size'] = max_batch_size
             max_batch_size = None
 
-        examples = preprocess_examples(src, preprocess_fn, config=config)
+        examples = preprocess_examples(src, preprocessor, config=config)
         outputs = translate_examples(
             examples,
             translate_fn,
             max_batch_size=max_batch_size,
             options=options)
-        results = postprocess_outputs(outputs, examples, postprocess_fn)
+        results = postprocess_outputs(outputs, examples, postprocessor)
 
     return {'tgt': results}
 
@@ -264,7 +263,7 @@ def finalize_config(config, override=None, options=None):
             config_util.update_config_with_options(config, options)
     return config
 
-def preprocess_example(func, index, raw_example, config=None):
+def preprocess_example(preprocessor, index, raw_example, config=None):
     """Applies preprocessing function on example."""
     if not isinstance(raw_example, dict):
         raise ValueError('example %d is not a JSON object' % index)
@@ -294,12 +293,13 @@ def preprocess_example(func, index, raw_example, config=None):
         config = config.copy() if config is not None else {}
         config["target_type"] = target_type
 
-    result = func(source_text, target_text, config)
-
-    source_tokens = result[0]
-    target_tokens = result[1]
-    # Preprocessing may return additional metadata alongside tokens.
-    metadata = result[2] if len(result) >= 3 else None
+    if preprocessor is None:
+        source_tokens = source_text
+        target_tokens = None
+        metadata = None
+    else:
+        source_tokens, target_tokens, metadata = preprocessor.process_input(
+            source_text, target=target_text, config=config)
 
     # Move to the general multiparts representation.
     if not source_tokens or not isinstance(source_tokens[0], list):
@@ -315,29 +315,38 @@ def preprocess_example(func, index, raw_example, config=None):
         mode=mode,
         metadata=metadata)
 
-def preprocess_examples(raw_examples, func, config=None):
+def preprocess_examples(raw_examples, preprocessor, config=None):
     """Applies preprocessing on a list of example structures."""
     examples = []
     for i, raw_example in enumerate(raw_examples):
-        example = preprocess_example(func, i, raw_example, config=config)
+        example = preprocess_example(preprocessor, i, raw_example, config=config)
         examples.append(example)
     return examples
 
-def postprocess_output(output, example, func):
+def postprocess_output(output, example, postprocessor):
     """Applies postprocessing function on a translation output."""
 
     # Send all parts to the postprocessing.
-    tgt_tokens = output.output
-    src_context = (example.source_tokens, example.metadata)
-    score = sum(output.score) if all(s is not None for s in output.score) else None
-    attention = output.attention
-    if attention and len(attention) == 1:
-        attention = attention[0]
-        align = align_tokens(src_tokens, tgt_tokens, attention) if attention else None
-    else:
+    if postprocessor is None:
+        text = output.output[0]
+        score = None
         align = None
+    else:
+        tgt_tokens = output.output
+        src_tokens = example.source_tokens
+        text = postprocessor.process_input(
+            src_tokens,
+            tgt_tokens,
+            metadata=example.metadata,
+            config=example.config)
+        score = sum(output.score) if all(s is not None for s in output.score) else None
+        attention = output.attention
+        if attention and len(attention) == 1:
+            attention = attention[0]
+            align = align_tokens(src_tokens, tgt_tokens, attention) if attention else None
+        else:
+            align = None
 
-    text = func(src_context, tgt_tokens, example.config)
     result = {'text': text}
     if score is not None:
         result['score'] = score
@@ -345,12 +354,12 @@ def postprocess_output(output, example, func):
         result['align'] = align
     return result
 
-def postprocess_outputs(outputs, examples, func):
+def postprocess_outputs(outputs, examples, postprocessor):
     """Applies postprocess on model outputs."""
     results = []
     for hypotheses, example in zip(outputs, examples):
         results.append([
-            postprocess_output(hypothesis, example, func)
+            postprocess_output(hypothesis, example, postprocessor)
             for hypothesis in hypotheses])
     return results
 

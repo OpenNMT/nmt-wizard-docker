@@ -270,15 +270,14 @@ class InferenceProcessor(Processor):
                          else prepoperator.ProcessType.INFERENCE)
         super().__init__(config, pipeline_type)
         self._postprocess = postprocess
-        self._pipeline = self.build_pipeline()
-        self._shared_state = None
+        self._shared_state = SharedState(
+            self._config, self._pipeline_type, self._preprocess_exit_step)
+        self._pipeline = self.build_pipeline(shared_state=self._shared_state.get())
 
     def _build_shared_state(self, num_workers=0):
-        if self._shared_state is None:
-            self._shared_state = SharedState(self._config, self._pipeline_type, self._preprocess_exit_step)
         return self._shared_state
 
-    def process_input(self, source, target=None, metadata=None, options=None):
+    def process_input(self, source, target=None, metadata=None, config=None, options=None):
         """Processes one translation example at inference.
 
         Args:
@@ -287,19 +286,34 @@ class InferenceProcessor(Processor):
           target: In preprocess, a string. In postprocess, a (possibly multipart)
             list of tokens.
           metadata: Additional metadata of the input.
+          config: The configuration for this example.
           options: A dictionary with operators options.
 
         Returns:
           - In preprocess, a tuple (source_tokens, target_tokens, metadata).
           - In postprocess, a string (the postprocessed target)
         """
+        # This method should be thread-safe as the inference server is starting a new
+        # thread for each request.
+
         basic_loader = loader.BasicLoader(
             source=source,
             target=target,
             metadata=metadata,
             start_state=self._pipeline.start_state)
         basic_writer = consumer.BasicWriter(self._postprocess)
-        self.process(basic_loader, basic_writer, options=options)
+
+        # Rebuild pipeline if the example has its own configuration.
+        if config is not None:
+            shared_state = SharedState(
+                self._config, self._pipeline_type, self._preprocess_exit_step)
+            pipeline = self.build_pipeline(config, shared_state=shared_state.get())
+        else:
+            pipeline = self._pipeline
+
+        for tu_batch in basic_loader():
+            tu_batch = pipeline(tu_batch, options=options)
+            basic_writer(tu_batch)
 
         return basic_writer.output
 
