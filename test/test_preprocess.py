@@ -65,9 +65,9 @@ def test_sampler(tmpdir):
     assert summary['generic_added']['linesampled'] >= 107
     assert summary['corpus_specific1']['linesampled'] >= 479
     assert summary['corpus_specific2']['linesampled'] >= 1198
-    assert summary['IT']['linesampled'] == 0
+    assert 'IT' not in summary
     assert 'unaligned' not in summary
-    assert summary['generic_to_ignore']['linesampled'] == 0
+    assert 'generic_to_ignore' not in summary
 
     # check unique sampling with undersampling
     with open(str(tmpdir.join("preprocess/corpus_specific2.en")), 'rb') as f :
@@ -88,7 +88,7 @@ def test_sampler(tmpdir):
 
     # Check strict mode
     shutil.rmtree(str(tmpdir.join("preprocess")))
-    config["data"]["mode_strict"] = True
+    config["data"]["sample_dist"][0]["mode_strict"] = True
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
     with pytest.raises(RuntimeError) as excinfo:
@@ -97,7 +97,6 @@ def test_sampler(tmpdir):
     assert str(excinfo.value) == "pattern '.*something' in block 0 doesn't match any file with strict mode enabled."
 
     shutil.rmtree(str(tmpdir.join("preprocess")))
-    config["data"].pop("mode_strict")
     config["data"]["sample_dist"] = [
         {
             "path": str(corpus_dir),
@@ -120,7 +119,7 @@ def test_sampler(tmpdir):
     assert summary['generic_added']['linesampled'] == 0
     assert summary['corpus_specific1']['linesampled'] == 0
     assert summary['corpus_specific2']['linesampled'] == 0
-    assert summary['IT']['linesampled'] == 0
+    assert 'IT' not in summary
 
 
 def test_sampler_with_annotations(tmpdir):

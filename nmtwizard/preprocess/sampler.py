@@ -241,8 +241,8 @@ def sample(config, source_dir):
     all_files, pattern_weights_sum, pattern_sizes = _discover_files()
 
     # In strict mode, check that all patterns have been triggered
-    if 'data' in config and 'mode_strict' in config['data'] and config['data']['mode_strict']:
-        for d_idx, d_item in enumerate(sample_dist):
+    for d_idx, d_item in enumerate(sample_dist):
+        if d_item.get('mode_strict'):
             for rule in d_item['distribution'] :
                 pattern = rule[0]
                 d_idx_pattern = str(d_idx) + "-" + pattern
@@ -303,15 +303,15 @@ def sample(config, source_dir):
                         lines_kept += 1
                 f.lines_kept = lines_kept
 
-        summary[f.base_name] = {
-            "linecount" : f.lines_count,
-            "linesampled" : f.lines_kept,
-            "pattern" : pattern
-        }
-        if 'annotations' in f.files:
-            summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
+                summary[f.base_name] = {
+                    "linecount" : f.lines_count,
+                    "linesampled" : f.lines_kept,
+                    "pattern" : pattern
+                }
+                if 'annotations' in f.files:
+                    summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
 
-        metadata[f.base_name] = extra
+                metadata[f.base_name] = extra
 
         _select_lines(f)
 
