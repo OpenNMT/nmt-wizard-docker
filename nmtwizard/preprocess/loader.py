@@ -21,27 +21,6 @@ class Loader(object):
         raise NotImplementedError()
 
 
-class BasicLoader(Loader):
-    """BasicLoader class creates a one-TU batch at inference."""
-
-    def __init__(self, source, target=None, metadata=None, start_state=None):
-        super().__init__(batch_size=1)
-        self._source = source
-        self._target = target
-        self._metadata = metadata
-        self._source_tokenizer = start_state.get('src_tokenizer') if start_state else None
-        self._target_tokenizer = start_state.get('tgt_tokenizer') if start_state else None
-
-    def __call__(self):
-        tu_list = [tu.TranslationUnit(
-            source=self._source,
-            target=self._target,
-            metadata=self._metadata,
-            source_tokenizer=self._source_tokenizer,
-            target_tokenizer=self._target_tokenizer)]
-        yield tu_list, {}
-
-
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 

@@ -359,34 +359,6 @@ class VocabularyBuilder(Consumer):
             # TODO V2 : header with configuration ?
             # TODO V2 : deal with placeholders
 
-class BasicWriter(Consumer):
-    """BasicWriter writes one pre/postprocessed TU at inference."""
-
-    def __init__(self, postprocess):
-        super().__init__()
-        self._postprocess = postprocess
-
-    def _consume(self, tu_batch):
-        """ In preprocess, output is ((source, metadata), target), tokenized and possibly multipart, where target is either None or incomplete translation.
-
-            In postprocess, output is postprocessed target, untokenized and one-part."""
-
-        tu_list, _ = tu_batch
-        tu = tu_list[0]
-        # Postprocess.
-        tgt_detok = tu.tgt_detok
-        if self._postprocess and tgt_detok is not None :
-            self.output = tu.tgt_detok
-        # Preprocess in inference.
-        else:
-            src_tokens = tu.src_tok.tokens
-            # target should contain as many parts as source
-            tgt_tokens = tu.tgt_tok.tokens if tu.tgt_tok is not None else [None for _ in src_tokens]
-            self.output = (
-                src_tokens,
-                tgt_tokens,
-                tu.metadata)
-
 
 class FileWriter(Consumer):
     """FileWriter writes pre/postprocessed TUs into files at inference."""

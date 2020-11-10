@@ -12,6 +12,7 @@ from nmtwizard.preprocess import loader
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import sampler
 from nmtwizard.preprocess import tokenizer
+from nmtwizard.preprocess.tu import TranslationUnit
 
 logger = get_logger(__name__)
 
@@ -296,13 +297,6 @@ class InferenceProcessor(Processor):
         # This method should be thread-safe as the inference server is starting a new
         # thread for each request.
 
-        basic_loader = loader.BasicLoader(
-            source=source,
-            target=target,
-            metadata=metadata,
-            start_state=self._pipeline.start_state)
-        basic_writer = consumer.BasicWriter(self._postprocess)
-
         # Rebuild pipeline if the example has its own configuration.
         if config is not None:
             shared_state = SharedState(
@@ -311,11 +305,23 @@ class InferenceProcessor(Processor):
         else:
             pipeline = self._pipeline
 
-        for tu_batch in basic_loader():
-            tu_batch = pipeline(tu_batch, options=options)
-            basic_writer(tu_batch)
+        tu = TranslationUnit(
+            source=source,
+            target=target,
+            metadata=metadata,
+            source_tokenizer=self._pipeline.start_state.get('src_tokenizer'),
+            target_tokenizer=self._pipeline.start_state.get('tgt_tokenizer'),
+        )
 
-        return basic_writer.output
+        tu_batch = ([tu], {})
+        tu_batch = pipeline(tu_batch, options=options)
+        tu = tu_batch[0][0]
+
+        if self._postprocess:
+            return tu.tgt_detok
+        src_tokens = tu.src_tok.tokens
+        tgt_tokens = tu.tgt_tok.tokens if tu.tgt_tok is not None else [None for _ in src_tokens]
+        return src_tokens, tgt_tokens, tu.metadata
 
 
     def process_file(self, source_file, target_file=None, metadata=None):
