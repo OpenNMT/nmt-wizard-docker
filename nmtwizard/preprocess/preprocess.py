@@ -66,7 +66,9 @@ class Processor(object):
         if self._pipeline is None or self._pipeline.override_label != override_label:
             self._pipeline = self.build_pipeline(
                 override_label=override_label, shared_state=shared_state)
-        return self._pipeline(tu_batch, options=options)
+        tu_list, batch_meta = self._pipeline(tu_batch, options=options)
+        tu_list = [tu.export(self._pipeline_type) for tu in tu_list]
+        return tu_list, batch_meta
 
     def process(self,
                 loader,

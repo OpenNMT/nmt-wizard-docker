@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 class Tokenization(object):
     """Structure to keep tokenizer and tokens together."""
 
-    def __init__(self, tokenizer, token_objects=None, tokens=None):
+    def __init__(self, tokenizer, tokens=None, token_objects=None):
         self._tokenizer = tokenizer
         self._token_objects = token_objects
         self._tokens = tokens
@@ -22,11 +22,25 @@ class Tokenization(object):
 
     @property
     def token_objects(self):
+        if self._tokens is None:
+            return None
+        if self._token_objects is None:
+            self._token_objects = [
+                self._tokenizer.deserialize_tokens(part) for part in self._tokens]
         return self._token_objects
 
     @property
     def tokens(self):
         return self._tokens
+
+
+class PreprocessOutput(collections.namedtuple("TranslationUnitExport", (
+        "src",
+        "tgt",
+        "metadata",
+        "alignment",
+))):
+    """Structure containing the preprocessing result."""
 
 
 class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num", "new_tokens"))):
@@ -117,13 +131,10 @@ class TranslationSide(object):
         if isinstance(line, bytes):
             line = line.decode("utf-8")  # Ensure Unicode string.
         if isinstance(line, str):
-            self.raw = line.strip()
-            self.__detok = self.raw
+            self.__detok = line.strip()
             self.__tok = None
-            self.__tok_str = None
             self.__tokenizer = tokenizer
         elif isinstance(line, list):
-            self.raw = None
             self.__detok = None
             # Merge multi-parts.
             tokens = list(itertools.chain.from_iterable(line))
@@ -137,22 +148,18 @@ class TranslationSide(object):
             if self.__tokenizer is None or self.__detok is None:
                 return Tokenization(self.__tokenizer)
             else:
-                self.__tok = [self.__tokenizer.tokenize(self.__detok, as_token_objects=True)]
-        if self.__tok_str is None:
-            self.__tok_str = [self.__tokenizer.serialize_tokens(part)[0] for part in self.__tok]
-        return Tokenization(self.__tokenizer, list(self.__tok), list(self.__tok_str))
+                self.__tok = [self.__tokenizer.tokenize(self.__detok)[0]]
+        return Tokenization(self.__tokenizer, list(self.__tok))
 
     @tok.setter
     def tok(self, tok):
         tokenizer, tok = tok
         if tok is not None:
             # Set a new list of tokens and a new tokenizer.
-            if tok and tok[0] and not isinstance(tok[0][0], pyonmttok.Token):
-                self.__tok_str = tok
-                tok = [tokenizer.deserialize_tokens(part) for part in tok]
+            if tok and tok[0] and isinstance(tok[0][0], pyonmttok.Token):
+                self.__tok = [tokenizer.serialize_tokens(part)[0] for part in tok]
             else:
-                self.__tok_str = None
-            self.__tok = tok
+                self.__tok = tok
             self.__tokenizer = tokenizer
             self.__detok = None
         else:
@@ -162,7 +169,6 @@ class TranslationSide(object):
                     raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
                 self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
             self.__tok = None
-            self.__tok_str = None
             self.__tokenizer = tokenizer
 
     @property
@@ -178,7 +184,6 @@ class TranslationSide(object):
     def detok(self, detok):
         self.__detok = detok
         self.__tok = None
-        self.__tok_str = None
 
     @property
     def output_side(self):
@@ -223,7 +228,7 @@ class TranslationSide(object):
         # check/initialize tokenization if not done already
         cur_tokens = self.__tok
         if cur_tokens is not None:
-            cur_tokens = cur_tokens[part]
+            cur_tokens = self.__tokenizer.deserialize_tokens(cur_tokens[part])
             cur_length = len(cur_tokens)
             if start_idx > cur_length:
                 raise IndexError('Start index is too big for replacement.')
@@ -247,7 +252,7 @@ class TranslationSide(object):
                     cur_tokens[start_idx:end_idx] = new_tokens
 
             self.__detok = None
-            self.__tok_str = None
+            self.__tok[part] = self.__tokenizer.serialize_tokens(cur_tokens)[0]
         else:
             logger.warning("Cannot replace tokens, no tokenization is set.")
 
@@ -474,6 +479,27 @@ class TranslationUnit(object):
             self._finalize_side("source", self.__source)
             if self.__target is not None:
                 self._finalize_side("target", self.__target)
+
+    def export(self, process_type):
+        if process_type == prepoperator.ProcessType.POSTPROCESS:
+            return self.tgt_detok
+        src = self.src_tok.tokens
+        if src is None:
+            src = self.src_detok
+
+        tgt = None
+        tgt_tok = self.tgt_tok
+        if tgt_tok is not None:
+            tgt = self.tgt_tok.tokens
+            if tgt is None:
+                tgt = self.tgt_detok
+
+        return PreprocessOutput(
+            src=src,
+            tgt=tgt,
+            metadata=self.metadata,
+            alignment=self.alignment,
+        )
 
     @property
     def metadata(self):

@@ -117,18 +117,21 @@ class FilterSummaryLogger(Consumer):
             logger.info("\t%s dropped %d sentences", name, value)
 
 
-def _ingest_tokens(subword_learner, tu_side):
-    if not tu_side.tokens:
-        return
-    for part in tu_side.token_objects:
+def _ingest_tokens(subword_learner, tokens):
+    for part in tokens:
         for token in part:
             subword_learner.ingest_token(token)
 
-def _build_subword_learner(tok_config, result_dir):
+def _build_subword_learner(tok_config, result_dir, ref_tok_config=None):
     subword_config = tok_config.get('build_subword')
     if subword_config is None:
         return {}
-    subword_info = tokenizer.make_subword_learner(subword_config, result_dir)
+    if ref_tok_config is None:
+        ref_tok_config = tok_config
+    subword_info = tokenizer.make_subword_learner(
+        subword_config,
+        result_dir,
+        tokenizer=tokenizer.build_tokenizer(ref_tok_config))
     return subword_info
 
 def _build_vocabulary_counters(config):
@@ -159,7 +162,7 @@ class SubwordLearner(Consumer):
         # ignore them. We assume for a shared subword model that the source and target
         # tokenizers use the same type of annotations, and pass the source tokenization
         # config when building the shared learner.
-        shared_subword_info = _build_subword_learner(shared_config, result_dir)
+        shared_subword_info = _build_subword_learner(shared_config, result_dir, source_config)
         if shared_subword_info:
             self._source_subword_info = shared_subword_info
             self._target_subword_info = shared_subword_info
@@ -177,9 +180,9 @@ class SubwordLearner(Consumer):
         tu_list, _ = tu_batch
         for tu in tu_list :
             if source_learner is not None:
-                _ingest_tokens(source_learner, tu.src_tok)
+                _ingest_tokens(source_learner, tu.src)
             if target_learner is not None:
-                _ingest_tokens(target_learner, tu.tgt_tok)
+                _ingest_tokens(target_learner, tu.tgt)
 
 
     def finalize(self):
@@ -251,10 +254,10 @@ class VocabularyBuilder(Consumer):
         tu_list, _ = tu_batch
         # TODO : remove value for placeholders
         for tu in tu_list :
-            for token in itertools.chain.from_iterable(tu.src_tok.tokens):
+            for token in itertools.chain.from_iterable(tu.src):
                 self._source_counters['tokens'][token] += 1
                 self._source_counters['total'] += 1
-            for token in itertools.chain.from_iterable(tu.tgt_tok.tokens):
+            for token in itertools.chain.from_iterable(tu.tgt):
                 self._target_counters['tokens'][token] += 1
                 self._target_counters['total'] += 1
 
@@ -390,13 +393,11 @@ class FileWriter(Consumer):
         # Write lines to files from TUs
         for tu in tu_list :
             # Postprocess.
-            tgt_detok = tu.tgt_detok
-            if self._postprocess and tgt_detok is not None:
-                self._file.write("%s\n" % tu.tgt_detok)
+            if self._postprocess:
+                self._file.write("%s\n" % tu)
             # Preprocess.
             else:
-                src_tokens = tu.src_tok.tokens
-                for part in src_tokens:
+                for part in tu.src:
                     part = " ".join(part)
                     self._file.write("%s\n" % part)
                 self.metadata.append(tu.metadata)
@@ -444,21 +445,21 @@ class SamplerFileWriter(Consumer):
         # Write lines to file from TUs
         with open(src_path, "a") as src_file, open(tgt_path, "a") as tgt_file:
             for tu in tu_list :
-                src_tokens = tu.src_tok.tokens
-                if src_tokens :
+                src_tokens = tu.src
+                if isinstance(src_tokens, list):
                     for part in src_tokens :
                         part = " ".join(part)
                         src_file.write("%s\n" % part)
                 else:
-                    src_file.write("%s\n" % tu.src_detok)
+                    src_file.write("%s\n" % tu.src)
 
-                tgt_tokens = tu.tgt_tok.tokens
-                if tgt_tokens :
+                tgt_tokens = tu.tgt
+                if isinstance(tgt_tokens, list):
                     for part in tgt_tokens :
                         part = " ".join(part)
                         tgt_file.write("%s\n" % part)
-                else :
-                    tgt_file.write("%s\n" % tu.tgt_detok)
+                else:
+                    tgt_file.write("%s\n" % tu.tgt)
 
         if write_alignment:
             with open(align_path, "a") as align_file:
