@@ -25,6 +25,10 @@ class TranslationOutput(object):
         self.score = score
         self.attention = attention
 
+class TargetType:
+    PREFIX = 0
+    FUZZY = 0
+
 class TranslationExample(
         collections.namedtuple("TranslationExample",
                                (
@@ -282,16 +286,13 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
         raise ValueError("Using both a target prefix and a fuzzy target is currently unsupported")
     if target_prefix is not None:
         target_text = target_prefix
-        target_type = "prefix"
+        target_type = TargetType.PREFIX
     elif target_fuzzy is not None:
         target_text = target_fuzzy
-        target_type = "fuzzy"
+        target_type = TargetType.FUZZY
     else:
         target_text = None
         target_type = None
-    if target_type is not None:
-        config = config.copy() if config is not None else {}
-        config["target_type"] = target_type
 
     if preprocessor is None:
         source_tokens = source_text
@@ -299,7 +300,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
         metadata = None
     else:
         source_tokens, target_tokens, metadata = preprocessor.process_input(
-            source_text, target=target_text, config=config)
+            source_text, target=target_text, target_type=target_type, config=config)
 
     # Move to the general multiparts representation.
     if not source_tokens or not isinstance(source_tokens[0], list):

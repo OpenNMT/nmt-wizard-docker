@@ -251,11 +251,11 @@ def test_run_request():
     assert serving.run_request({"src": []}, None) == {"tgt": []}
 
     class Preprocessor:
-        def process_input(self, source, target=None, config=None, **kwargs):
+        def process_input(self, source, target=None, target_type=None, config=None, **kwargs):
             sep = config["separator"]
             source = source.split(sep)
             if target is not None:
-                assert config.get("target_type") is not None
+                assert target_type is not None
                 target = target.split(sep)
             return source, target, None
 
