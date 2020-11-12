@@ -67,8 +67,8 @@ class Processor(object):
             self._pipeline = self.build_pipeline(
                 override_label=override_label, shared_state=shared_state)
         tu_list, batch_meta = self._pipeline(tu_batch, options=options)
-        tu_list = [tu.export(self._pipeline_type) for tu in tu_list]
-        return tu_list, batch_meta
+        outputs = [tu.export(self._pipeline_type) for tu in tu_list]
+        return outputs, batch_meta
 
     def process(self,
                 loader,
@@ -83,11 +83,11 @@ class Processor(object):
 
             for tu_batch in loader():
                 override_label = _get_corpus_label(tu_batch)
-                tu_batch = self.process_batch(
+                outputs = self.process_batch(
                     tu_batch,
                     options=options,
                     shared_state=self._get_shared_state(shared_state, override_label))
-                consumer(tu_batch)
+                consumer(outputs)
 
         else:
 
