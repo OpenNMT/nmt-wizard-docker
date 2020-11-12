@@ -64,7 +64,7 @@ class _TestFramework(Framework):
 
     def _map_vocab_entry(self, index, token, converted_vocab):
         converted_vocab.write(token)
-        converted_vocab.write(b"\n")
+        converted_vocab.write("\n")
 
     def train(self, *args, **kwargs):
         pass
