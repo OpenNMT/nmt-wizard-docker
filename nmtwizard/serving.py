@@ -27,7 +27,7 @@ class TranslationOutput(object):
 
 class TargetType:
     PREFIX = 0
-    FUZZY = 0
+    FUZZY = 1
 
 class TranslationExample(
         collections.namedtuple("TranslationExample",

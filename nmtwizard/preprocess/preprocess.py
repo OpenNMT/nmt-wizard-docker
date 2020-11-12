@@ -321,9 +321,9 @@ class InferenceProcessor(Processor):
 
         if target is not None:
             if target_type == TargetType.FUZZY:
-                name = "fuzzy"
+                name = 'fuzzy'
             else:
-                name = "main"
+                name = 'main'
             tu.add_target(
                 target,
                 name,
