@@ -928,7 +928,7 @@ class Framework(utility.Utility):
         if basename is None:
             basename = os.path.basename(vocab_file)
         converted_vocab_file = os.path.join(self._data_dir, basename)
-        with open(converted_vocab_file, 'wb') as converted_vocab:
+        with open(converted_vocab_file, 'w') as converted_vocab:
             for index, token in enumerate(tokenizer.vocabulary_iterator(vocab_file)):
                 self._map_vocab_entry(index, token, converted_vocab)
         return converted_vocab_file
