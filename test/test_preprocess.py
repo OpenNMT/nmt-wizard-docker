@@ -678,6 +678,9 @@ def test_replace_tokens(tmpdir):
                     if new_al_tgt is None:
                         continue
                     new_align.add((new_al_src, new_al_tgt))
+                
+                if src_tok_replace and tgt_tok_replace:
+                    new_align.add((src_pos, tgt_pos))
 
                 assert new_align == alignment_after
             return [tu]

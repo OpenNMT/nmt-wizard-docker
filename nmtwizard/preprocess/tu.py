@@ -554,7 +554,7 @@ class TranslationUnit(object):
             tgt_replace = TokReplace(*tgt_replace)
             self.replace_tokens_side("target", tgt_replace, part=part)
 
-        if src_replace and tgt_replace and self.__alignment is not None:
+        if src_replace.new_tokens and tgt_replace.new_tokens and self.__alignment is not None:
             self.__alignment.insert_aligned_tokens(src_replace.start_tok_idx, tgt_replace.start_tok_idx, part=part)
 
 
