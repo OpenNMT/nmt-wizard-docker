@@ -9,6 +9,12 @@ class Tokenizer(prepoperator.MonolingualOperator):
         return False
 
     def _build_process(self, config, side, build_state):
+        # Disable subword regularization in inference.
+        if self.process_type != prepoperator.ProcessType.TRAINING:
+            config["bpe_dropout"] = 0
+            config["sp_nbest_size"] = 0
+            config["sp_alpha"] = 0
+
         if config.get("restrict_subword_vocabulary", False):
             vocabulary_path = build_state.get(
                 "src_vocabulary" if side == "source" else "tgt_vocabulary")
@@ -24,7 +30,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
             else:
                 previous_tokenizer = build_state["tgt_tokenizer"]
                 build_state["tgt_tokenizer"] = current_tokenizer
-        if self._process_type == prepoperator.ProcessType.POSTPROCESS and not self._postprocess_only:
+        if self.process_type == prepoperator.ProcessType.POSTPROCESS and not self._postprocess_only:
             return previous_tokenizer
         return current_tokenizer
 
