@@ -73,7 +73,8 @@ def test_tokenization_with_vocabulary_restriction(tmpdir):
 
     vocab_path = str(tmpdir.join("vocab.txt"))
     with open(vocab_path, "w") as vocab_file:
-        vocab_file.write("▁Wor\n")
+        vocab_file.write("# Comment\n")
+        vocab_file.write("▁Wor 0.0224656\n")
     config.update({
         "vocabulary": {
             "source": {

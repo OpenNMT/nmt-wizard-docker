@@ -310,17 +310,11 @@ class VocabularyBuilder(Consumer):
                              else None
 
             if vocab_to_merge and os.path.isfile(vocab_to_merge):
-                with open(vocab_to_merge, 'r') as f:
-                    header = True
-                    for l in f:
-                        if header and l[0] == '#':
-                            continue
-                        header = False
-                        w = l.strip().split(' ')[0]
-                        if w :
-                            # Set heaviest frequency on tokens from vocabulary to merge.
-                            vocabulary[w] = float("inf")
-                            added_size += 1
+                for w in tokenizer.vocabulary_iterator(vocab_to_merge):
+                    if w :
+                        # Set heaviest frequency on tokens from vocabulary to merge.
+                        vocabulary[w] = float("inf")
+                        added_size += 1
 
             # Add extra tokens from a list.
             vocab_to_add = tok_config[side]['build_vocabulary']['add'] \

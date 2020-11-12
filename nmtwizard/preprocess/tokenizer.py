@@ -64,15 +64,31 @@ def make_subword_learner(subword_config, subword_dir, tokenizer=None):
         "size": vocab_size
     }
 
+def vocabulary_iterator(vocabulary_path):
+    """Iterates over each token included in the vocabulary file."""
+    with open(vocabulary_path) as vocabulary_file:
+        header = True
+        for line in vocabulary_file:
+            # The vocabulary file might start with some comments prefixed with '#'.
+            if header and line[0] == '#':
+                continue
+            header = False
+            line = line.rstrip('\n\r')
+            fields = line.split(' ')
+            if len(fields) == 1:
+                # No frequency value, the line is just the token.
+                yield fields[0]
+            else:
+                # The code below checks the last field is a frequency and not a part of
+                # a badly formatted token.
+                try:
+                    float(fields[-1])
+                    fields.pop()
+                except ValueError:
+                    pass
+                yield ' '.join(fields)
+
 def load_vocabulary(vocabulary_path):
     if vocabulary_path and isinstance(vocabulary_path, str):
-        vocabulary = []
-        header = True
-        with open(vocabulary_path) as vocabfile:
-            for line in vocabfile:
-                if header and line.startswith('#'):
-                    continue
-                header = False
-                vocabulary.append(line.strip())
-            return set(vocabulary)
+        return set(vocabulary_iterator(vocabulary_path))
     return vocabulary_path

@@ -1,3 +1,5 @@
+import tempfile
+
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import tokenizer
 
@@ -14,8 +16,19 @@ class Tokenizer(prepoperator.MonolingualOperator):
                 "src_vocabulary" if side == "source" else "tgt_vocabulary")
             if vocabulary_path is None:
                 raise ValueError("restrict_subword_vocabulary is set but no vocabulary is set")
-            config["vocabulary_path"] = vocabulary_path
-        current_tokenizer = tokenizer.build_tokenizer(config)
+
+            # The open source Tokenizer does not accept the custom vocabulary format
+            # produced by build_vocab so we create a temporary vocabulary with a simpler
+            # format.
+            with tempfile.NamedTemporaryFile(mode="w") as vocab_file:
+                for token in tokenizer.vocabulary_iterator(vocabulary_path):
+                    vocab_file.write("%s\n" % token)
+                vocab_file.flush()
+                config["vocabulary_path"] = vocab_file.name
+                current_tokenizer = tokenizer.build_tokenizer(config)
+        else:
+            current_tokenizer = tokenizer.build_tokenizer(config)
+
         previous_tokenizer = None
         if build_state:
             if side == "source":

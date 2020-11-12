@@ -119,11 +119,11 @@ class OpenNMTPYFramework(Framework):
 
     def _map_vocab_entry(self, index, token, vocab):
         if index == 0:
-            vocab.write(b"<unk>\n")
-            vocab.write(b"<blank>\n")
-            vocab.write(b"<s>\n")
-            vocab.write(b"</s>\n")
-        vocab.write(b"%s\n" % token)
+            vocab.write("<unk>\n")
+            vocab.write("<blank>\n")
+            vocab.write("<s>\n")
+            vocab.write("</s>\n")
+        vocab.write("%s\n" % token)
 
 
 def _trans_options(config, gpuid):
