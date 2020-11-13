@@ -126,8 +126,8 @@ class Alignment(object):
 class TranslationSide(object):
 
     def __init__(self, line, output_side, output_delimiter=None, tokenizer=None):
-        self._output_side = output_side
-        self._output_delimiter = output_delimiter
+        self.output_side = output_side
+        self.output_delimiter = output_delimiter
         if isinstance(line, bytes):
             line = line.decode("utf-8")  # Ensure Unicode string.
         if isinstance(line, str):
@@ -184,14 +184,6 @@ class TranslationSide(object):
     def detok(self, detok):
         self.__detok = detok
         self.__tok = None
-
-    @property
-    def output_side(self):
-        return self._output_side
-
-    @property
-    def output_delimiter(self):
-        return self._output_delimiter
 
     def finalize(self):
         _ = self.tok
@@ -278,7 +270,14 @@ class TranslationUnit(object):
             if alignment is not None:
                 self.__alignment = Alignment(alignments=alignment)
 
-    def add_source(self, source, output_side, name, tokenizer=None, output_delimiter=None):
+    def add_source(self,
+                   source,
+                   name=None,
+                   tokenizer=None,
+                   output_side="source",
+                   output_delimiter=None):
+        if name is None:
+            name = "main"
         ts = TranslationSide(source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
         if self.__source is not None:
             if name in self.__source:
@@ -287,7 +286,14 @@ class TranslationUnit(object):
         else:
             self.__source = {name:ts}
 
-    def add_target(self, target, output_side, name, tokenizer=None, output_delimiter=None):
+    def add_target(self,
+                   target,
+                   name=None,
+                   tokenizer=None,
+                   output_side="target",
+                   output_delimiter=None):
+        if name is None:
+            name = "main"
         ts = TranslationSide(target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
         if self.__target is not None:
             if name in self.__target:
@@ -303,6 +309,17 @@ class TranslationUnit(object):
     @property
     def num_targets(self):
         return len(self.__target) if self.__target is not None else 0
+
+    def has_source(self, name="main"):
+        return name in self.__source
+
+    def has_target(self, name="main"):
+        return self.__target is not None and name in self.__target
+
+    def set_target_output(self, name, side, delimiter):
+        target = self.__target[name]
+        target.output_side = side
+        target.output_delimiter = delimiter
 
 
     @property

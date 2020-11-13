@@ -280,7 +280,13 @@ class InferenceProcessor(Processor):
     def _build_shared_state(self, num_workers=0):
         return self._shared_state
 
-    def process_input(self, source, target=None, metadata=None, config=None, options=None):
+    def process_input(self,
+                      source,
+                      target=None,
+                      target_name=None,
+                      metadata=None,
+                      config=None,
+                      options=None):
         """Processes one translation example at inference.
 
         Args:
@@ -288,6 +294,7 @@ class InferenceProcessor(Processor):
             list of tokens.
           target: In preprocess, a string. In postprocess, a (possibly multipart)
             list of tokens.
+          target_name: The name of the target that is passed during inference.
           metadata: Additional metadata of the input.
           config: The configuration for this example.
           options: A dictionary with operators options.
@@ -309,11 +316,15 @@ class InferenceProcessor(Processor):
 
         tu = TranslationUnit(
             source=source,
-            target=target,
             metadata=metadata,
             source_tokenizer=self._pipeline.start_state.get('src_tokenizer'),
-            target_tokenizer=self._pipeline.start_state.get('tgt_tokenizer'),
         )
+
+        if target is not None:
+            tu.add_target(
+                target,
+                name=target_name,
+                tokenizer=self._pipeline.start_state.get('tgt_tokenizer'))
 
         tu_batch = ([tu], {})
         tu_batch = pipeline(tu_batch, options=options)

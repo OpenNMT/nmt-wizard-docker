@@ -255,7 +255,6 @@ def test_run_request():
             sep = config["separator"]
             source = source.split(sep)
             if target is not None:
-                assert config.get("target_type") is not None
                 target = target.split(sep)
             return source, target, None
 
