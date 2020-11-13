@@ -30,6 +30,7 @@ class TranslationExample(
                                (
                                    "index",
                                    "config",
+                                   "options",
                                    "source_tokens",
                                    "target_tokens",
                                    "mode",
@@ -237,13 +238,16 @@ def run_request(request,
         # Read request specific options and config.
         options = request.get('options', {})
         options.setdefault('timeout', timeout)
-        config = finalize_config(config, override=options.get('config'))
         max_batch_size = options.get('max_batch_size', max_batch_size)
         if not rebatch_request and max_batch_size is not None:
             options['max_batch_size'] = max_batch_size
             max_batch_size = None
 
-        examples = preprocess_examples(src, preprocessor, config=config)
+        examples = preprocess_examples(
+            src,
+            preprocessor,
+            config=config,
+            config_override=options.get('config'))
         outputs = translate_examples(
             examples,
             translate_fn,
@@ -255,15 +259,25 @@ def run_request(request,
 
 def finalize_config(config, override=None, options=None):
     """Finalizes the configuration with possible override and options."""
-    if config is not None and (override or options):
-        config = copy.deepcopy(config)
-        if override:
-            config_util.merge_config(config, override)
-        if options:
-            config_util.update_config_with_options(config, options)
-    return config
+    if config is not None:
+        if config_util.is_v2_config(config):
+            if override:
+                raise ValueError("Configuration override is not supported for V2 "
+                                 "configurations")
+            if options:
+                options = config_util.read_options(config, options)
+            config = None
+        else:
+            if override or options:
+                config = copy.deepcopy(config)
+                if override:
+                    config_util.merge_config(config, override)
+                if options:
+                    config_util.read_options(config, options)
+                    options = None
+    return config, options
 
-def preprocess_example(preprocessor, index, raw_example, config=None):
+def preprocess_example(preprocessor, index, raw_example, config=None, config_override=None):
     """Applies preprocessing function on example."""
     if not isinstance(raw_example, dict):
         raise ValueError('example %d is not a JSON object' % index)
@@ -271,9 +285,17 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
     if source_text is None:
         raise ValueError('missing text field in example %d' % index)
     mode = raw_example.get('mode', 'default')
-    config = finalize_config(
+
+    example_config_override = raw_example.get('config')
+    if example_config_override:
+        if config_override:
+            config_override = config_util.merge_config(
+                copy.deepcopy(config_override), example_config_override)
+        else:
+            config_override = example_config_override
+    config, options = finalize_config(
         config,
-        override=raw_example.get('config'),
+        override=config_override,
         options=raw_example.get('options'))
 
     target_prefix = raw_example.get('target_prefix')
@@ -295,7 +317,12 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
         metadata = None
     else:
         source_tokens, target_tokens, metadata = preprocessor.process_input(
-            source_text, target=target_text, target_name=target_name, config=config)
+            source_text,
+            target=target_text,
+            target_name=target_name,
+            config=config,
+            options=options,
+        )
 
     # Move to the general multiparts representation.
     if not source_tokens or not isinstance(source_tokens[0], list):
@@ -306,16 +333,18 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
     return TranslationExample(
         index=index,
         config=config,
+        options=options,
         source_tokens=source_tokens,
         target_tokens=target_tokens,
         mode=mode,
         metadata=metadata)
 
-def preprocess_examples(raw_examples, preprocessor, config=None):
+def preprocess_examples(raw_examples, preprocessor, config=None, config_override=None):
     """Applies preprocessing on a list of example structures."""
     examples = []
     for i, raw_example in enumerate(raw_examples):
-        example = preprocess_example(preprocessor, i, raw_example, config=config)
+        example = preprocess_example(
+            preprocessor, i, raw_example, config=config, config_override=config_override)
         examples.append(example)
     return examples
 
@@ -334,7 +363,9 @@ def postprocess_output(output, example, postprocessor):
             src_tokens,
             tgt_tokens,
             metadata=example.metadata,
-            config=example.config)
+            config=example.config,
+            options=example.options,
+        )
         score = sum(output.score) if all(s is not None for s in output.score) else None
         attention = output.attention
         if attention and len(attention) == 1:

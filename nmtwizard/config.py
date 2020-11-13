@@ -1,5 +1,6 @@
 """Functions to manipulate and validate configurations."""
 
+import collections
 import jsonschema
 import six
 import copy
@@ -45,10 +46,16 @@ def index_config(config, path, index_structure=True):
                 raise ValueError('Invalid path %s in config' % path)
             config = config[section]
         elif isinstance(config, list):
+            section_index = None
             try:
                 section_index = int(section)
             except ValueError:
-                raise ValueError('Expected an array index in path, but got %s instead' % section)
+                for i, block in enumerate(config):
+                    if isinstance(block, dict) and block.get('name') == section:
+                        section_index = i
+                        break
+                if section_index is None:
+                    raise ValueError('Expected an array index in path, but got %s instead' % section)
             config = config[section_index]
         else:
             raise ValueError('Paths in config can only represent object and array structures')
@@ -97,9 +104,14 @@ def validate_mapping(schema, options, config):
             raise ValueError('Missing "option_path" in option mapping %d' % i)
         option_schema = index_schema(schema, option_path)
 
-def update_config_with_options(config, options):
-    """Update the configuration with incoming inference options. Raises ValueError
-    if inference options were not expected or the value is not accepted.
+def read_options(config, options):
+    """Reads the inference options.
+
+    For V1 configurations, this function updates the global configuration with incoming options.
+    For V2 configurations, this function returns a dict mapping operator names to their options.
+
+    Raises:
+      ValueError: if inference options were not expected or the value is not accepted.
     """
     inference_options = config.get('inference_options')
     if inference_options is None:
@@ -108,13 +120,21 @@ def update_config_with_options(config, options):
         jsonschema.validate(options, inference_options['json_schema'])
     except jsonschema.ValidationError as e:
         raise ValueError('Options validation error: %s' % e.message)
+    v2_config = is_v2_config(config)
+    operators_options = collections.defaultdict(dict)
     for mapping in inference_options['options']:
         try:
             option_value = index_config(options, mapping['option_path'])
         except ValueError:
             continue  # Option not passed for this request.
         dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
-        dst_config[dst_key] = option_value
+        if v2_config:
+            operators_options[dst_config['name']].update({dst_key: option_value})
+        else:
+            dst_config[dst_key] = option_value
+    if v2_config:
+        return operators_options
+    return config
 
 def is_v2_config(config):
     """Returns True if config is a V2 configuration."""

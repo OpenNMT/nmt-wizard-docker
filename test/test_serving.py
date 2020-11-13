@@ -11,6 +11,7 @@ def _make_example(tokens, index=0, metadata=None, mode="default"):
     return serving.TranslationExample(
         index=index,
         config=None,
+        options=None,
         source_tokens=tokens,
         target_tokens=[None] * len(tokens),
         mode=mode,
@@ -76,6 +77,84 @@ def test_preprocess_example():
     assert example.source_tokens == [["a", "b"], ["c", "d"]]
     assert example.metadata == [1, 2]
     assert example.mode == "default"
+
+def test_preprocess_example_with_v1_options():
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": {
+            "politeness": {
+                "default_value": "neutral",
+            }
+        },
+        "inference_options": {
+            "json_schema": {
+                "type": "object",
+                "properties": {
+                    "politeness": {
+                        "type": "string",
+                        "default": "neutral",
+                        "enum": ["formal", "informal", "neutral"]
+                    }
+                }
+            },
+            "options": [
+                {
+                    "option_path": "politeness",
+                    "config_path": "preprocess/politeness/value"
+                },
+            ]
+        }
+    }
+
+    class Processor:
+        def process_input(self, source, target=None, config=None, options=None, **kwargs):
+            assert config["preprocess"]["politeness"]["value"] == "informal"
+            assert options is None
+            return source.split(), None, None
+
+    example = {"text": "a b c d", "options": {"politeness": "informal"}}
+    serving.preprocess_example(Processor(), 0, example, config=config)
+
+def test_preprocess_example_with_v2_options():
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": [
+            {
+                "op": "_add_marker",
+                "name": "politeness-op",
+                "default_value": "neutral",
+            },
+        ],
+        "inference_options": {
+            "json_schema": {
+                "type": "object",
+                "properties": {
+                    "politeness": {
+                        "type": "string",
+                        "default": "neutral",
+                        "enum": ["formal", "informal", "neutral"]
+                    }
+                }
+            },
+            "options": [
+                {
+                    "option_path": "politeness",
+                    "config_path": "preprocess/politeness-op/value"
+                },
+            ]
+        }
+    }
+
+    class Processor:
+        def process_input(self, source, target=None, config=None, options=None, **kwargs):
+            assert config is None
+            assert options == {"politeness-op": {"value": "informal"}}
+            return source.split(), None, None
+
+    example = {"text": "a b c d", "options": {"politeness": "informal"}}
+    serving.preprocess_example(Processor(), 0, example, config=config)
 
 def test_preprocess_examples():
     class Processor:
@@ -291,3 +370,56 @@ def test_run_request():
         rebatch_request=False,
         max_batch_size=1)
     assert result == {'tgt': [[{'text': '1 2 c b a'}], [{'text': 'z_y_x'}]]}
+
+def test_run_request_with_v2_config():
+
+    class Preprocessor:
+        def process_input(self, source, target=None, config=None, **kwargs):
+            assert config is None
+            source = source.split()
+            return source, None, None
+
+    class Postprocessor:
+        def process_input(self, source, target=None, config=None, **kwargs):
+            assert config is None
+            return " ".join(target[0])
+
+    def translate(source_tokens, target_tokens, options=None):
+        return [
+            [_make_output((target if target is not None else []) + list(reversed(source)))]
+            for source, target in zip(source_tokens, target_tokens)]
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": [
+           {
+                "op": "tokenization",
+                "source": {"mode": "space"},
+                "target": {"mode": "space"},
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="override is not supported"):
+        request = {"src": [{"text": "a b c", "config": {"override": 42}}]}
+        serving.run_request(
+            request,
+            translate,
+            Preprocessor(),
+            Postprocessor(),
+            config=config,
+            rebatch_request=False,
+            max_batch_size=1)
+
+    request = {"src": [{"text": "a b c"}]}
+    result = serving.run_request(
+        request,
+        translate,
+        Preprocessor(),
+        Postprocessor(),
+        config=config,
+        rebatch_request=False,
+        max_batch_size=1)
+
+    assert result == {'tgt': [[{'text': 'c b a'}]]}
