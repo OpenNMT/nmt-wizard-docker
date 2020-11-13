@@ -105,9 +105,11 @@ class Alignment(object):
                 side_tok_idx = al[side_idx]
                 opp_side_tok_idx = al[opp_side_idx]
                 if side_tok_idx >= start_idx:
+                    # Tokens strictly after the inserted tokens
                     if side_tok_idx >= start_idx + tok_num:
                         # Shift alignment
                         side_tok_idx += len(new_tokens) - tok_num
+                    # Inserted tokens
                     else:
                         if len(new_tokens) == 0:
                             # Delete alignment
@@ -123,11 +125,17 @@ class Alignment(object):
 
             self.__alignments[part] = new_alignment
 
-    def insert_aligned_tokens(self, src_idx, tgt_idx, part = 0):
+    def insert_aligned_tokens(self, src_start_idx, tgt_start_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part = 0):
         # After adjusting alignment, some placeholder operators need to insert new aligned tokens
-        # e.g. it_tag, it_ts, ph_unk nor replacing a real token
         
-        self.__alignments[part].add((src_idx, tgt_idx))
+        # Align all source tokens to first target token
+        for i in range(src_nb_inserted_tokens):
+            self.__alignments[part].add((src_start_idx + i, tgt_start_idx))
+
+        # Align last source token to last target token
+        if tgt_nb_inserted_tokens > 1:
+            self.__alignments[part].add((src_start_idx + src_nb_inserted_tokens - 1, tgt_start_idx + tgt_nb_inserted_tokens - 1))
+
 
 
 class TranslationSide(object):
@@ -553,10 +561,11 @@ class TranslationUnit(object):
             # replace tokens in source and adjust_alignment if any
             tgt_replace = TokReplace(*tgt_replace)
             self.replace_tokens_side("target", tgt_replace, part=part)
-
-        if src_replace.new_tokens and tgt_replace.new_tokens and self.__alignment is not None:
-            self.__alignment.insert_aligned_tokens(src_replace.start_tok_idx, tgt_replace.start_tok_idx, part=part)
-
+            
+        if src_replace and src_replace.new_tokens and tgt_replace and tgt_replace.new_tokens and self.__alignment is not None:
+            src_nb_inserted_tokens = len(src_replace.new_tokens)
+            tgt_nb_inserted_tokens = len(tgt_replace.new_tokens)
+            self.__alignment.insert_aligned_tokens(src_replace.start_tok_idx, tgt_replace.start_tok_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part=part)
 
     def replace_tokens_side(self, side, replacement, part=0):
 
