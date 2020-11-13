@@ -1,16 +1,15 @@
-# -*- coding: utf-8 -*-
-from __future__ import print_function
 import os
 import re
 import tempfile
 import subprocess
 import json
 import time
+import shutil
 from multiprocessing.pool import ThreadPool
 
 from nmtwizard.utility import Utility
 from nmtwizard.logger import get_logger
-from nmtwizard import tokenizer
+from nmtwizard.preprocess import tokenizer
 
 LOGGER = get_logger(__name__)
 
@@ -81,17 +80,23 @@ class ScoreUtility(Utility):
 
     def remove_ph(self, filename):
         outfile = tempfile.NamedTemporaryFile(delete=False)
-        with open(filename, 'r') as input_file, open(outfile.name, 'w') as output_file:
+        with open(filename, 'r', encoding='utf-8') as input_file, open(outfile.name, 'w', encoding='utf-8') as output_file:
             for line in input_file:
                 line = re.sub(r"｟.+：(.+?)｠", self.remove_ph_escape, line)
                 output_file.write(line)
         return outfile.name
 
+    def tokenize_file(self, tokenizer, input, output):
+        if not tokenizer:
+            shutil.copy(input, output)
+        else:
+            tokenizer.tokenize_file(input, output)
+
     def tokenize_files(self, file_list, lang_tokenizer):
         outfile_group = []
         for file in file_list:
             outfile = tempfile.NamedTemporaryFile(delete=False)
-            tokenizer.tokenize_file(lang_tokenizer, file, outfile.name)
+            self.tokenize_file(lang_tokenizer, file, outfile.name)
             outfile_group.append(outfile.name)
         return outfile_group
 
@@ -122,12 +127,12 @@ class ScoreUtility(Utility):
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
-        with tempfile.NamedTemporaryFile(mode='w') as file_tgt, tempfile.NamedTemporaryFile(mode='w') as file_ref:
-            with open(tgtfile) as f:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as file_tgt, tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as file_ref:
+            with open(tgtfile, encoding='utf-8') as f:
                 for i, line in enumerate(f):
                     file_tgt.write('%s\t(%d-)\n' % (line.rstrip(), i))
             for ref in reffile:
-                with open(ref) as f:
+                with open(ref, encoding='utf-8') as f:
                     for i, line in enumerate(f):
                         file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
             file_tgt.flush()
@@ -198,10 +203,10 @@ class ScoreUtility(Utility):
 
     def eval_METEOR(self, tgtfile, reffile, lang):
         reffile = reffile.split(',')
-        with tempfile.NamedTemporaryFile(mode='w') as file_ref:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as file_ref:
             file_handles = []
             for ref in reffile:
-                file_handles.append(open(ref))
+                file_handles.append(open(ref, encoding='utf-8'))
             nRef = len(file_handles)
             for line in file_handles[0]:
                 file_ref.write(line)

@@ -1,21 +1,26 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 WORKDIR /root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        python-pip \
+        python \
+        python3 \
+        python3-setuptools \
         git \
         perl \
         default-jre \
         libsort-naturally-perl \
         libxml-parser-perl \
         libxml-twig-perl \
-        wget \
-        python-setuptools && \
+        wget && \
+    wget -nv https://bootstrap.pypa.io/get-pip.py && \
+    python3 get-pip.py && \
+    rm get-pip.py && \
     rm -rf /var/lib/apt/lists/*
 
 RUN mkdir /root/tools
 
+# rely on python2
 ARG OTEMUTEM_URL
 ENV OTEMUTEM_URL=${OTEMUTEM_URL:-https://github.com/DeepLearnXMU/Otem-Utem.git}
 ARG OTEMUTEM_REF
@@ -41,9 +46,9 @@ ADD utilities/score/NIST /root/tools/NIST
 
 ADD requirements.txt /root
 RUN pip --no-cache-dir install --upgrade pip
-RUN pip --no-cache-dir install -r /root/requirements.txt
+RUN pip --no-cache-dir install -r /root/requirements.txt --use-feature=2020-resolver
 
 ADD nmtwizard /root/nmtwizard
 ADD utilities/score/entrypoint.py /root/
 
-ENTRYPOINT ["python", "entrypoint.py"]
+ENTRYPOINT ["python3", "entrypoint.py"]
