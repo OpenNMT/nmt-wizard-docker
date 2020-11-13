@@ -280,18 +280,14 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
     target_fuzzy = raw_example.get('fuzzy')
     if target_prefix is not None and target_fuzzy is not None:
         raise ValueError("Using both a target prefix and a fuzzy target is currently unsupported")
+
+    target_text = None
+    target_name = None
     if target_prefix is not None:
         target_text = target_prefix
-        target_type = "prefix"
     elif target_fuzzy is not None:
         target_text = target_fuzzy
-        target_type = "fuzzy"
-    else:
-        target_text = None
-        target_type = None
-    if target_type is not None:
-        config = config.copy() if config is not None else {}
-        config["target_type"] = target_type
+        target_name = "fuzzy"
 
     if preprocessor is None:
         source_tokens = source_text
@@ -299,7 +295,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None):
         metadata = None
     else:
         source_tokens, target_tokens, metadata = preprocessor.process_input(
-            source_text, target=target_text, config=config)
+            source_text, target=target_text, target_name=target_name, config=config)
 
     # Move to the general multiparts representation.
     if not source_tokens or not isinstance(source_tokens[0], list):

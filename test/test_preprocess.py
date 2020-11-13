@@ -541,7 +541,7 @@ def test_postprocess_multipart_batch_loader(tmpdir):
     target = [["Bonjour"], ["monde"]]
     metadata = [None, None]
 
-    target = processor.process_input(source, target, metadata)
+    target = processor.process_input(source, target, metadata=metadata)
     assert target == "Bonjour monde"
 
 
@@ -703,7 +703,9 @@ def test_extra_target(tmpdir):
             return process_type != prepoperator.ProcessType.POSTPROCESS
 
         def _preprocess_tu(self, tu, training):
-            tu.add_target("Das ist ein neues Ziel.", "source", name="extra", output_delimiter="｟delimiter_token｠")
+            tu.add_target("Das ist ein neues Ziel.", "extra")
+            assert tu.has_target("extra")
+            tu.set_target_output("extra", side="source", delimiter="｟delimiter_token｠")
             return [tu]
 
     config_extra_target = deepcopy(config_base)
