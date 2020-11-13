@@ -541,7 +541,7 @@ def test_postprocess_multipart_batch_loader(tmpdir):
     target = [["Bonjour"], ["monde"]]
     metadata = [None, None]
 
-    target = processor.process_input(source, target, metadata)
+    target = processor.process_input(source, target, metadata=metadata)
     assert target == "Bonjour monde"
 
 

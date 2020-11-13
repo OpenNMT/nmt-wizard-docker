@@ -13,7 +13,6 @@ from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import sampler
 from nmtwizard.preprocess import tokenizer
 from nmtwizard.preprocess.tu import TranslationUnit
-from nmtwizard.serving import TargetType
 
 logger = get_logger(__name__)
 
@@ -282,7 +281,7 @@ class InferenceProcessor(Processor):
     def process_input(self,
                       source,
                       target=None,
-                      target_type=None,
+                      target_name=None,
                       metadata=None,
                       config=None,
                       options=None):
@@ -293,7 +292,7 @@ class InferenceProcessor(Processor):
             list of tokens.
           target: In preprocess, a string. In postprocess, a (possibly multipart)
             list of tokens.
-          target_type: The type of the target that is passed during inference.
+          target_name: The name of the target that is passed during inference.
           metadata: Additional metadata of the input.
           config: The configuration for this example.
           options: A dictionary with operators options.
@@ -320,13 +319,9 @@ class InferenceProcessor(Processor):
         )
 
         if target is not None:
-            if target_type == TargetType.FUZZY:
-                name = 'fuzzy'
-            else:
-                name = 'main'
             tu.add_target(
                 target,
-                name,
+                name=target_name,
                 tokenizer=self._pipeline.start_state.get('tgt_tokenizer'))
 
         tu_batch = ([tu], {})

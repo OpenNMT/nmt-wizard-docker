@@ -267,10 +267,12 @@ class TranslationUnit(object):
 
     def add_source(self,
                    source,
-                   name,
+                   name=None,
                    tokenizer=None,
                    output_side="source",
                    output_delimiter=None):
+        if name is None:
+            name = "main"
         ts = TranslationSide(source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
         if self.__source is not None:
             if name in self.__source:
@@ -281,10 +283,12 @@ class TranslationUnit(object):
 
     def add_target(self,
                    target,
-                   name,
+                   name=None,
                    tokenizer=None,
                    output_side="target",
                    output_delimiter=None):
+        if name is None:
+            name = "main"
         ts = TranslationSide(target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
         if self.__target is not None:
             if name in self.__target:
