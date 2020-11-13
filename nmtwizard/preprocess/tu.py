@@ -105,9 +105,11 @@ class Alignment(object):
                 side_tok_idx = al[side_idx]
                 opp_side_tok_idx = al[opp_side_idx]
                 if side_tok_idx >= start_idx:
+                    # Tokens strictly after the inserted tokens
                     if side_tok_idx >= start_idx + tok_num:
                         # Shift alignment
                         side_tok_idx += len(new_tokens) - tok_num
+                    # Inserted tokens
                     else:
                         if len(new_tokens) == 0:
                             # Delete alignment
@@ -120,7 +122,20 @@ class Alignment(object):
                     new_alignment.add((opp_side_tok_idx, side_tok_idx))
                 else:
                     new_alignment.add((side_tok_idx, opp_side_tok_idx))
+
             self.__alignments[part] = new_alignment
+
+    def insert_alignments(self, src_start_idx, tgt_start_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part = 0):
+        # After adjusting alignment, some placeholder operators need to insert new aligned tokens
+        
+        # Align all source tokens to first target token
+        for i in range(src_nb_inserted_tokens):
+            self.__alignments[part].add((src_start_idx + i, tgt_start_idx))
+
+        # Align last source token to last target token
+        if tgt_nb_inserted_tokens > 1:
+            self.__alignments[part].add((src_start_idx + src_nb_inserted_tokens - 1, tgt_start_idx + tgt_nb_inserted_tokens - 1))
+
 
 
 class TranslationSide(object):
@@ -531,7 +546,7 @@ class TranslationUnit(object):
                        tgt_replace = None, # TokReplace structure
                        part = 0): # TODO : maybe rather send multi-part replacements ?
 
-        # Replace (delete, insert) tokens in a TU and adjust alignment without retoknization/realignment.
+        # Replace (delete, insert) tokens in a TU and adjust alignment without retokenization/realignment.
 
         if src_replace:
             # replace tokens in source and adjust alignment if any
@@ -542,10 +557,11 @@ class TranslationUnit(object):
             # replace tokens in source and adjust_alignment if any
             tgt_replace = TokReplace(*tgt_replace)
             self.replace_tokens_side("target", tgt_replace, part=part)
-
-        # TODO
-        # Maybe provide and alignment for inserted tokens ?
-
+            
+        if src_replace and src_replace.new_tokens and tgt_replace and tgt_replace.new_tokens and self.__alignment is not None:
+            src_nb_inserted_tokens = len(src_replace.new_tokens)
+            tgt_nb_inserted_tokens = len(tgt_replace.new_tokens)
+            self.__alignment.insert_alignments(src_replace.start_tok_idx, tgt_replace.start_tok_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part=part)
 
     def replace_tokens_side(self, side, replacement, part=0):
 
