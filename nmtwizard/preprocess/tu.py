@@ -125,7 +125,7 @@ class Alignment(object):
 
             self.__alignments[part] = new_alignment
 
-    def insert_aligned_tokens(self, src_start_idx, tgt_start_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part = 0):
+    def insert_alignments(self, src_start_idx, tgt_start_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part = 0):
         # After adjusting alignment, some placeholder operators need to insert new aligned tokens
         
         # Align all source tokens to first target token
@@ -565,7 +565,7 @@ class TranslationUnit(object):
         if src_replace and src_replace.new_tokens and tgt_replace and tgt_replace.new_tokens and self.__alignment is not None:
             src_nb_inserted_tokens = len(src_replace.new_tokens)
             tgt_nb_inserted_tokens = len(tgt_replace.new_tokens)
-            self.__alignment.insert_aligned_tokens(src_replace.start_tok_idx, tgt_replace.start_tok_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part=part)
+            self.__alignment.insert_alignments(src_replace.start_tok_idx, tgt_replace.start_tok_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part=part)
 
     def replace_tokens_side(self, side, replacement, part=0):
 
