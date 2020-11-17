@@ -1,7 +1,7 @@
 import os
 import time
 
-from google.cloud import translate
+from google.cloud import translate_v2 as translate
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 from nmtwizard.logger import get_logger
