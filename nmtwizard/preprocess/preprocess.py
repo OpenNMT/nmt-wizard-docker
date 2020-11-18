@@ -238,6 +238,9 @@ class TrainingProcessor(Processor):
 
             self._generate_models(prep_idx, 'subword')
 
+            # reset pipeline
+            self._pipeline=None
+
             self._generate_models(prep_idx, 'vocabulary')
 
             # Use vocabulary from final tokenization as vocabulary for translation framework.
