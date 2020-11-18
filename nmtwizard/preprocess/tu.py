@@ -407,8 +407,7 @@ class TranslationUnit(object):
             self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
 
     def _invalidate_alignment(self):
-        if self.__alignment is not None:
-            self.__alignment.alignments = None
+        self.__alignment = None
 
     @property
     def src_detok(self):

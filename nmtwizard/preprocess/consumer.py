@@ -5,6 +5,8 @@ import os
 import collections
 import itertools
 
+import pyonmttok
+
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import tokenizer
 
@@ -139,6 +141,7 @@ def _build_vocabulary_counters(config):
         return {}
     return {
         "tokens": collections.defaultdict(int),
+        "placeholders": collections.defaultdict(int),
         "total": 0,
     }
 
@@ -252,19 +255,25 @@ class VocabularyBuilder(Consumer):
         # TODO : remove value for placeholders
         for output in outputs[0]:
             for token in itertools.chain.from_iterable(output.src):
-                self._source_counters['tokens'][token] += 1
+                if pyonmttok.is_placeholder(token):
+                    self._source_counters['placeholders'][token] += 1
+                else:
+                    self._source_counters['tokens'][token] += 1
                 self._source_counters['total'] += 1
             for token in itertools.chain.from_iterable(output.tgt):
-                self._target_counters['tokens'][token] += 1
+                if pyonmttok.is_placeholder(token):
+                    self._target_counters['placeholders'][token] += 1
+                else:
+                    self._target_counters['tokens'][token] += 1
                 self._target_counters['total'] += 1
 
 
-    def _prune(self, vocabulary, sorted_vocabulary, size, min_frequency):
+    def _prune(self, sorted_vocabulary, size, min_frequency):
         real_size = len(sorted_vocabulary)
 
         if min_frequency :
-            for t in reversed(sorted_vocabulary):
-                if vocabulary[t] < min_frequency :
+            for t, f in reversed(sorted_vocabulary):
+                if f < min_frequency :
                     real_size -= 1
                 else:
                     break
@@ -290,6 +299,7 @@ class VocabularyBuilder(Consumer):
 
         for side, counters in vocabularies:
             vocabulary = counters['tokens']
+            placeholders = counters['placeholders']
             total_size = counters['total']
             name =  tok_config[side]['build_vocabulary']['name'] \
                     if 'name' in tok_config[side]['build_vocabulary'] \
@@ -302,6 +312,8 @@ class VocabularyBuilder(Consumer):
                             if 'min-frequency' in tok_config[side]['build_vocabulary'] \
                             else 0
 
+            sorted_vocabulary = sorted(vocabulary.items(), key=lambda k_v: k_v[1], reverse=True)
+
             added_size = 0
 
             # Merge previously created vocabulary.
@@ -313,7 +325,7 @@ class VocabularyBuilder(Consumer):
                 for w in tokenizer.vocabulary_iterator(vocab_to_merge):
                     if w :
                         # Set heaviest frequency on tokens from vocabulary to merge.
-                        vocabulary[w] = float("inf")
+                        sorted_vocabulary.insert(0, (w, float("inf")) )
                         added_size += 1
 
             # Add extra tokens from a list.
@@ -322,16 +334,19 @@ class VocabularyBuilder(Consumer):
                            else []
 
             for w in vocab_to_add:
-                vocabulary[w] = float("inf")
+                sorted_vocabulary.insert(0, (w, float("inf")) )
                 added_size += 1
 
             if added_size > size :
                 raise RuntimeError('The size of extra tokens from \'merge\' and \'add\' (%d) cannot be bigger than than the required vocabulary size (%d)' % (added_size, size))
 
-            # Find out the real vocabulary size.
-            sorted_vocabulary = sorted(vocabulary, key=vocabulary.get, reverse=True)
+            sorted_placeholders = sorted(placeholders.items(), key=lambda k_v: k_v[1], reverse=True)
 
-            real_size = self._prune(vocabulary, sorted_vocabulary, size, min_frequency)
+            for item in sorted_placeholders:
+                sorted_vocabulary.insert(0, item)
+
+            # Find out the real vocabulary size.
+            real_size = self._prune(sorted_vocabulary, size, min_frequency)
 
             # Write to file.
             if side == 'multi' :
@@ -347,8 +362,8 @@ class VocabularyBuilder(Consumer):
 
             with open(out_file, 'w') as vocab_file :
                 for i in range(real_size):
-                    w = sorted_vocabulary[i]
-                    vocab_file.write("%s %s\n" % (w, vocabulary[w]/float(total_size)))
+                    w, f = sorted_vocabulary[i]
+                    vocab_file.write("%s %s\n" % (w, f/float(total_size)))
 
             # TODO V2 : header with configuration ?
             # TODO V2 : deal with placeholders
