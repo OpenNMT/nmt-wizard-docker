@@ -74,7 +74,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
     }
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
-    data_path, train_dir, num_samples, summary, metadata = \
+    data_path, train_dir, num_samples, summary = \
         preprocessor.generate_preprocessed_data()
     assert num_samples == 5000
     assert summary['news_pattern']['linesampled'] == 3000
@@ -109,7 +109,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
     with pytest.raises(RuntimeError) as excinfo:
-        data_path, train_dir, num_samples, summary, metadata = \
+        data_path, train_dir, num_samples, summary = \
             preprocessor.generate_preprocessed_data()
     assert str(excinfo.value) == "pattern '.*something' in block 0 doesn't match any file with strict mode enabled."
 
@@ -127,7 +127,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
     ]
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
-    data_path, train_dir, num_samples, summary, metadata = \
+    data_path, train_dir, num_samples, summary = \
         preprocessor.generate_preprocessed_data()
 
     assert num_samples == 6000
@@ -181,7 +181,7 @@ def test_sampler_with_annotations(tmpdir, similarity_filter_config, expected_num
     }
 
     preprocessor = TrainingProcessor(config, from_dir, to_dir)
-    data_path, train_dir, num_samples, summary, metadata = preprocessor.generate_preprocessed_data()
+    data_path, train_dir, num_samples, summary = preprocessor.generate_preprocessed_data()
 
     assert 'annotations' in summary['train'] and summary['train']['annotations'] == ['similarity']
     if expected_num_samples is not None:
@@ -377,7 +377,7 @@ def test_preprocess_pipeline(tmpdir):
 
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
-    data_path, train_dir, num_samples, summary, metadata = \
+    data_path, train_dir, num_samples, summary = \
         preprocessor.generate_preprocessed_data()
 
     for f_name, f_info in summary.items():
@@ -550,7 +550,7 @@ def test_preprocess_align(tmpdir, num_cpus):
     os.environ["NB_CPU"] = str(num_cpus)
 
     preprocessor = TrainingProcessor(config_base, "", str(tmpdir))
-    data_path, train_dir, num_samples, summary, metadata = \
+    data_path, train_dir, num_samples, summary = \
         preprocessor.generate_preprocessed_data()
 
     with open(os.path.join(str(tmpdir), "preprocess", "europarl-v7.de-en.10K.tok.align")) as align:
@@ -697,7 +697,7 @@ def test_replace_tokens(tmpdir):
     )
 
     preprocessor = TrainingProcessor(config_replace, "", str(tmpdir))
-    data_path, train_dir, num_samples, summary, metadata = \
+    data_path, train_dir, num_samples, summary = \
         preprocessor.generate_preprocessed_data()
 
 
@@ -721,7 +721,7 @@ def test_extra_target(tmpdir):
     config_extra_target['preprocess'].insert(0, { "op": "extra_target" })
 
     preprocessor = TrainingProcessor(config_extra_target, "", str(tmpdir))
-    data_path, train_dir, num_samples, summary, metadata = \
+    data_path, train_dir, num_samples, summary = \
         preprocessor.generate_preprocessed_data()
 
     with open(str(tmpdir.join("preprocess/europarl-v7.de-en.10K.tok.en"))) as f :
