@@ -362,7 +362,7 @@ class TranslationUnit(object):
         if source is not None:
             source.tok = tok
         if key == "main":
-            self._invalidate_alignment()
+            self.__alignment = None
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
@@ -374,7 +374,7 @@ class TranslationUnit(object):
             if target is not None:
                 target.tok = tok
             if key == "main":
-                self._invalidate_alignment()
+                self.__alignment = None
 
     @property
     def alignment(self):
@@ -405,9 +405,6 @@ class TranslationUnit(object):
     def _initialize_alignment(self):
         if self.__alignment is not None and self.__alignment.alignments is None:
             self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
-
-    def _invalidate_alignment(self):
-        self.__alignment = None
 
     @property
     def src_detok(self):
@@ -449,7 +446,7 @@ class TranslationUnit(object):
         if source is not None:
             source.detok = detok
         if key == "main":
-            self._invalidate_alignment()
+            self.__alignment = None
 
 
     @tgt_detok.setter
@@ -462,7 +459,7 @@ class TranslationUnit(object):
             if target is not None:
                 target.detok = detok
             if key == "main":
-                self._invalidate_alignment()
+                self.__alignment = None
 
     def _finalize_side(self, name, side):
         main_side = side.get("main")
