@@ -192,7 +192,7 @@ def test_align_perplexity_hard_threshold(lower,
         " ".join(str(i) for i in range(tgt_length)),
         source_tokenizer=tokenizer,
         target_tokenizer=tokenizer)
-    single_tu.set_aligner(_MockAligner(
+    single_tu.set_alignment(_MockAligner(
         forward_log_prob=fwd_log_prob,
         backward_log_prob=bwd_log_prob))
     assert filtered == _is_filtered(config, single_tu)
@@ -220,7 +220,7 @@ def test_align_perplexity_percent_threshold(lower, upper, log_probs, expected_lo
             "a b c",
             source_tokenizer=tokenizer,
             target_tokenizer=tokenizer)
-        single_tu.set_aligner(_MockAligner(forward_log_prob=log_prob, backward_log_prob=log_prob))
+        single_tu.set_alignment(_MockAligner(forward_log_prob=log_prob, backward_log_prob=log_prob))
         tu_list.append(single_tu)
 
     config = {

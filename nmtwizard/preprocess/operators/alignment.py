@@ -39,11 +39,6 @@ class Aligner(prepoperator.Operator):
         tu_list, meta_batch = tu_batch
         if self.process_type == prepoperator.ProcessType.TRAINING:
             meta_batch['write_alignment'] = self._write_alignment
-        tu_list = self._set_aligner(tu_list)
-        return tu_list, meta_batch
-
-    def _set_aligner(self, tu_list):
-        # Set aligner for TUs.
         for tu in tu_list :
-            tu.set_aligner(self._aligner)
-        return tu_list
+            tu.set_alignment(self._aligner)
+        return tu_list, meta_batch
