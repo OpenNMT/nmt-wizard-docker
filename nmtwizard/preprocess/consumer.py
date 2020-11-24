@@ -339,8 +339,7 @@ class VocabularyBuilder(Consumer):
             if added_size > size :
                 raise RuntimeError('The size of extra tokens from \'merge\' and \'add\' (%d) cannot be bigger than than the required vocabulary size (%d)' % (added_size, size))
 
-            # Add tokens added by operators, such as extra numbered placeholders that might not be all present in the sampled data.
-            tokens_to_add = set()
+            # Add tokens added by operators, such as extra numbered placeholders that might not all be present in the sampled data.
             if side == 'multi' :
                 tokens_to_add = self._tokens_to_add['source'].union(self._tokens_to_add['target'])
             else :
