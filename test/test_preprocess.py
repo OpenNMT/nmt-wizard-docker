@@ -258,15 +258,16 @@ def _test_generate_vocabularies(tmpdir, size, min_frequency, real_size, subword_
 
         # Check vocabulary
         rs = real_size[side] if isinstance(real_size, dict) else real_size
+        header_rs = rs + 2 # for headers
 
         vocab_file_name = "vocabulary/"
         if multi:
             vocab_file_name += "joint_"
-        vocab_file_name += "test-%s.%s" % (rs, ext)
+        vocab_file_name += "vocab_test-%s.%s" % (rs, ext)
         vocab_file = str(tmpdir.join(vocab_file_name))
 
         with open(vocab_file, 'rb') as f :
-            assert len(f.readlines()) == rs
+            assert len(f.readlines()) == header_rs
 
         if side == 'multi':
             assert result_vocab_config['source']['path'] == vocab_file
