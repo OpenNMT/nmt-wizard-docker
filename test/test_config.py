@@ -17,7 +17,7 @@ def test_key_replace():
     assert c == {"a": {"b": 42, "c": "d"}, "e": {"x": "y"}}
 
 
-_test_inference_options = {
+_base_schema = {
     "json_schema": {
         "title": "Translation options",
         "description": "Translation options",
@@ -45,6 +45,10 @@ _test_inference_options = {
             }
         }
     },
+}
+
+_test_inference_options = _base_schema.copy()
+_test_inference_options.update({
     "options": [
         {
             "option_path": "bpreprocess/politeness",
@@ -55,7 +59,7 @@ _test_inference_options = {
             "config_path": "bpreprocess/classifiers/1/value",
         }
     ]
-}
+})
 
 _test_config = {
     "bpreprocess": {
@@ -68,6 +72,33 @@ _test_config = {
             }
         ]
     }
+}
+
+_test_inference_options_v2 = _base_schema.copy()
+_test_inference_options_v2.update({
+    "options": [
+        {
+            "option_path": "bpreprocess/politeness",
+            "config_path": "preprocess/my-politeness-op/value"
+        },
+        {
+            "option_path": "bpreprocess/domain",
+            "config_path": "preprocess/my-domain-op/value",
+        }
+    ]
+})
+
+_test_config_v2 = {
+    "preprocess": [
+        {
+            "op": "domain-classifier",
+            "name": "my-domain-op",
+        },
+        {
+            "op": "politeness-classifier",
+            "name": "my-politeness-op",
+        },
+    ],
 }
 
 def test_inference_options_index_schema():
@@ -88,6 +119,10 @@ def test_inference_options_index_config():
     with pytest.raises(ValueError, match="Invalid path"):
         config.index_config(cfg, "bpreprocess/classifiers/1/value")
 
+def test_inference_options_index_config_v2():
+    cfg = _test_config_v2
+    assert config.index_config(cfg, "preprocess/my-domain-op") == cfg["preprocess"][0]
+
 def test_inference_options_validation():
     schema = config.validate_inference_options(_test_inference_options, _test_config)
     assert isinstance(schema, dict)
@@ -98,14 +133,20 @@ def test_inference_options_invalid_shema():
     with pytest.raises(jsonschema.SchemaError):
         config.validate_inference_options(opt, _test_config)
 
-def test_options_to_config():
+def test_read_options():
     cfg = copy.deepcopy(_test_config)
     cfg['inference_options'] = copy.deepcopy(_test_inference_options)
 
     with pytest.raises(ValueError):
         options = {"bpreprocess": {"domain": "Technology"}}
-        config.update_config_with_options(cfg, options)
+        config.read_options(cfg, options)
 
     options = {"bpreprocess": {"domain": "IT"}}
-    config.update_config_with_options(cfg, options)
+    config.get_options(cfg, options)
     assert cfg["bpreprocess"]["classifiers"][1]["value"] == "IT"
+
+def test_read_options():
+    cfg = copy.deepcopy(_test_config_v2)
+    cfg['inference_options'] = copy.deepcopy(_test_inference_options_v2)
+    options = {"bpreprocess": {"domain": "IT"}}
+    assert config.read_options(cfg, options) == {"my-domain-op": {"value": "IT"}}
