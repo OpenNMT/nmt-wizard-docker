@@ -30,21 +30,17 @@ logger = get_logger(__name__)
 class Framework(utility.Utility):
     """Base class for frameworks."""
 
-    def __init__(self, stateless=False, support_multi_training_files=False):
+    def __init__(self, stateless=False):
         """Initializes the framework.
 
         Args:
           stateless: If True, no models are generated or fetched. This is the case
             for local frameworks that are bridges to remote services (e.g. Google Translate).
-          support_multi_training_files: If True, the framework should implement the
-            training API receiving a data directory as argument and additional per file
-            metadata.
         """
 
         super(Framework, self).__init__()
 
         self._stateless = stateless
-        self._support_multi_training_files = support_multi_training_files
         self._models_dir = os.getenv('MODELS_DIR')
         if not stateless and not os.path.exists(self._models_dir):
             os.makedirs(self._models_dir)
@@ -187,47 +183,6 @@ class Framework(utility.Utility):
           boolean indicating that the backend can accept more work.
         """
         return {}, True
-
-    def train_multi_files(self,
-                          config,
-                          data_dir,
-                          src_vocab_info,
-                          tgt_vocab_info,
-                          model_path=None,
-                          num_samples=None,
-                          samples_metadata=None,
-                          gpuid=0):
-        """Trains for one epoch on a directory of data.
-
-        If the framework set support_multi_training_files to False (the default),
-        the standard train API will be called on a single parallel file.
-
-        Args:
-          config: The run configuration.
-          data_dir: The directory containing the training files.
-          src_vocab_info: Source vocabulary metadata (see _get_vocab_info).
-          tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
-          model_path: The path to a model to load from.
-          num_samples: The total number of sentences of the training data.
-          samples_metadata: A dictionary mapping filenames to extra metadata set
-            in the distribution configuration.
-          gpuid: The GPU identifier.
-
-        Returns:
-          See train().
-        """
-        if self._support_multi_training_files:
-            raise NotImplementedError()
-        else:
-            return self.train(
-                config,
-                os.path.join(data_dir, 'train.%s' % config['source']),
-                os.path.join(data_dir, 'train.%s' % config['target']),
-                src_vocab_info,
-                tgt_vocab_info,
-                align_file=os.path.join(data_dir, 'train.align'),
-                model_path=model_path,
-                gpuid=gpuid)
 
     def declare_arguments(self, parser):
         subparsers = parser.add_subparsers(help='Run type', dest='cmd')
@@ -412,13 +367,11 @@ class Framework(utility.Utility):
         local_config = self._finalize_config(config)
         if parent_model_type == 'preprocess':
             data_dir = os.path.join(model_path, 'data')
-            num_samples = config['sampling']['numSamples']
-            samples_metadata = config['sampling']['samplesMetadata']
             tokens_to_add = {}
             del config['sampling']
             logger.info('Using preprocessed data from %s' % data_dir)
         else:
-            data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add = (
+            data_dir, _, distribution_summary, tokens_to_add = (
                 self._build_data(local_config))
 
         src_vocab_info, tgt_vocab_info, _ = self._get_vocabs_info(
@@ -429,14 +382,14 @@ class Framework(utility.Utility):
 
         if parent_model_type in ('base',):
             model_path = None
-        objects = self.train_multi_files(
+        objects = self.train(
             local_config,
-            data_dir,
+            os.path.join(data_dir, 'train.%s' % config['source']),
+            os.path.join(data_dir, 'train.%s' % config['target']),
             src_vocab_info,
             tgt_vocab_info,
+            align_file=os.path.join(data_dir, 'train.align'),
             model_path=model_path,
-            num_samples=num_samples,
-            samples_metadata=samples_metadata,
             gpuid=gpuid)
         if isinstance(objects, tuple):
             objects, training_summary = objects
@@ -711,7 +664,7 @@ class Framework(utility.Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add = (
+        data_dir, num_samples, distribution_summary, tokens_to_add = (
             self._build_data(local_config))
 
         end_time = time.time()
@@ -732,7 +685,7 @@ class Framework(utility.Utility):
         config['imageTag'] = image
         config['sampling'] = {
             'numSamples': num_samples,
-            'samplesMetadata': samples_metadata}
+        }
         parent_build_info = config.get('build')
         build_info = {
             'containerId': os.uname()[1],
@@ -934,7 +887,7 @@ class Framework(utility.Utility):
         return converted_vocab_file
 
     def _build_data(self, config):
-        data_dir, train_dir, num_samples, distribution_summary, samples_metadata = (
+        data_dir, train_dir, num_samples, distribution_summary = (
             self._generate_training_data(config))
         if num_samples == 0:
             raise RuntimeError('data sampling generated 0 sentences')
@@ -942,10 +895,9 @@ class Framework(utility.Utility):
             tokens_to_add = distribution_summary.get("tokens_to_add")
         else:
             tokens_to_add = None
-        if not self._support_multi_training_files:
-            data_dir = self._merge_multi_training_files(
-                data_dir, train_dir, config['source'], config['target'])
-        return data_dir, num_samples, distribution_summary, samples_metadata, tokens_to_add
+        data_dir = self._merge_multi_training_files(
+            data_dir, train_dir, config['source'], config['target'])
+        return data_dir, num_samples, distribution_summary, tokens_to_add
 
     def _merge_multi_training_files(self, data_path, train_dir, source, target):
         merged_dir = os.path.join(self._data_dir, 'merged')

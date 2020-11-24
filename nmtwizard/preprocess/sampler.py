@@ -262,7 +262,6 @@ def sample(config, source_dir):
 
     # Calculate the number of lines to keep using weights and lines_counts, select lines randomly.
     distribute = max(0, gsample - reserved_sample)
-    metadata = {}
     summary = {}
     leftover = 0.0
     for f in all_files.values():
@@ -294,8 +293,6 @@ def sample(config, source_dir):
                 if 'annotations' in f.files:
                     summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
 
-                metadata[f.base_name] = label
-
         _select_lines(f)
 
-    return all_files.values(), summary, metadata
+    return all_files.values(), summary

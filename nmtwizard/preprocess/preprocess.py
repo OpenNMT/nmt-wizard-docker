@@ -146,7 +146,6 @@ class TrainingProcessor(Processor):
 
         num_samples = None
         summary = None
-        metadata = None
 
         # If some sampling OR preprocessing is applied, change result directory.
         if 'data' in self._config or 'preprocess' in self._config:
@@ -159,7 +158,7 @@ class TrainingProcessor(Processor):
             logger.info('Generating data to %s', result_dir)
 
             # Sample files and write information to a special file structure.
-            all_files, summary, metadata = sampler.sample(self._config, data_path)
+            all_files, summary = sampler.sample(self._config, data_path)
             batch_size = self._config.get('data', {}).get('batch_size', 100000)
             sampler_loader = loader.SamplerFilesLoader(all_files, batch_size)
             sampler_consumer = consumer.MultiConsumer([
@@ -187,7 +186,7 @@ class TrainingProcessor(Processor):
             num_samples = sampler_consumer.num_samples
             data_path = result_dir
 
-        return data_path, train_dir, num_samples, summary, metadata
+        return data_path, train_dir, num_samples, summary
 
 
     def _generate_models(self, tokenization_step, option):
