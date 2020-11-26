@@ -48,24 +48,8 @@ class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num
 
 class Alignment(object):
 
-    def __init__(self, aligner=None, alignments=None):
-        if aligner is None and alignments is None:
-            raise RuntimeError('Cannot set an empty alignment.')
+    def __init__(self, alignments=None):
         # A list of alignments, one for each part
-        self.__alignments = alignments
-        self.__log_probs = None
-        self.aligner = aligner
-
-    @property
-    def alignments(self):
-        return self.__alignments
-
-    @property
-    def log_probs(self):
-        return self.__log_probs
-
-    @alignments.setter
-    def alignments(self, alignments):
         self.__alignments = alignments
         if isinstance(self.__alignments, list):
             for i,part in enumerate(self.__alignments):
@@ -79,17 +63,26 @@ class Alignment(object):
                 else:
                     break
 
-    def align(self, src_tok, tgt_tok):
-        if self.__alignments is None and self.aligner is not None:
-            alignments = []
-            log_probs = []
-            for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
-                align_result = self.aligner.align(src_tok_part, tgt_tok_part)
-                alignments.append(set(align_result["alignments"]))
-                log_probs.append((
-                    align_result["forward_log_prob"], align_result["backward_log_prob"]))
-            self.__alignments = alignments
-            self.__log_probs = log_probs
+        self.__log_probs = None
+
+    @property
+    def alignments(self):
+        return self.__alignments
+
+    @property
+    def log_probs(self):
+        return self.__log_probs
+
+    def set_alignments(self, aligner, src_tok, tgt_tok):
+        alignments = []
+        log_probs = []
+        for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
+            align_result = aligner.align(src_tok_part, tgt_tok_part)
+            alignments.append(set(align_result["alignments"]))
+            log_probs.append((
+                align_result["forward_log_prob"], align_result["backward_log_prob"]))
+        self.__alignments = alignments
+        self.__log_probs = log_probs
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
         # Shift alignments behind insertion/deletion.
@@ -377,7 +370,7 @@ class TranslationUnit(object):
         if source is not None:
             source.tok = tok
         if key == "main":
-            self._invalidate_alignment()
+            self.__alignment = None
 
     @tgt_tok.setter
     def tgt_tok(self, tok):
@@ -389,41 +382,28 @@ class TranslationUnit(object):
             if target is not None:
                 target.tok = tok
             if key == "main":
-                self._invalidate_alignment()
+                self.__alignment = None
 
     @property
     def alignment(self):
         if self.__alignment is None:
             return None
-        self._initialize_alignment()
         return [set(part) for part in self.__alignment.alignments]
 
     @property
     def alignment_log_probs(self):
         if self.__alignment is None:
             return None
-        self._initialize_alignment()
         log_probs = self.__alignment.log_probs
         if log_probs is None:
             return None
         return list(log_probs)
 
-    def set_aligner(self, aligner):
+    def set_alignment(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
-            raise RuntimeError('Cannot set aligner if not tokenization is set.')
-        if self.__alignment is not None:
-            self.__alignment.aligner = aligner
-            self.__alignment.alignments = None
-        else:
-            self.__alignment = Alignment(aligner)
-
-    def _initialize_alignment(self):
-        if self.__alignment is not None and self.__alignment.alignments is None:
-            self.__alignment.align(self.src_tok.tokens, self.tgt_tok.tokens)
-
-    def _invalidate_alignment(self):
-        if self.__alignment is not None:
-            self.__alignment.alignments = None
+            raise RuntimeError('Cannot set alignment if not tokenization is set.')
+        self.__alignment = Alignment()
+        self.__alignment.set_alignments(aligner, self.src_tok.tokens, self.tgt_tok.tokens)
 
     @property
     def src_detok(self):
@@ -465,7 +445,7 @@ class TranslationUnit(object):
         if source is not None:
             source.detok = detok
         if key == "main":
-            self._invalidate_alignment()
+            self.__alignment = None
 
 
     @tgt_detok.setter
@@ -478,7 +458,7 @@ class TranslationUnit(object):
             if target is not None:
                 target.detok = detok
             if key == "main":
-                self._invalidate_alignment()
+                self.__alignment = None
 
     def _finalize_side(self, name, side):
         main_side = side.get("main")
@@ -503,11 +483,6 @@ class TranslationUnit(object):
 
     def finalize(self, process_type):
         if process_type != prepoperator.ProcessType.POSTPROCESS:
-            # Synchronize alignments and detach the Aligner instance.
-            self._initialize_alignment()
-            if self.__alignment is not None:
-                self.__alignment.aligner = None
-
             self._finalize_side("source", self.__source)
             if self.__target is not None:
                 self._finalize_side("target", self.__target)
@@ -570,8 +545,6 @@ class TranslationUnit(object):
     def replace_tokens_side(self, side, replacement, part=0):
 
         # Initialize alignment
-        self._initialize_alignment()
-
         if side == "source":
             self.__source["main"].replace_tokens(*replacement, part=part)
             if self.__alignment is not None:

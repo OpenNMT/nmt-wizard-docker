@@ -109,19 +109,7 @@ def sample(config, source_dir):
                     else:
                         continue
 
-                    # Check all directions are present and aligned
-                    # Return opened files and line count
-                    opened_files, size = _count_lines(root, base_name, annotations)
-
-                    no_preprocess = d_item.get("no_preprocess", False)
-
-                    # build file structure
-                    sampler_file = SamplerFile(root, base_name, opened_files, size, no_preprocess, src_suffix, tgt_suffix)
-
-                    # Size is 0 if some files do not exist, cannot be aligned or empty
-                    if (size == 0) :
-                        continue
-
+                    size = 0
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
                         # distribution is a list of [pattern, weight, addtl options]
@@ -138,7 +126,21 @@ def sample(config, source_dir):
                         if pattern == '*' or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             w = {"pattern": d_idx_pattern, "weight": weight, "label": label}
+
+                            # Check all directions are present and aligned
+                            # Return opened files and line count
+                            opened_files, size = _count_lines(root, base_name, annotations)
+                            no_preprocess = d_item.get("no_preprocess", False)
+
+                            # build file structure
+                            sampler_file = SamplerFile(root, base_name, opened_files, size, no_preprocess, src_suffix, tgt_suffix)
+
+                            # Size is 0 if some files do not exist, cannot be aligned or empty
+                            if (size == 0) :
+                                break
+
                             sampler_file.weight = w
+
                             if d_idx_pattern not in pattern_sizes:
                                 if not isinstance(weight, six.string_types):
                                     pattern_weights_sum += float(weight)
@@ -147,6 +149,8 @@ def sample(config, source_dir):
                                 pattern_sizes[d_idx_pattern] += size
                             break
 
+                    if size == 0:
+                        continue
                     # Check that the file has not been selected in another distribution
                     if base_name in all_files and \
                        hasattr(all_files[base_name], "weight") and \

@@ -669,7 +669,7 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
         vocab_file_name = "${MODEL_DIR}/"
         if multi:
             vocab_file_name += "joint_"
-        vocab_file_name += "test-50.%s" % ext
+        vocab_file_name += "vocab_test-50.%s" % ext
 
         if side == 'multi':
             assert config_buildvocab["vocabulary"]["source"]["path"] == vocab_file_name

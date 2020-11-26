@@ -20,9 +20,9 @@ def _get_tok_configs(config):
     tok_configs = []
     preprocess_config = config.get("preprocess")
     if preprocess_config is not None:
-        for operator_config in preprocess_config:
+        for i, operator_config in enumerate(preprocess_config):
             if prepoperator.get_operator_type(operator_config) == "tokenization":
-                tok_configs.append(operator_config)
+                tok_configs.append((i,operator_config))
     return tok_configs
 
 
@@ -200,7 +200,7 @@ class TrainingProcessor(Processor):
         opt_target = tok_config.get('target', {}).get(build_option)
 
         if not opt_multi and not opt_source and not opt_target:
-            logger.warning('No \'%s\' option specified, exit without preprocessing.' % build_option)
+            logger.warning('No {} option specified for tokenization (preprocess step {}), exit without preprocessing.'.format(build_option, tokenization_step))
             return
 
         if opt_multi and (opt_source or opt_target):
@@ -218,7 +218,7 @@ class TrainingProcessor(Processor):
         if not tok_configs:
             raise RuntimeError('No \'tokenization\' operator in preprocess configuration, cannot build vocabularies.)')
 
-        for i, tok_config in enumerate(tok_configs):
+        for tok_idx, (prep_idx, tok_config) in enumerate(tok_configs):
             if 'source' not in tok_config or 'target' not in tok_config:
                 raise RuntimeError('Each \'tokenization\' operator should contain '
                                    'both \'source\' and \'target\' fields.')
@@ -230,17 +230,20 @@ class TrainingProcessor(Processor):
                 if build_vocab:
                     if tok_config[side].get('vocabulary_path', {}):
                         raise RuntimeError('Cannot build vocabulary if \'%s\' vocabulary path is already specified.' % side)
-                    if i == len(tok_configs)-1 and self._config.get('vocabulary',{}).get(side,{}).get('path'):
+                    if tok_idx == len(tok_configs)-1 and self._config.get('vocabulary',{}).get(side,{}).get('path'):
                         raise RuntimeError('Cannot build vocabulary for final tokenization if \'%s\' vocabulary path for model is already specified.' % side)
                     if not build_vocab.get('size'):
                         raise RuntimeError('\'size\' option is mandatory to build vocabulary for \'%s\'.' % side)
 
-            self._generate_models(i, 'subword')
+            self._generate_models(prep_idx, 'subword')
 
-            self._generate_models(i, 'vocabulary')
+            # reset pipeline
+            self._pipeline=None
+
+            self._generate_models(prep_idx, 'vocabulary')
 
             # Use vocabulary from final tokenization as vocabulary for translation framework.
-            if i == len(tok_configs)-1:
+            if tok_idx == len(tok_configs)-1:
                 for side in tok_config:
                     if side == 'source' or side == 'target':
                         if 'vocabulary' not in self._config:
