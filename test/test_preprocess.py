@@ -803,8 +803,8 @@ def test_shared_state_with_overrides(num_workers):
         ],
     }
 
-    processor = Processor(config, prepoperator.ProcessType.TRAINING)
+    processor = Processor(config, prepoperator.ProcessType.TRAINING, num_workers=num_workers)
     loader = CustomLoader([None, "two", "one", None])
     consumer = CustomConsumer()
 
-    processor.process(loader, consumer, num_workers=num_workers)
+    processor.process(loader, consumer)
