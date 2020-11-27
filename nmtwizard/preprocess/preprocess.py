@@ -47,12 +47,24 @@ def _process_batch(
 ):
     """Rebuilds the pipeline if required and processes a batch of TUs."""
     if pipeline is None or override_label != pipeline.override_label:
+        if pipeline is None:
+            logger.info('Building processing pipeline')
+        else:
+            logger.info('Rebuilding processing pipeline for label %s', override_label)
         pipeline = prepoperator.Pipeline(
             config,
             process_type,
             preprocess_exit_step=exit_step,
             override_label=override_label,
             shared_state=shared_state)
+
+    tu_list, batch_meta = tu_batch
+    base_name = batch_meta.get('base_name')
+    logger.info(
+        'Processing %d samples%s',
+        len(tu_list),
+        ' from %s' % base_name if base_name is not None else '',
+    )
 
     tu_list, batch_meta = pipeline(tu_batch, options=options)
     outputs = [tu.export(pipeline.process_type) for tu in tu_list]
@@ -110,6 +122,8 @@ class Processor(object):
                 consumer,
                 preprocess_exit_step=None,
                 options=None):
+
+        logger.info('Start processing using %d worker(s)', self._num_workers)
 
         if self._num_workers == 0:
 
@@ -189,8 +203,8 @@ class TrainingProcessor(Processor):
             if 'train_dir' in self._config['data']:
                 train_dir = self._config['data']['train_dir']
         else :
-            logger.warning('No \'data\' field in configuration, \
-                            default corpus directory and all corpora are used.)')
+            logger.warning("No 'data' field in configuration, "
+                           "all data from the default corpus directory will be used.")
 
         # Default data path.
         data_path = os.path.join(self._corpus_dir, train_dir)
@@ -206,7 +220,6 @@ class TrainingProcessor(Processor):
                 os.mkdir(result_dir)
             if not os.path.isdir(result_dir):
                 raise RuntimeError('%s is not a directory' % result_dir)
-            logger.info('Generating data to %s', result_dir)
 
             # Sample files and write information to a special file structure.
             all_files, summary = sampler.sample(self._config, data_path)
@@ -227,6 +240,7 @@ class TrainingProcessor(Processor):
                 sampler_consumer.add(consumer.SamplerFileWriter(
                     self._config, result_dir, preprocess_exit_step, summary))
 
+            logger.info('Generating data to %s', result_dir)
             self.process(
                 sampler_loader,
                 sampler_consumer,
@@ -250,7 +264,8 @@ class TrainingProcessor(Processor):
         opt_target = tok_config.get('target', {}).get(build_option)
 
         if not opt_multi and not opt_source and not opt_target:
-            logger.warning('No {} option specified for tokenization (preprocess step {}), exit without preprocessing.'.format(build_option, tokenization_step))
+            logger.warning("Field '%s' is not specified for tokenization operator at step %d, "
+                           "skipping processing.", build_option, tokenization_step)
             return
 
         if opt_multi and (opt_source or opt_target):
@@ -486,6 +501,11 @@ class SharedState:
             for name, (cls, args) in builders.items():
                 key = "%s_%s" % (cls.__name__, str(args))
                 if key not in existing_state:
+                    logger.info(
+                        'Building %s(%s)',
+                        cls.__name__,
+                        ', '.join(repr(arg) for arg in args),
+                    )
                     if self._manager is not None:
                         shared_instance = getattr(self._manager, cls.__name__)(*args)
                     else:
