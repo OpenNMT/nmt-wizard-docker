@@ -151,6 +151,9 @@ class Pipeline(object):
 
         self._build_pipeline(config, preprocess_exit_step, shared_state)
 
+    @property
+    def process_type(self):
+        return self._process_type
 
     def _add_op_list(self, op_list_config, exit_step=None, shared_state=None):
         # Parameters from global configuration that can be useful for individual operators.

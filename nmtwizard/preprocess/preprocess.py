@@ -34,59 +34,99 @@ def _get_corpus_label(tu_batch):
     _, batch_meta = tu_batch
     return batch_meta.get('label') if batch_meta else None
 
+def _process_batch(
+        pipeline,
+        tu_batch,
+        options=None,
+        # Arguments below are used to rebuild the pipeline, if required.
+        config=None,
+        process_type=None,
+        exit_step=None,
+        override_label=None,
+        shared_state=None,
+):
+    """Rebuilds the pipeline if required and processes a batch of TUs."""
+    if pipeline is None or override_label != pipeline.override_label:
+        pipeline = prepoperator.Pipeline(
+            config,
+            process_type,
+            preprocess_exit_step=exit_step,
+            override_label=override_label,
+            shared_state=shared_state)
+
+    tu_list, batch_meta = pipeline(tu_batch, options=options)
+    outputs = [tu.export(pipeline.process_type) for tu in tu_list]
+    return (outputs, batch_meta), pipeline
+
+# In multiprocessing, we can't build the pipeline in the master process and pass it to
+# the worker process because some resources may not be serializable. Instead, the pipeline
+# is defined as a global variable that is local to each worker process.
+worker_pipeline = None
+
+def _process_batch_on_worker(
+        tu_batch,
+        options=None,
+        # Arguments below are used to rebuild the pipeline, if required.
+        config=None,
+        process_type=None,
+        exit_step=None,
+        override_label=None,
+        shared_state=None,
+):
+    """Processes a batch of TUs using the pipeline cached on the worker process."""
+    global worker_pipeline
+    outputs, worker_pipeline = _process_batch(
+        worker_pipeline,
+        tu_batch,
+        options=options,
+        config=config,
+        process_type=process_type,
+        exit_step=exit_step,
+        override_label=override_label,
+        shared_state=shared_state,
+    )
+    return outputs
+
 
 class Processor(object):
 
-    def __init__(self, config, pipeline_type):
+    def __init__(self, config, pipeline_type, num_workers=None):
+        if num_workers is None:
+            num_workers = _get_num_workers()
+        self._num_workers = num_workers
         self._config = config
         self._pipeline_type = pipeline_type
-        self._preprocess_exit_step = None
-        self._pipeline = None
 
-    def _build_shared_state(self, num_workers=0):
-        return SharedState(self._config, self._pipeline_type, self._preprocess_exit_step, num_workers)
-
-    def _get_shared_state(self, shared_state, override_label=None):
-        return shared_state.get(override_label)
-
-    def build_pipeline(self, config=None, override_label=None, shared_state=None):
-        if config is None:
-            config = self._config
-        return prepoperator.Pipeline(
-            config,
+        # The global shared state contains all objects that are shared accross workers.
+        # It includes shared objects defined in the main configuration as well as shared
+        # objects that are corpus-specific.
+        self._global_shared_state = SharedState(
+            self._config,
             self._pipeline_type,
-            preprocess_exit_step=self._preprocess_exit_step,
-            override_label=override_label,
-            shared_state=shared_state,
-        )
-
-    def process_batch(self, tu_batch, options=None, shared_state=None):
-        # Lazily create the pipeline so that it is created in each worker process.
-        override_label = _get_corpus_label(tu_batch)
-        if self._pipeline is None or self._pipeline.override_label != override_label:
-            self._pipeline = self.build_pipeline(
-                override_label=override_label, shared_state=shared_state)
-        tu_list, batch_meta = self._pipeline(tu_batch, options=options)
-        outputs = [tu.export(self._pipeline_type) for tu in tu_list]
-        return outputs, batch_meta
+            num_workers=self._num_workers)
 
     def process(self,
                 loader,
                 consumer,
-                num_workers=0,
                 preprocess_exit_step=None,
                 options=None):
-        self._preprocess_exit_step = preprocess_exit_step
-        shared_state = self._build_shared_state(num_workers)
 
-        if num_workers == 0:
+        if self._num_workers == 0:
 
+            pipeline = None
             for tu_batch in loader():
                 override_label = _get_corpus_label(tu_batch)
-                outputs = self.process_batch(
+                shared_state = self._global_shared_state.get(override_label)
+                outputs, pipeline = _process_batch(
+                    pipeline,
                     tu_batch,
                     options=options,
-                    shared_state=self._get_shared_state(shared_state, override_label))
+                    config=self._config,
+                    process_type=self._pipeline_type,
+                    exit_step=preprocess_exit_step,
+                    override_label=override_label,
+                    shared_state=shared_state,
+                )
                 consumer(outputs)
 
         else:
@@ -96,20 +136,31 @@ class Processor(object):
             # that it duplicates resources for each worker, increasing the
             # memory usage. This is mitigated by the better stream processing of
             # the loader/consumer which avoids loading the full corpus in memory.
-            with multiprocessing.Pool(processes=num_workers) as pool:
+            with multiprocessing.Pool(processes=self._num_workers) as pool:
                 results = collections.deque()
 
                 for tu_batch in loader():
                     override_label = _get_corpus_label(tu_batch)
+                    shared_state = self._global_shared_state.get(override_label)
 
                     # Push the batch in the process queue and get a handle on the result.
-                    results.append(pool.apply_async(self.process_batch, (
-                        tu_batch,
-                        options,
-                        self._get_shared_state(shared_state, override_label))))
+                    results.append(pool.apply_async(
+                        _process_batch_on_worker,
+                        args=(
+                            tu_batch,
+                        ),
+                        kwds=dict(
+                            options=options,
+                            config=self._config,
+                            process_type=self._pipeline_type,
+                            exit_step=preprocess_exit_step,
+                            override_label=override_label,
+                            shared_state=shared_state,
+                        ),
+                    ))
 
                     # Limit the queue max size to avoid loading too many batches in advance.
-                    if len(results) == 2 * num_workers:
+                    if len(results) == 2 * self._num_workers:
                         results[0].wait()
 
                     # Consume batches that are ready.
@@ -179,7 +230,6 @@ class TrainingProcessor(Processor):
             self.process(
                 sampler_loader,
                 sampler_consumer,
-                num_workers=_get_num_workers(),
                 preprocess_exit_step=preprocess_exit_step)
 
             sampler_consumer.finalize()
@@ -237,9 +287,6 @@ class TrainingProcessor(Processor):
 
             self._generate_models(prep_idx, 'subword')
 
-            # reset pipeline
-            self._pipeline=None
-
             self._generate_models(prep_idx, 'vocabulary')
 
             # Use vocabulary from final tokenization as vocabulary for translation framework.
@@ -275,12 +322,12 @@ class InferenceProcessor(Processor):
                          else prepoperator.ProcessType.INFERENCE)
         super().__init__(config, pipeline_type)
         self._postprocess = postprocess
-        self._shared_state = SharedState(
-            self._config, self._pipeline_type, self._preprocess_exit_step)
-        self._pipeline = self.build_pipeline(shared_state=self._shared_state.get())
-
-    def _build_shared_state(self, num_workers=0):
-        return self._shared_state
+        # Build a generic pipeline that will be used in process_input.
+        self._pipeline = prepoperator.Pipeline(
+            self._config,
+            self._pipeline_type,
+            shared_state=self._global_shared_state.get(),
+        )
 
     def process_input(self,
                       source,
@@ -310,23 +357,25 @@ class InferenceProcessor(Processor):
 
         # Rebuild pipeline if the example has its own configuration.
         if config is not None:
-            shared_state = SharedState(
-                self._config, self._pipeline_type, self._preprocess_exit_step)
-            pipeline = self.build_pipeline(config, shared_state=shared_state.get())
+            pipeline = prepoperator.Pipeline(
+                config,
+                self._pipeline_type,
+                shared_state=self._global_shared_state.get(),
+            )
         else:
             pipeline = self._pipeline
 
         tu = TranslationUnit(
             source=source,
             metadata=metadata,
-            source_tokenizer=self._pipeline.start_state.get('src_tokenizer'),
+            source_tokenizer=pipeline.start_state.get('src_tokenizer'),
         )
 
         if target is not None:
             tu.add_target(
                 target,
                 name=target_name,
-                tokenizer=self._pipeline.start_state.get('tgt_tokenizer'))
+                tokenizer=pipeline.start_state.get('tgt_tokenizer'))
 
         tu_batch = ([tu], {})
         tu_batch = pipeline(tu_batch, options=options)
