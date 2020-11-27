@@ -3,7 +3,7 @@
 import os
 import logging
 
-logging.basicConfig(format='%(asctime)s.%(msecs)06d [%(module)s] %(levelname)s %(funcName)s: %(message)s',
+logging.basicConfig(format='%(asctime)s.%(msecs)06d [%(module)s@%(processName)s] %(levelname)s: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%SZ',
                     level=logging.INFO)
 

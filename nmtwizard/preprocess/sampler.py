@@ -206,6 +206,7 @@ def sample(config, source_dir):
     gsample = 0
     if 'data' in config and 'sample' in config['data'] :
         gsample = config['data']['sample']
+        logger.info('Sampling %d lines', gsample)
     else :
         logger.warning('No \'sample\' size specified in configuration,'
                        'all data will be sampled.')
@@ -268,6 +269,7 @@ def sample(config, source_dir):
     distribute = max(0, gsample - reserved_sample)
     summary = {}
     leftover = 0.0
+    logger.info('Summary of sampled lines:')
     for f in all_files.values():
         label, pattern = None, None
         f.lines_kept = 0
@@ -289,6 +291,7 @@ def sample(config, source_dir):
                         lines_kept += 1
                 f.lines_kept = lines_kept
 
+                logger.info("\t%s: %d (out of %d)", f.base_name, f.lines_kept, f.lines_count)
                 summary[f.base_name] = {
                     "linecount" : f.lines_count,
                     "linesampled" : f.lines_kept,

@@ -209,6 +209,7 @@ class SubwordLearner(Consumer):
 
             subword_type = subword_info['subword_type']
             size = subword_info['size']
+            logger.info("Learning %s %s model '%s'", side, subword_type, name)
 
             if side == 'multi' :
                 out_file = os.path.join(self._result_dir, \
@@ -305,6 +306,8 @@ class VocabularyBuilder(Consumer):
             name =  tok_config[side]['build_vocabulary']['name'] \
                     if 'name' in tok_config[side]['build_vocabulary'] \
                     else 'vocab'+str(self._tok_step)
+
+            logger.info("Generating %s vocabulary '%s'", side, name)
 
             # Size option is mandatory, already checked it.
             size = tok_config[side]['build_vocabulary']['size']

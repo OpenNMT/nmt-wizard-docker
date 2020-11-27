@@ -99,10 +99,12 @@ def build_operator(operator_type,
     args = []
     if shared_state:
         args.append(shared_state)
+    name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    logger.debug('Building operator %s', name)
     operator = operator_cls(operator_params, process_type, build_state, *args)
     # We set common private attributes here so that operators do not need to call
     # the base constructor.
-    operator._name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    operator._name = name
     operator._process_type = process_type
     return operator
 
@@ -219,6 +221,8 @@ class Pipeline(object):
                 if not op.accept_options():
                     raise RuntimeError("Operator %s does not accept runtime options" % op.name)
                 kwargs["options"] = op_options
+
+            logger.debug('Applying operator %s', op.name)
             tu_batch = op(tu_batch, **kwargs)
 
             if ops_profile is not None:

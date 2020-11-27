@@ -848,6 +848,11 @@ class Framework(utility.Utility):
         local_tok_opt.pop('replace_vocab', None)
 
         if tokens_to_add:
+            logger.info(
+                'The following tokens are added to the %s vocabulary: %s',
+                side,
+                ', '.join(tokens_to_add),
+            )
             new_filename = next_filename_version(os.path.basename(local_opt["path"]))
             new_vocab = os.path.join(self._data_dir, new_filename)
             shutil.copy(local_opt["path"], new_vocab)
