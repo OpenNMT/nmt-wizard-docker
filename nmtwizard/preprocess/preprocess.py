@@ -174,8 +174,8 @@ class Processor(object):
 
 class TrainingProcessor(Processor):
 
-    def __init__(self, config, corpus_dir, data_dir):
-        super().__init__(config, prepoperator.ProcessType.TRAINING)
+    def __init__(self, config, corpus_dir, data_dir, num_workers=None):
+        super().__init__(config, prepoperator.ProcessType.TRAINING, num_workers=num_workers)
         self._corpus_dir = corpus_dir
         self._data_dir = data_dir
 
