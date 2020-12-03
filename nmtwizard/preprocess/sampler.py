@@ -177,8 +177,7 @@ def sample(config, source_dir):
                         # Different paths in distribution produced files with the same name.
                         # This is not allowed since we write output files in the same folder.
                         raise RuntimeError('Two files with the same name %s where sampled.' % base_name)
-                    else:
-                        all_files[base_name] = sampler_file
+                    all_files[base_name] = sampler_file
 
         return all_files, pattern_weights_sum, pattern_sizes
 
