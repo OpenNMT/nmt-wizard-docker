@@ -118,6 +118,28 @@ class FilterSummaryLogger(Consumer):
             logger.info("\t%s dropped %d sentences", name, value)
 
 
+class RegisterNewTokens(Consumer):
+    """Registers new tokens that should be added to the vocabulary."""
+
+    def __init__(self):
+        super().__init__()
+        self._new_tokens = dict(source=set(), target=set())
+
+    @property
+    def new_tokens(self):
+        return {side:set(collection) for side, collection in self._new_tokens.items()}
+
+    def _consume(self, outputs):
+        _, meta = outputs
+        tokens_to_add = meta.get('tokens_to_add')
+        if not tokens_to_add:
+            return
+        for side, new_tokens in tokens_to_add.items():
+            if not new_tokens:
+                continue
+            self._new_tokens[side].update(set(new_tokens))
+
+
 def _ingest_tokens(subword_learner, tokens):
     for part in tokens:
         for token in part:
@@ -233,7 +255,7 @@ class VocabularyBuilder(Consumer):
         self._config = config
         self._result_dir = result_dir
         self._tok_step = tok_step
-        self._tokens_to_add = {'source':set(), 'target':set()}
+        self._tokens_to_add = RegisterNewTokens()
 
         tok_config = config['preprocess'][tok_step]
         source_config = tok_config['source']
@@ -253,14 +275,9 @@ class VocabularyBuilder(Consumer):
         if not self._source_counters and not self._target_counters:
             return
 
-        outputs, meta = outputs
+        self._tokens_to_add(outputs)
 
-        if 'tokens_to_add' in meta:
-            if 'source' in meta['tokens_to_add']:
-                self._tokens_to_add['source'].update(meta['tokens_to_add']['source'])
-            if 'target' in meta['tokens_to_add']:
-                self._tokens_to_add['target'].update(meta['tokens_to_add']['target'])
-
+        outputs, _ = outputs
         for output in outputs:
             for token in itertools.chain.from_iterable(output.src):
                 self._source_counters['tokens'][token] += 1
@@ -343,10 +360,11 @@ class VocabularyBuilder(Consumer):
                 raise RuntimeError('The size of extra tokens from \'merge\' and \'add\' (%d) cannot be bigger than than the required vocabulary size (%d)' % (added_size, size))
 
             # Add tokens added by operators, such as extra numbered placeholders that might not all be present in the sampled data.
+            new_tokens = self._tokens_to_add.new_tokens
             if side == 'multi' :
-                tokens_to_add = self._tokens_to_add['source'].union(self._tokens_to_add['target'])
+                tokens_to_add = set().union(*new_tokens.values())
             else :
-                tokens_to_add = self._tokens_to_add[side]
+                tokens_to_add = new_tokens[side]
 
             for ph in tokens_to_add:
                 vocabulary[ph] = float("inf")
@@ -428,19 +446,12 @@ class SamplerFileWriter(Consumer):
         self._config = config
         self._result_dir = result_dir
         self._summary = summary
-        self._tokens_to_add = {'source':set(), 'target':set()}
         self._src_suffix = config['source']
         self._tgt_suffix = config['target']
 
 
     def _consume(self, outputs):
         outputs, meta = outputs
-        if 'tokens_to_add' in meta:
-            if 'source' in meta['tokens_to_add']:
-                self._tokens_to_add['source'].update(meta['tokens_to_add']['source'])
-            if 'target' in meta['tokens_to_add']:
-                self._tokens_to_add['target'].update(meta['tokens_to_add']['target'])
-
         basename = meta["base_name"]
         src_path = os.path.join(self._result_dir, basename + "." + self._src_suffix)
         tgt_path = os.path.join(self._result_dir, basename + "." + self._tgt_suffix)
@@ -486,21 +497,3 @@ class SamplerFileWriter(Consumer):
                         for part in alignment:
                             part = " ".join(sorted("%s-%s" % tup for tup in part))
                             align_file.write("%s\n" % part)
-
-
-    def finalize(self):
-        config = self._config
-        summary = self._summary
-        if self._tokens_to_add['source'] or self._tokens_to_add['target'] :
-            if 'tokens_to_add' not in summary:
-                summary['tokens_to_add'] = {}
-            if 'source' not in summary['tokens_to_add']:
-                summary['tokens_to_add']['source'] = []
-            if 'target' not in summary['tokens_to_add']:
-                summary['tokens_to_add']['target'] = []
-            source_set = set(summary['tokens_to_add']['source'])
-            source_set.update(self._tokens_to_add['source'])
-            summary['tokens_to_add']['source'] = list(source_set)
-            target_set = set(summary['tokens_to_add']['target'])
-            target_set.update(self._tokens_to_add['target'])
-            summary['tokens_to_add']['target'] = list(target_set)

@@ -230,6 +230,7 @@ class TrainingProcessor(Processor):
                 consumer.FilterSummaryLogger(),
             ])
 
+            new_tokens_consumer = None
             if result == 'subword':
                 sampler_consumer.add(consumer.SubwordLearner(
                     self._config, result_dir, preprocess_exit_step))
@@ -237,6 +238,8 @@ class TrainingProcessor(Processor):
                 sampler_consumer.add(consumer.VocabularyBuilder(
                     self._config, result_dir, preprocess_exit_step))
             else:
+                new_tokens_consumer = consumer.RegisterNewTokens()
+                sampler_consumer.add(new_tokens_consumer)
                 sampler_consumer.add(consumer.SamplerFileWriter(
                     self._config, result_dir, preprocess_exit_step, summary))
 
@@ -248,9 +251,14 @@ class TrainingProcessor(Processor):
 
             sampler_consumer.finalize()
             num_samples = sampler_consumer.num_samples
+            tokens_to_add = None
+            if new_tokens_consumer is not None:
+                tokens_to_add = {
+                    side:list(tokens) for side, tokens in new_tokens_consumer.new_tokens.items()}
+
             data_path = result_dir
 
-        return data_path, train_dir, num_samples, summary
+        return data_path, train_dir, num_samples, summary, tokens_to_add
 
 
     def _generate_models(self, tokenization_step, option):

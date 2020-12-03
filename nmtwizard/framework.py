@@ -892,14 +892,10 @@ class Framework(utility.Utility):
         return converted_vocab_file
 
     def _build_data(self, config):
-        data_dir, train_dir, num_samples, distribution_summary = (
+        data_dir, train_dir, num_samples, distribution_summary, tokens_to_add = (
             self._generate_training_data(config))
         if num_samples == 0:
             raise RuntimeError('data sampling generated 0 sentences')
-        if distribution_summary is not None:
-            tokens_to_add = distribution_summary.get("tokens_to_add")
-        else:
-            tokens_to_add = None
         data_dir = self._merge_multi_training_files(
             data_dir, train_dir, config['source'], config['target'])
         return data_dir, num_samples, distribution_summary, tokens_to_add

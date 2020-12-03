@@ -216,10 +216,7 @@ class ReplaceVocabChecker(_TestFramework):
 
     def _generate_training_data(self, config):
         outputs = list(super(ReplaceVocabChecker, self)._generate_training_data(config))
-        if not outputs[-1]:
-            outputs[-1] = {}
-        outputs[-1]["tokens_to_add"] = dict(
-            source=self.src_tokens_to_add, target=self.tgt_tokens_to_add)
+        outputs[-1] = dict(source=self.src_tokens_to_add, target=self.tgt_tokens_to_add)
         return tuple(outputs)
 
 config_base = {
