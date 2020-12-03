@@ -12,14 +12,30 @@ logger = get_logger(__name__)
 
 class SamplerFile(object):
     """Class to store necessary information about the sampled files."""
-    def __init__(self, root, base_name, files, lines_count, no_preprocess, src_suffix, tgt_suffix):
+    def __init__(self,
+                 root,
+                 base_name,
+                 files,
+                 lines_count,
+                 no_preprocess,
+                 src_suffix,
+                 tgt_suffix,
+                 pattern,
+                 weight,
+                 label,
+    ):
         self.root = root
         self.base_name = base_name
         self.lines_count = lines_count
+        self.lines_kept = 0
+        self.oversample = 1
         self.files = files
         self.no_preprocess = no_preprocess
         self.src_suffix = src_suffix
         self.tgt_suffix = tgt_suffix
+        self.pattern = pattern
+        self.weight = weight
+        self.label = label
 
 
 def sample(config, source_dir):
@@ -109,7 +125,7 @@ def sample(config, source_dir):
                     else:
                         continue
 
-                    size = 0
+                    sampler_file = None
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
                         # distribution is a list of [pattern, weight, addtl options]
@@ -125,21 +141,26 @@ def sample(config, source_dir):
                             label = rule[2]
                         if pattern == '*' or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
-                            w = {"pattern": d_idx_pattern, "weight": weight, "label": label}
-
                             # Check all directions are present and aligned
-                            # Return opened files and line count
-                            opened_files, size = _count_lines(root, base_name, annotations)
-                            no_preprocess = d_item.get("no_preprocess", False)
-
-                            # build file structure
-                            sampler_file = SamplerFile(root, base_name, opened_files, size, no_preprocess, src_suffix, tgt_suffix)
+                            files, size = _count_lines(root, base_name, annotations)
 
                             # Size is 0 if some files do not exist, cannot be aligned or empty
                             if (size == 0) :
                                 break
 
-                            sampler_file.weight = w
+                            # build file structure
+                            sampler_file = SamplerFile(
+                                root,
+                                base_name,
+                                files,
+                                size,
+                                d_item.get("no_preprocess", False),
+                                src_suffix,
+                                tgt_suffix,
+                                d_idx_pattern,
+                                weight,
+                                label,
+                            )
 
                             if d_idx_pattern not in pattern_sizes:
                                 if not isinstance(weight, six.string_types):
@@ -149,16 +170,13 @@ def sample(config, source_dir):
                                 pattern_sizes[d_idx_pattern] += size
                             break
 
-                    if size == 0:
+                    if sampler_file is None:
                         continue
                     # Check that the file has not been selected in another distribution
-                    if base_name in all_files and \
-                       hasattr(all_files[base_name], "weight") and \
-                       all_files[base_name].weight is not None:
-                            if hasattr(sampler_file, "weight") and sampler_file.weight is not None:
-                                # Different paths in distribution produced files with the same name.
-                                # This is not allowed since we write output files in the same folder.
-                                raise RuntimeError('Two files with the same name %s where sampled.' % base_name)
+                    if base_name in all_files:
+                        # Different paths in distribution produced files with the same name.
+                        # This is not allowed since we write output files in the same folder.
+                        raise RuntimeError('Two files with the same name %s where sampled.' % base_name)
                     else:
                         all_files[base_name] = sampler_file
 
@@ -243,27 +261,21 @@ def sample(config, source_dir):
     weights_size = 0
     reserved_sample = 0
     for f in all_files.values():
-        if hasattr(f, "weight") and f.weight is not None:
-            lines_count = f.lines_count
-            pattern = f.weight["pattern"]
-            weight = f.weight["weight"]
-            f.oversample = 1
-            if isinstance(weight, six.string_types):
-                # Oversampling with "*N"
-                m = re.match(r"\*([0-9]*)$", weight)
-                if not m :
-                    raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (weight, pattern))
-                if m.groups()[0]: f.oversample = int(m.groups()[0])
-                reserved_sample += lines_count * f.oversample
-            else:
-                file_weight = float(lines_count) / pattern_sizes[pattern]
-                pattern_weight = float(f.weight["weight"]) / pattern_weights_sum
-                f.weight["weight"] = file_weight * pattern_weight
-                weights_sum += f.weight["weight"]
-                if f.weight["weight"] != 0.0:
-                    weights_size += 1
+        if isinstance(f.weight, six.string_types):
+            # Oversampling with "*N"
+            m = re.match(r"\*([0-9]*)$", f.weight)
+            if not m :
+                raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (f.weight, f.pattern))
+            if m.groups()[0]:
+                f.oversample = int(m.groups()[0])
+            reserved_sample += f.lines_count * f.oversample
         else:
-            logger.debug('No rules matching %s', f.base_name)
+            file_weight = f.lines_count / pattern_sizes[f.pattern]
+            pattern_weight = f.weight / pattern_weights_sum
+            f.weight = file_weight * pattern_weight
+            weights_sum += f.weight
+            if f.weight != 0.0:
+                weights_size += 1
 
     # Calculate the number of lines to keep using weights and lines_counts, select lines randomly.
     distribute = max(0, gsample - reserved_sample)
@@ -271,34 +283,28 @@ def sample(config, source_dir):
     leftover = 0.0
     logger.info('Summary of sampled lines:')
     for f in all_files.values():
-        label, pattern = None, None
-        f.lines_kept = 0
-        if hasattr(f, "weight") and f.weight is not None:
-            label = f.weight["label"]
-            pattern = f.weight["pattern"]
-            weight = f.weight["weight"]
-            if isinstance(weight, six.string_types) or weight != 0.0:
-                lines_kept = f.lines_count * f.oversample
-                if gsample and not isinstance(weight, six.string_types):
-                    weights_size -= 1
-                    res = distribute * (weight / weights_sum)
-                    leftover += res - int(res)
-                    lines_kept = int(res)
-                    if leftover > 1.0 :
-                        lines_kept += 1
-                        leftover -= 1.0
-                    if weights_size == 0 and leftover > 0.5 :
-                        lines_kept += 1
-                f.lines_kept = lines_kept
+        if isinstance(f.weight, six.string_types) or f.weight != 0.0:
+            lines_kept = f.lines_count * f.oversample
+            if gsample and not isinstance(f.weight, six.string_types):
+                weights_size -= 1
+                res = distribute * (f.weight / weights_sum)
+                leftover += res - int(res)
+                lines_kept = int(res)
+                if leftover > 1.0 :
+                    lines_kept += 1
+                    leftover -= 1.0
+                if weights_size == 0 and leftover > 0.5 :
+                    lines_kept += 1
+            f.lines_kept = lines_kept
 
-                logger.info("\t%s: %d (out of %d)", f.base_name, f.lines_kept, f.lines_count)
-                summary[f.base_name] = {
-                    "linecount" : f.lines_count,
-                    "linesampled" : f.lines_kept,
-                    "pattern" : pattern
-                }
-                if 'annotations' in f.files:
-                    summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
+            logger.info("\t%s: %d (out of %d)", f.base_name, f.lines_kept, f.lines_count)
+            summary[f.base_name] = {
+                "linecount" : f.lines_count,
+                "linesampled" : f.lines_kept,
+                "pattern" : f.pattern
+            }
+            if 'annotations' in f.files:
+                summary[f.base_name]['annotations'] = list(f.files['annotations'].keys())
 
         _select_lines(f)
 
