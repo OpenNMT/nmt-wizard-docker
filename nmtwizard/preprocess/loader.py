@@ -121,10 +121,14 @@ class SamplerFileLoader(Loader):
                     num_samples -= 1
 
         try:
-            batch_meta = self._file.weight.copy()
-            batch_meta["base_name"] = self._file.base_name
-            batch_meta["root"] = self._file.root
-            batch_meta["no_preprocess"] = self._file.no_preprocess
+            batch_meta = {
+                "base_name": self._file.base_name,
+                "label": self._file.label,
+                "no_preprocess": self._file.no_preprocess,
+                "pattern": self._file.pattern,
+                "root": self._file.root,
+                "weight": self._file.weight,
+            }
 
             tu_list = []
 
