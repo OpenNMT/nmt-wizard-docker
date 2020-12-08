@@ -78,6 +78,26 @@ def test_preprocess_example():
     assert example.metadata == [1, 2]
     assert example.mode == "default"
 
+def test_preprocess_example_with_fuzzy():
+
+    class Processor:
+        def __init__(self, support_fuzzy):
+            self._support_fuzzy = support_fuzzy
+        def process_input(self, source, target=None, target_name=None, **kwargs):
+            if self._support_fuzzy:
+                assert target is not None
+                assert target_name == "fuzzy"
+                return source.split(), target.split(), None
+            else:
+                assert target is None
+                assert target_name is None
+                return source.split(), None, None
+
+    example = {"text": "Hello world", "fuzzy": "Bonjour monde"}
+    config = {"supported_features": {"NFA": True}}
+    serving.preprocess_example(Processor(False), 0, example)
+    serving.preprocess_example(Processor(True), 0, example, config=config)
+
 def test_preprocess_example_with_v1_options():
     config = {
         "source": "en",

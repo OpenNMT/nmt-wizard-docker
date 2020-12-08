@@ -259,7 +259,10 @@ def run_request(request,
 
 def finalize_config(config, override=None, options=None):
     """Finalizes the configuration with possible override and options."""
-    if config is not None:
+    if config is None:
+        supported_features = None
+    else:
+        supported_features = config.get('supported_features')
         if config_util.is_v2_config(config):
             if override:
                 raise ValueError("Configuration override is not supported for V2 "
@@ -275,7 +278,7 @@ def finalize_config(config, override=None, options=None):
                 if options:
                     config_util.read_options(config, options)
                     options = None
-    return config, options
+    return config, options, supported_features
 
 def preprocess_example(preprocessor, index, raw_example, config=None, config_override=None):
     """Applies preprocessing function on example."""
@@ -293,7 +296,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
                 copy.deepcopy(config_override), example_config_override)
         else:
             config_override = example_config_override
-    config, options = finalize_config(
+    config, options, supported_features = finalize_config(
         config,
         override=config_override,
         options=raw_example.get('options'))
@@ -308,8 +311,12 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
     if target_prefix is not None:
         target_text = target_prefix
     elif target_fuzzy is not None:
-        target_text = target_fuzzy
-        target_name = "fuzzy"
+        if supported_features is not None and supported_features.get("NFA", False):
+            target_text = target_fuzzy
+            target_name = "fuzzy"
+        else:
+            logger.warning("The fuzzy target is ignored because this model does not "
+                           "support Neural Fuzzy Adaption")
 
     if preprocessor is None:
         source_tokens = source_text
