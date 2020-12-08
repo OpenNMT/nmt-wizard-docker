@@ -316,7 +316,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
             target_name = "fuzzy"
         else:
             logger.warning("The fuzzy target is ignored because this model does not "
-                           "support Neural Fuzzy Adaption")
+                           "support Neural Fuzzy Adaptation")
 
     if preprocessor is None:
         source_tokens = source_text
