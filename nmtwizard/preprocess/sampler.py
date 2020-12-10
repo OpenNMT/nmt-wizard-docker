@@ -270,7 +270,7 @@ def sample(config, source_dir):
             reserved_sample += f.lines_count * f.oversample
         else:
             file_weight = f.lines_count / pattern_sizes[f.pattern]
-            pattern_weight = f.weight / pattern_weights_sum
+            pattern_weight = f.weight / pattern_weights_sum if pattern_weights_sum else 0
             f.weight = file_weight * pattern_weight
             weights_sum += f.weight
             if f.weight != 0.0:

@@ -139,6 +139,25 @@ def test_sampler(tmpdir, batch_size, num_threads):
     assert summary['corpus_specific2']['linesampled'] == 0
     assert 'IT' not in summary
 
+    shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"]["sample_dist"] = [
+        {
+            "path": str(corpus_dir),
+            "distribution": [
+                ["generic_to_ignore", 0],
+                ["generic", "*"]
+            ]
+        }
+    ]
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, _ = \
+        preprocessor.generate_preprocessed_data()
+
+    assert num_samples == 150
+    assert summary['generic_corpus']['linesampled'] == 100
+    assert summary['generic_added']['linesampled'] == 50
+
     del os.environ["NB_CPU"]
 
 
