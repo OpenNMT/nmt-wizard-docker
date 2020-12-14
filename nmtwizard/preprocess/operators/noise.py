@@ -11,6 +11,9 @@ class Noise(prepoperator.TUOperator):
         return process_type == prepoperator.ProcessType.TRAINING
 
     def __init__(self, config, *args):
+        source_config = config.get("source")
+        if source_config:
+            config = source_config
         self._drop_word_prob = config.get("drop_word_prob", 0)
         self._drop_space_prob = config.get("drop_space_prob", 0)
         self._drop_char_prob = config.get("drop_char_prob", 0)

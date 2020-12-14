@@ -96,6 +96,7 @@ def test_tokenization_with_vocabulary_restriction(tmpdir):
 @pytest.mark.parametrize("config,training,text,expected", [
     (dict(), True, "hello world.", "hello world."),
     (dict(drop_word_prob=1), True, "hello world.", ""),
+    (dict({"source": {"drop_word_prob": 1}}), True, "hello world.", ""),
     (dict(drop_word_prob=1), False, "hello world.", "hello world."),
     (dict(drop_space_prob=1), True, "hello world.", "helloworld."),
     (dict(drop_char_prob=1), True, "hello world.", ""),
