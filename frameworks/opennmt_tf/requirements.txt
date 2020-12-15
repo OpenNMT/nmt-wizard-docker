@@ -1,2 +1,2 @@
 tensorflow==2.3.*
-OpenNMT-tf==2.13.0
+https://github.com/OpenNMT/OpenNMT-tf/archive/381fa77070c907c0c0a57141d0edf92b7411d155.tar.gz
