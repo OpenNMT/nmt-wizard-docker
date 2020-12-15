@@ -2,6 +2,7 @@
 """Tokenization utilities."""
 
 import pyonmttok
+import os
 
 _ALLOWED_TOKENIZER_ARGS = set([
     "bpe_dropout",
@@ -66,27 +67,36 @@ def make_subword_learner(subword_config, subword_dir, tokenizer=None):
 
 def vocabulary_iterator(vocabulary_path):
     """Iterates over each token included in the vocabulary file."""
-    with open(vocabulary_path) as vocabulary_file:
-        header = True
-        for line in vocabulary_file:
-            # The vocabulary file might start with some comments prefixed with '#'.
-            if header and line[0] == '#':
-                continue
-            header = False
-            line = line.rstrip('\n\r')
-            fields = line.split(' ')
-            if len(fields) == 1:
-                # No frequency value, the line is just the token.
-                yield fields[0]
-            else:
-                # The code below checks the last field is a frequency and not a part of
-                # a badly formatted token.
-                try:
-                    float(fields[-1])
-                    fields.pop()
-                except ValueError:
-                    pass
-                yield ' '.join(fields)
+    if not isinstance(vocabulary_path, set):
+        # Vocabulary is a file.
+        vocabulary = open(vocabulary_path)
+    else:
+        # Vocabulary was already open and read and stored in a set.
+        vocabulary = vocabulary_path
+
+    header = True
+    for line in vocabulary:
+        # The vocabulary file might start with some comments prefixed with '#'.
+        if header and line[0] == '#':
+            continue
+        header = False
+        line = line.rstrip('\n\r')
+        fields = line.split(' ')
+        if len(fields) == 1:
+            # No frequency value, the line is just the token.
+            yield fields[0]
+        else:
+            # The code below checks the last field is a frequency and not a part of
+            # a badly formatted token.
+            try:
+                float(fields[-1])
+                fields.pop()
+            except ValueError:
+                pass
+            yield ' '.join(fields)
+
+    if not isinstance(vocabulary, set):
+        vocabulary.close()
 
 def load_vocabulary(vocabulary_path):
     if vocabulary_path and isinstance(vocabulary_path, str):
