@@ -343,7 +343,7 @@ class InferenceProcessor(Processor):
         pipeline_type = (prepoperator.ProcessType.POSTPROCESS
                          if postprocess
                          else prepoperator.ProcessType.INFERENCE)
-        super().__init__(config, pipeline_type)
+        super().__init__(config, pipeline_type, num_workers=0)
         self._postprocess = postprocess
         # Build a generic pipeline that will be used in process_input.
         self._pipeline = prepoperator.Pipeline(
