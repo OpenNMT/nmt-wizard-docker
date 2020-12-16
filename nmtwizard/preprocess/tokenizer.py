@@ -2,7 +2,6 @@
 """Tokenization utilities."""
 
 import pyonmttok
-import os
 
 _ALLOWED_TOKENIZER_ARGS = set([
     "bpe_dropout",
