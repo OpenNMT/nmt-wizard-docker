@@ -89,33 +89,37 @@ class OpsProfileLogger(Consumer):
                 (value / total_time) * 100)
 
 
-class FilterSummaryLogger(Consumer):
+class SummaryLogger(Consumer):
     """A consumer that reduces operators filter information and logs the result."""
 
     def __init__(self):
         super().__init__()
-        self._summary = collections.defaultdict(int)
+        self._summary = { "filtered": collections.defaultdict(int), "added": collections.defaultdict(int) }
 
     def _consume(self, outputs):
         _, batch_meta = outputs
-        summary = batch_meta.get("filter_summary")
-        if not summary:
-            return
-        for name, value in summary.items():
-            self._summary[name] += value
+        filter_summary = batch_meta.get("filter_summary")
+        add_summary = batch_meta.get("add_summary")
+        if filter_summary:
+            for name, value in filter_summary.items():
+                self._summary["filtered"][name] += value
+        if add_summary:
+            for name, value in add_summary.items():
+                self._summary["added"][name] += value
+
 
     def finalize(self):
-        if not self._summary:
-            return
-        logger.info(
-            "Summary of filtered sentences (%d sentences dropped in total):",
-            sum(self._summary.values()))
-        sorted_summary = sorted(
-            self._summary.items(),
-            key=lambda item: item[1],
-            reverse=True)
-        for name, value in sorted_summary:
-            logger.info("\t%s dropped %d sentences", name, value)
+        for proc in ["filtered", "added"]:
+            if self._summary[proc]:
+                logger.info(
+                    "Summary of %s sentences (%d sentences dropped in total):",
+                    proc, sum(self._summary[proc].values()))
+                sorted_summary = sorted(
+                    self._summary[proc].items(),
+                    key=lambda item: item[1],
+                    reverse=True)
+                for name, value in sorted_summary:
+                    logger.info("\t%s %s %d sentences", name, proc, value)
 
 
 class RegisterNewTokens(Consumer):
