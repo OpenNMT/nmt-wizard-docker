@@ -48,7 +48,7 @@ class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num
 
 class Alignment(object):
 
-    def __init__(self, alignments=None):
+    def __init__(self, alignments=None, log_probs=None):
         # A list of alignments, one for each part
         self.__alignments = alignments
         if isinstance(self.__alignments, list):
@@ -63,7 +63,7 @@ class Alignment(object):
                 else:
                     break
 
-        self.__log_probs = None
+        self.__log_probs = log_probs
 
     @property
     def alignments(self):
@@ -265,6 +265,7 @@ class TranslationUnit(object):
                  metadata=None,
                  annotations=None,
                  alignment=None,
+                 alignment_log_probs=None,
                  source_tokenizer=None,
                  target_tokenizer=None):
         self.__source = {"main": TranslationSide(source, "source", tokenizer=source_tokenizer)}
@@ -276,7 +277,7 @@ class TranslationUnit(object):
         if target is not None:
             self.__target = {"main": TranslationSide(target, "target", tokenizer=target_tokenizer)}
             if alignment is not None:
-                self.__alignment = Alignment(alignments=alignment)
+                self.__alignment = Alignment(alignments=alignment, log_probs=alignment_log_probs)
 
     def add_source(self,
                    source,

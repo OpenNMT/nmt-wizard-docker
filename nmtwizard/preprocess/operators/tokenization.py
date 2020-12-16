@@ -27,7 +27,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
             # produced by build_vocab so we create a temporary vocabulary with a simpler
             # format.
             with tempfile.NamedTemporaryFile(mode="w") as vocab_file:
-                for token in tokenizer.vocabulary_iterator(vocabulary_path):
+                for token in tokenizer.load_vocabulary(vocabulary_path):
                     vocab_file.write("%s\n" % token)
                 vocab_file.flush()
                 config["vocabulary_path"] = vocab_file.name
