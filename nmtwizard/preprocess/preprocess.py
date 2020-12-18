@@ -33,10 +33,11 @@ def _get_num_workers():
 def _get_corpus_label(tu_batch):
     _, batch_meta = tu_batch
     label = batch_meta.get('label') if batch_meta else None
-    if label and isinstance(label, list):
-        label = set(label)
-    elif label is not None:
-        label = { label }
+    if label:
+        if isinstance(label, list):
+            label = set(label)
+        elif isinstance(label, str):
+            label = { label }
     return label
 
 def _process_batch(
