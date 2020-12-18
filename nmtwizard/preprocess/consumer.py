@@ -110,12 +110,13 @@ class SummaryLogger(Consumer):
 
     def finalize(self):
         for proc in ["filtered", "added"]:
-            if self._summary[proc]:
+            summary = self._summary[proc]
+            if summary:
                 logger.info(
                     "Summary of %s sentences (%d sentences dropped in total):",
-                    proc, sum(self._summary[proc].values()))
+                    proc, sum(summary.values()))
                 sorted_summary = sorted(
-                    self._summary[proc].items(),
+                    summary.items(),
                     key=lambda item: item[1],
                     reverse=True)
                 for name, value in sorted_summary:
