@@ -409,11 +409,11 @@ def test_preprocess_pipeline(tmpdir):
                 {
                     "path": str(corpus_dir),
                     "distribution": [
-                        ["generic", 1, "generic_tag"],
-                        ["extra_generic", 1, "generic_tag"],
-                        ["good_news", 1, "news_tag"],
-                        ["news", 1, "news_tag"],
-                        ["no_tag", 1]
+                        ["extra_generic", 1, "generic_label"],
+                        ["generic", 1, "generic_label"],
+                        ["good_news", 1, "news_label"],
+                        ["news", 1, "news_label"],
+                        ["no_label", 1]
                     ]
                 }
             ]
@@ -425,10 +425,10 @@ def test_preprocess_pipeline(tmpdir):
                     "max_characters" : 3
                 },
                 "overrides": {
-                    "generic_tag": {
+                    "generic_label": {
                         "disabled": True
                     },
-                    "news_tag": {
+                    "news_label": {
                         "source": {
                             "max_characters" : 6
                         }
@@ -457,9 +457,10 @@ def test_preprocess_pipeline(tmpdir):
     generate_pseudo_corpus(corpus_dir, 10, "good_news", "de")
     generate_pseudo_corpus(corpus_dir, 10, "news", "en")
     generate_pseudo_corpus(corpus_dir, 10, "news", "de")
-    generate_pseudo_corpus(corpus_dir, 10, "no_tag", "en")
-    generate_pseudo_corpus(corpus_dir, 10, "no_tag", "de")
-
+    generate_pseudo_corpus(corpus_dir, 10, "no_label", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "no_label", "de")
+    generate_pseudo_corpus(corpus_dir, 10, "generic_news", "en")
+    generate_pseudo_corpus(corpus_dir, 10, "generic_news", "de")
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, _ = \
@@ -472,6 +473,66 @@ def test_preprocess_pipeline(tmpdir):
             assert f_info['linefiltered'] == f_info['linesampled']
         else :
             assert f_info['linefiltered'] == 0
+
+
+    # Test multiple override labels
+    shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"]["sample_dist"][0]["distribution"].insert(0,["generic_news", 1, ["generic_label", "news_label"] ])
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    with pytest.raises(RuntimeError) as excinfo:
+        data_path, train_dir, num_samples, summary, _ = \
+            preprocessor.generate_preprocessed_data()
+    assert str(excinfo.value).startswith("One corpus requires different overrides")
+
+    config["preprocess"] = [
+        {
+            "op" : "length_filter",
+            "source": {
+                "max_characters" : 3
+            },
+            "overrides": {
+                "generic_label": {
+                    "disabled": True
+                }
+            }
+        },
+        {
+            "op" : "tokenization",
+            "source": {
+                "mode": "aggressive",
+                "joiner_annotate": True
+            },
+            "target": {
+                "mode": "aggressive",
+                "joiner_annotate": True
+            },
+            "overrides": {
+                "news_label": {
+                    "disabled": True
+                }
+            }
+        }
+    ]
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, _ = preprocessor.generate_preprocessed_data()
+
+    for f_name, f_info in summary.items():
+        if "generic" in f_name:
+            # generic is not filtered because filtering is disabled
+            assert f_info['linefiltered'] == f_info['linesampled']
+        else :
+            assert f_info['linefiltered'] == 0
+
+    with open(str(tmpdir.join("preprocess/generic_news.en"))) as f :
+        # tokenization is disabled for news label
+        assert(f.readline().startswith("generic_news"))
+
+    with open(str(tmpdir.join("preprocess/extra_generic.en"))) as f :
+        # tokenization is enabled for other corpora (only generic label, no news label)
+        assert(f.readline().startswith("extra ￭_￭ generic"))
+
 
     prep = InferenceProcessor(config)
     source, target, _ = prep.process_input("This is a test.")

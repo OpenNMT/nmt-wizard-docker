@@ -32,7 +32,12 @@ def _get_num_workers():
 
 def _get_corpus_label(tu_batch):
     _, batch_meta = tu_batch
-    return batch_meta.get('label') if batch_meta else None
+    label = batch_meta.get('label') if batch_meta else None
+    if label and isinstance(label, list):
+        label = set(label)
+    elif label is not None:
+        label = { label }
+    return label
 
 def _process_batch(
         pipeline,
@@ -468,7 +473,8 @@ class SharedState:
         """Returns the shared state for this configuration and corpus label."""
         if isinstance(override_label, dict):
             return None
-        cached_state = self._cached_state.get(override_label)
+        override_label_str = repr(override_label)
+        cached_state = self._cached_state.get(override_label_str)
         if cached_state is not None:
             return cached_state
         preprocess_config = self._config.get("preprocess")
@@ -521,5 +527,5 @@ class SharedState:
                     existing_state[key] = shared_instance
                 shared_state[i].update({name: existing_state[key]})
 
-        self._cached_state[override_label] = shared_state
+        self._cached_state[override_label_str] = shared_state
         return shared_state

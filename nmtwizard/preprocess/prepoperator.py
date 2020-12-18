@@ -45,7 +45,7 @@ def operator_info_generator(config,
         operator_cls = get_operator_class(operator_type)
         if not operator_cls.is_applied_for(process_type):
             continue
-        operator_params = get_operator_params(operator_config, override_label=override_label)
+        operator_params = get_operator_params(operator_config, operator_type, override_label=override_label)
         if ignore_disabled and operator_params.get("disabled", False):
             continue
         yield operator_cls, operator_params, operator_type, i
@@ -64,15 +64,21 @@ def get_operator_class(op):
         raise ValueError("Unknown operator '%s'" % op)
     return operator_cls
 
-def get_operator_params(config, override_label=None):
+def get_operator_params(config, operator_type, override_label=None):
     """Returns the operator parameters from the configuration."""
     config = copy.deepcopy(config)
     config.pop("op", None)
     override_config = config.pop("overrides", None)
-    # TODO: implement multiple override labels per batch/corpus.
-    if override_config and override_label and override_label in override_config:
-        override_config = override_config[override_label]
-        config = merge_config(config, override_config)
+
+    if override_label and override_config:
+        override = [ label for label in override_label if label in override_config ]
+        override_num = len(override)
+        if override_num > 1:
+            raise RuntimeError("One corpus requires different overrides (%s) for the same operator (%s)." % (override_config, operator_type))
+        if override_num == 1:
+            override = override[0]
+            override_config = override_config[override]
+            config = merge_config(config, override_config)
     return config
 
 def _add_lang_info(operator_params, config, side):
