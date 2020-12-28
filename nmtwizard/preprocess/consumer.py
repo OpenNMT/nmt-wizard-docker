@@ -113,8 +113,8 @@ class SummaryLogger(Consumer):
             summary = self._summary[proc]
             if summary:
                 logger.info(
-                    "Summary of %s sentences (%d sentences dropped in total):",
-                    proc, sum(summary.values()))
+                    "Summary of %s sentences (%d %s sentences in total):",
+                    proc, sum(summary.values()), proc)
                 sorted_summary = sorted(
                     summary.items(),
                     key=lambda item: item[1],
