@@ -246,6 +246,8 @@ class TuminerUtility(Utility):
                             help='Encoder buffer size')
         parser_miner.add_argument('--encodermaxtokens', required=False, type=int, default=12000,
                             help='Encoder max_token size')
+        parser_miner.add_argument('--margin', required=False, default='ratio',
+                            help='Margin function for score')
 
     def exec_function(self, args):
 
@@ -325,7 +327,7 @@ class TuminerUtility(Utility):
 
             # LASER options
             setCUDA_VISIBLE_DEVICES(args.gpuid)
-            unify, retrieval, margin, neighborhood, gpu = True, 'max', 'ratio', 5, (args.gpuid != 0)
+            unify, retrieval, neighborhood, gpu = True, 'max', 5, (args.gpuid != 0)
 
             # load bitext and embeddings
             def _loadTextAndEmb(textF, encoding, embF, encoderDim, unify, verbose):
@@ -351,9 +353,9 @@ class TuminerUtility(Utility):
                 y2x_mean = y2x_sim.mean(axis=1)
 
             # margin function
-            if margin == 'absolute':
+            if args.margin == 'absolute':
                 margin = lambda a, b: a
-            elif margin == 'distance':
+            elif args.margin == 'distance':
                 margin = lambda a, b: a - b
             else:
                 # args.margin == 'ratio':
