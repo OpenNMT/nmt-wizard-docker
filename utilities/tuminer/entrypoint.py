@@ -368,12 +368,16 @@ class TuminerUtility(Utility):
 
 
             elif args.tumode == 'mine':
-                foutSrc, foutSrc_remote = outputF_local+'.'+args.srclang, args.output+'.'+args.srclang
+                src_suffix, tgt_suffix = '', ''
+                if args.srclang == args.tgtlang:
+                    src_suffix, tgt_suffix = "_s", "_t"
+
+                foutSrc, foutSrc_remote = outputF_local+'.'+args.srclang+src_suffix, args.output+'.'+args.srclang+src_suffix
                 if srcF_local.endswith('.gz'):
                     foutSrc = foutSrc+'.gz'
                     foutSrc_remote = foutSrc_remote+'.gz'
 
-                foutTgt, foutTgt_remote = outputF_local+'.'+args.tgtlang, args.output+'.'+args.tgtlang
+                foutTgt, foutTgt_remote = outputF_local+'.'+args.tgtlang+tgt_suffix, args.output+'.'+args.tgtlang+tgt_suffix
                 if tgtF_local.endswith('.gz'):
                     foutTgt = foutTgt+'.gz'
                     foutTgt_remote = foutTgt_remote+'.gz'
