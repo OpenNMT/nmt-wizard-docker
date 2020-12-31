@@ -1,7 +1,7 @@
 #####################################################################################################
-# Pytorch image from: https://github.com/ufoym/deepo/blob/master/docker/Dockerfile.pytorch-py36-cu100
+# Pytorch image from: https://github.com/ufoym/deepo/blob/master/docker/Dockerfile.pytorch-py36-cu102
 #####################################################################################################
-FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
 ENV LANG C.UTF-8
 RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
     PIP_INSTALL="python -m pip --no-cache-dir install --upgrade" && \
@@ -13,7 +13,10 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
 
     apt-get update && \
 
+# ==================================================================
 # tools
+# ------------------------------------------------------------------
+
     DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
         build-essential \
         apt-utils \
@@ -21,6 +24,10 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
         wget \
         git \
         vim \
+        libssl-dev \
+        curl \
+        unzip \
+        unrar \
         && \
 
     $GIT_CLONE https://github.com/Kitware/CMake ~/cmake && \
@@ -28,7 +35,10 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
     ./bootstrap && \
     make -j"$(nproc)" install && \
 
+# ==================================================================
 # python
+# ------------------------------------------------------------------
+
     DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
         software-properties-common \
         && \
@@ -52,12 +62,17 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
         scipy \
         pandas \
         cloudpickle \
+        scikit-image>=0.14.2 \
         scikit-learn \
         matplotlib \
         Cython \
+        tqdm \
         && \
 
+# ==================================================================
 # pytorch
+# ------------------------------------------------------------------
+
     $PIP_INSTALL \
         future \
         numpy \
@@ -65,19 +80,25 @@ RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
         enum34 \
         pyyaml \
         typing \
-        torch \
+        && \
+    $PIP_INSTALL \
+        --pre torch torchvision -f \
+        https://download.pytorch.org/whl/nightly/cu102/torch_nightly.html \
         && \
 
-    $PIP_INSTALL \
-    "git+https://github.com/pytorch/vision.git" && \
+# ==================================================================
+# config & cleanup
+# ------------------------------------------------------------------
 
-    $PIP_INSTALL \
-        torch_nightly -f \
-        https://download.pytorch.org/whl/nightly/cu100/torch_nightly.html
+    ldconfig && \
+    apt-get clean && \
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/* /tmp/* ~/*
 #####################################################################################################
 # Install LASER
 #####################################################################################################
-RUN apt-get install --no-install-recommends -y unzip \
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y unzip \
     g++ wget cpio \
     libgtest-dev swig3.0 \
     libopenblas-dev
@@ -89,8 +110,9 @@ RUN pip install transliterate jieba
 RUN cd /opt && \
     git clone https://github.com/facebookresearch/faiss.git && \
     cd faiss && \
-    ./configure --with-cuda=/usr/local/cuda --with-swig=swig3.0 && \
-    make -j 8 && make -C python && make install && make -C python install
+    cmake -B build . && \
+    make -C build -j 8 && \
+    cd build/faiss/python && python setup.py install
 
 #install LASER
 RUN cd /opt && \
