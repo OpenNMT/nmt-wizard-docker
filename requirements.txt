@@ -1,6 +1,6 @@
 https://github.com/SYSTRAN/storages/archive/8e8f70da4c3cc65f686034e86bd5556f255f62d5.tar.gz
 jsonschema
-pyonmttok>=1.22.2,<2
+pyonmttok>=1.23.0,<2
 requests
 six>=1.13,<2
 systran-align
