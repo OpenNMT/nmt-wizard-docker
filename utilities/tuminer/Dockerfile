@@ -1,86 +1,22 @@
-#####################################################################################################
-# Pytorch image from: https://github.com/ufoym/deepo/blob/master/docker/Dockerfile.pytorch-py36-cu100
-#####################################################################################################
-FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
+FROM pytorch/pytorch:1.6.0-cuda10.1-cudnn7-devel
+# python3.7 pip 20.0.2
 ENV LANG C.UTF-8
-RUN APT_INSTALL="apt-get install -y --no-install-recommends" && \
-    PIP_INSTALL="python -m pip --no-cache-dir install --upgrade" && \
-    GIT_CLONE="git clone --depth 10" && \
 
-    rm -rf /var/lib/apt/lists/* \
-           /etc/apt/sources.list.d/cuda.list \
-           /etc/apt/sources.list.d/nvidia-ml.list && \
-
-    apt-get update && \
-
-# tools
-    DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
-        build-essential \
-        apt-utils \
-        ca-certificates \
-        wget \
-        git \
-        vim \
-        && \
-
-    $GIT_CLONE https://github.com/Kitware/CMake ~/cmake && \
-    cd ~/cmake && \
-    ./bootstrap && \
-    make -j"$(nproc)" install && \
-
-# python
-    DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
-        software-properties-common \
-        && \
-    add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive $APT_INSTALL \
-        python3.6 \
-        python3.6-dev \
-        python3-distutils-extra \
-        && \
-    wget -O ~/get-pip.py \
-        https://bootstrap.pypa.io/get-pip.py && \
-    python3.6 ~/get-pip.py && \
-    ln -s /usr/bin/python3.6 /usr/local/bin/python3 && \
-    ln -s /usr/bin/python3.6 /usr/local/bin/python && \
-    $PIP_INSTALL \
-        setuptools \
-        && \
-    $PIP_INSTALL \
-        numpy \
-        scipy \
-        pandas \
-        cloudpickle \
-        scikit-learn \
-        matplotlib \
-        Cython \
-        && \
-
-# pytorch
-    $PIP_INSTALL \
-        future \
-        numpy \
-        protobuf \
-        enum34 \
-        pyyaml \
-        typing \
-        torch \
-        && \
-
-    $PIP_INSTALL \
-    "git+https://github.com/pytorch/vision.git" && \
-
-    $PIP_INSTALL \
-        torch_nightly -f \
-        https://download.pytorch.org/whl/nightly/cu100/torch_nightly.html
 #####################################################################################################
 # Install LASER
 #####################################################################################################
-RUN apt-get install --no-install-recommends -y unzip \
-    g++ wget cpio \
-    libgtest-dev swig3.0 \
-    libopenblas-dev
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y unzip \
+      g++ wget cpio \
+      libgtest-dev swig3.0 \
+      libopenblas-dev \
+      git \
+      libssl-dev \
+      wget && \
+    git clone https://github.com/Kitware/CMake ~/cmake && \
+    cd ~/cmake && \
+    ./bootstrap && \
+    make -j 8 install
 
 # python modules
 RUN pip install transliterate jieba
@@ -89,8 +25,9 @@ RUN pip install transliterate jieba
 RUN cd /opt && \
     git clone https://github.com/facebookresearch/faiss.git && \
     cd faiss && \
-    ./configure --with-cuda=/usr/local/cuda --with-swig=swig3.0 && \
-    make -j 8 && make -C python && make install && make -C python install
+    cmake -B build . && \
+    make -C build -j 8 && \
+    cd build/faiss/python && python setup.py install
 
 #install LASER
 RUN cd /opt && \
@@ -99,11 +36,13 @@ RUN cd /opt && \
     LASER=/opt/LASER bash ./install_models.sh
 
 #install LASER tools-external
-RUN cd /opt/LASER && sed -i "s#g++ -std=c++11 -pthread -O3 fast.cc -o fast#g++ -std=c++11 -pthread -O3 fastBPE/main.cc -IfastBPE -o fast#g" install_external_tools.sh && \
+RUN cd /opt/LASER && \
+    sed -i "s#cd fastBPE#cd fastBPE; ln -s main.cc fastBPE/fastBPE.cpp#g" install_external_tools.sh && \
+    sed -i "s#python setup.py install##g" install_external_tools.sh && \
     LASER=/opt/LASER bash ./install_external_tools.sh
 
 #install fastBPE
-RUN cd /opt/LASER/tools-external/fastBPE && python setup.py install
+RUN pip install fastBPE
 
 #install mecab
 RUN cd /tmp && \
