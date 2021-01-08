@@ -53,8 +53,8 @@ class AlignPerplexityFilter(prepoperator.Filter):
 def _compute_perplexity(tu):
     # Compute the average source/target perplexity.
     fwd, bwd = _get_log_probs(tu)
-    src_size = len(tu.src_tok.token_objects[0])
-    tgt_size = len(tu.tgt_tok.token_objects[0])
+    src_size = len(tu.src_tok.tokens[0])
+    tgt_size = len(tu.tgt_tok.tokens[0])
     return (math.exp(-fwd / src_size) + math.exp(-bwd / tgt_size)) / 2
 
 def _get_log_probs(tu):

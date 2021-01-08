@@ -11,22 +11,22 @@ class LengthFilter(prepoperator.Filter):
         filters.extend(_get_side_filters(
             source_config,
             lambda tu: tu.src_detok,
-            lambda tu: tu.src_tok.token_objects[0]))
+            lambda tu: tu.src_tok.tokens[0]))
         filters.extend(_get_side_filters(
             target_config,
             lambda tu: tu.tgt_detok,
-            lambda tu: tu.tgt_tok.token_objects[0]))
+            lambda tu: tu.tgt_tok.tokens[0]))
 
 
         min_words_ratio = config.get('min_words_ratio')
         if min_words_ratio is not None:
             filters.append(lambda tu: (
-                len(tu.src_tok.token_objects[0]) / len(tu.tgt_tok.token_objects[0]) < min_words_ratio))
+                len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]) < min_words_ratio))
 
         max_words_ratio = config.get('max_words_ratio')
         if max_words_ratio is not None:
             filters.append(lambda tu: (
-                len(tu.src_tok.token_objects[0]) / len(tu.tgt_tok.token_objects[0]) > max_words_ratio))
+                len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]) > max_words_ratio))
 
         super(LengthFilter, self).__init__(filters)
 
