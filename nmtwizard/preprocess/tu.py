@@ -226,8 +226,9 @@ class TranslationSide(object):
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
         # check/initialize tokenization if not done already
-        cur_tokens = self.__tok[part]
+        cur_tokens = self.__tok
         if cur_tokens is not None:
+            cur_tokens = cur_tokens[part]
             cur_length = len(cur_tokens)
             if start_idx > cur_length:
                 raise IndexError('Start index is too big for replacement.')
