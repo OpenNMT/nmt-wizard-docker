@@ -183,7 +183,7 @@ class TranslationSide(object):
     def detok(self):
         if self.__detok is None:
             if self.__tokenizer is not None and self.__tok is not None:
-                self.__detok = self.__tokenizer.detokenize(self.__tok[0])
+                self.__detok = self.__tokenizer.detokenize(self.__tok[0]) if self.__tok else ""
             else:
                 raise RuntimeError('Cannot perform detokenization.')
         return self.__detok
