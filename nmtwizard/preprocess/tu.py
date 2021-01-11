@@ -228,7 +228,7 @@ class TranslationSide(object):
         # check/initialize tokenization if not done already
         cur_tokens = self.__tok
         if cur_tokens is not None:
-            cur_tokens = self.__tokenizer.deserialize_tokens(cur_tokens[part])
+            cur_tokens = cur_tokens[part]
             cur_length = len(cur_tokens)
             if start_idx > cur_length:
                 raise IndexError('Start index is too big for replacement.')
@@ -241,18 +241,12 @@ class TranslationSide(object):
                 if start_idx < cur_length:
                     del cur_tokens[start_idx:end_idx]
             else:
-                if not isinstance(new_tokens[0], pyonmttok.Token):
-                    new_tokens = self.__tokenizer.deserialize_tokens(new_tokens)
-
                 if start_idx == end_idx:  # Insertion.
                     cur_tokens[start_idx:start_idx] = new_tokens
                 else:  # Replacement.
-                    new_tokens[0].join_left = cur_tokens[start_idx].join_left
-                    new_tokens[-1].join_right = cur_tokens[end_idx - 1].join_right
                     cur_tokens[start_idx:end_idx] = new_tokens
 
             self.__detok = None
-            self.__tok[part] = self.__tokenizer.serialize_tokens(cur_tokens)[0]
         else:
             logger.warning("Cannot replace tokens, no tokenization is set.")
 

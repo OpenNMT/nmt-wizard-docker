@@ -740,22 +740,10 @@ def test_replace_tokens(tmpdir):
 
         def _preprocess_tu(self, tu, training):
 
-            def joiner_side(tokens, pos, num_to_del):
-                joiner_start = False
-                joiner_end = False
-                if num_to_del:
-                    joiner_start = tokens[0][pos].startswith(joiner_marker)
-                    joiner_end = tokens[0][pos+num_to_del-1].endswith(joiner_marker)
-                return joiner_start, joiner_end
-
-            def checks_side(tokens, length, pos, num_to_del, tok_replace, joiner_start, joiner_end):
+            def checks_side(tokens, length, pos, num_to_del, tok_replace):
                 assert(len(tokens[0]) == length - num_to_del + len(tok_replace))
 
                 if tok_replace:
-                    if joiner_start:
-                        tok_replace[0] = joiner_marker + tok_replace[0]
-                    if joiner_end:
-                        tok_replace[-1] += joiner_marker
                     assert (tokens[0][pos:pos+len(tok_replace)] == tok_replace)
 
             def change_align_side(al_idx, pos, num_to_del, tok_replace):
@@ -788,11 +776,6 @@ def test_replace_tokens(tmpdir):
                 src_pos, src_num_to_del, src_tok_replace = src_replace
                 tgt_pos, tgt_num_to_del, tgt_tok_replace = tgt_replace
 
-                src_joiner_start, src_joiner_end = joiner_side(
-                    tu.src_tok.tokens, src_pos, src_num_to_del)
-                tgt_joiner_start, tgt_joiner_end = joiner_side(
-                    tu.tgt_tok.tokens, tgt_pos, tgt_num_to_del)
-
                 tu.replace_tokens(src_replace, tgt_replace)
 
                 checks_side(
@@ -800,17 +783,13 @@ def test_replace_tokens(tmpdir):
                     src_len,
                     src_pos,
                     src_num_to_del,
-                    src_tok_replace,
-                    src_joiner_start,
-                    src_joiner_end)
+                    src_tok_replace)
                 checks_side(
                     tu.tgt_tok.tokens,
                     tgt_len,
                     tgt_pos,
                     tgt_num_to_del,
-                    tgt_tok_replace,
-                    tgt_joiner_start,
-                    tgt_joiner_end)
+                    tgt_tok_replace)
 
                 # Check alignment
                 alignment_after = tu.alignment[0]
