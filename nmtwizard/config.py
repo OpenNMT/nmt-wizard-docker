@@ -23,10 +23,22 @@ def replace_config(a, b):
     a.update(b)
     return a
 
+_non_user_fields = {'model', 'modelType', 'imageTag', 'build', 'parent_model'}
+
 def update_config(a, b, mode='default'):
     """Update the configuration a with b."""
+    if not b:
+        return a
+
+    from_version = get_config_version(a)
+    to_version = get_config_version(b)
+    if from_version == 1 and to_version == 2:
+        # When updating the configuration to a newer version, we clear all user fields.
+        a = {k:v for k, v in a.items() if k in _non_user_fields}
+        return replace_config(a, b)
+
     if mode == 'default':
-        mode = 'merge' if is_v1_config(a) else 'replace'
+        mode = 'merge' if from_version == 1 else 'replace'
     if mode == 'merge':
         return merge_config(a, b)
     if mode == 'replace':
@@ -146,6 +158,10 @@ def is_v2_config(config):
 def is_v1_config(config):
     """Returns True if config is a V1 configuration."""
     return not is_v2_config(config)
+
+def get_config_version(config):
+    """Returns the version of the configuration."""
+    return 2 if is_v2_config(config) else 1
 
 def old_to_new_config(config):
     """Locally update old configuration with 'tokenization' field to include new 'vocabulary' and 'preprocess" fields.

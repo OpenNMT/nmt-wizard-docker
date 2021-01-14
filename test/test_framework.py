@@ -474,6 +474,29 @@ def test_config_update(tmpdir, config, custom_field, new_field, mode, expected_f
     config = _read_config(model_dir)
     assert config["custom_field"] == expected_field
 
+def test_config_v2_upgrade(tmpdir):
+    _run_framework(tmpdir, "model0", "train", config=config_base_old)
+
+    class _CheckV2ConfigFramework(DummyFramework):
+        def _get_preprocessor(self, config, train=True):
+            # The configuration should be fully upgraded to V2.
+            assert "tokenization" not in config
+            assert "preprocess" in config
+            return super()._get_preprocessor(config, train=train)
+
+    model_dir = _run_framework(
+        tmpdir,
+        "model1",
+        "train",
+        config=config_base,
+        parent="model0",
+        framework_fn=_CheckV2ConfigFramework,
+    )
+
+    config = _read_config(model_dir)
+    assert "tokenization" not in config
+    assert "preprocess" in config
+
 def test_model_storage(tmpdir):
     ms1 = tmpdir.join("ms1")
     ms2 = tmpdir.join("ms2")
