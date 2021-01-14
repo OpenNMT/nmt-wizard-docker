@@ -11,12 +11,20 @@ class AlignPerplexityFilter(prepoperator.Filter):
         self._percent_threshold = config.get("percent_threshold")
 
         if self._hard_threshold is not None:
-            self._lower = self._hard_threshold.get("lower")
-            self._upper = self._hard_threshold.get("upper")
+            self._lower = _get_hard_threshold(self._hard_threshold, "lower")
+            self._upper = _get_hard_threshold(self._hard_threshold, "upper")
+            if self._lower is not None and self._upper is not None and self._upper <= self._lower:
+                raise ValueError("align_perplexity_filter: hard threshold 'upper' should be "
+                                 "greater than 'lower'")
 
         elif self._percent_threshold is not None:
-            self._lower = self._percent_threshold.get("lower", 0)
-            self._upper = self._percent_threshold.get("upper", 0)
+            self._lower = _get_percent_threshold(self._percent_threshold, "lower")
+            self._upper = _get_percent_threshold(self._percent_threshold, "upper")
+            total_removed = self._lower + self._upper
+            if total_removed >= 1:
+                raise ValueError("align_perplexity_filter: percent threshold values will filter "
+                                 "all sentences (lower=%.2f and upper=%.2f mean %.2f%% of sentences "
+                                 "will be filtered)" % (self._lower, self._upper, total_removed * 100))
 
     def _preprocess(self, tu_batch):
         if self._hard_threshold is None and self._percent_threshold is None:
@@ -49,6 +57,21 @@ class AlignPerplexityFilter(prepoperator.Filter):
 
         return new_tu_list, meta_batch
 
+
+def _get_hard_threshold(config, field):
+    value = config.get(field)
+    if value is not None and value < 1:
+        raise ValueError("align_perplexity_filter: perplexity values range from "
+                         "+1 (best perplexity) to +inf (worst perplexity), but hard "
+                         "threshold '%s' is set to %.2f" % (field, value))
+    return value
+
+def _get_percent_threshold(config, field):
+    value = config.get(field, 0)
+    if value < 0 or value >= 1:
+        raise ValueError("align_perplexity_filter: percent threshold should be between "
+                         "0 (included) and 1 (excluded), but '%s' is set to %.2f" % (field, value))
+    return value
 
 def _compute_perplexity(tu):
     # Compute the average source/target perplexity.
