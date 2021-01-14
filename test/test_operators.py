@@ -164,11 +164,36 @@ def test_length_filter(filter_config, filtered):
     assert filtered == _is_filtered(config, tu.TranslationUnit(source, target))
 
 
+@pytest.mark.parametrize("mode,lower,upper", [
+    ("hard_threshold", 0.5, None),
+    ("hard_threshold", None, 0.5),
+    ("hard_threshold", 3, 2),
+    ("percent_threshold", 2, 0),
+    ("percent_threshold", 0, 2),
+    ("percent_threshold", 0.5, 0.6),
+])
+def test_align_perplexity_invalid_config(mode, lower, upper):
+    config = {
+        "source": "en",
+        "target": "de",
+        "preprocess": [
+            {
+                "op": "align_perplexity_filter",
+                mode: {
+                    "lower": lower,
+                    "upper": upper,
+                }
+            }
+        ]
+    }
+    with pytest.raises(ValueError, match="align_perplexity_filter"):
+        prepoperator.Pipeline(config, prepoperator.ProcessType.TRAINING)
+
+
 @pytest.mark.parametrize("lower,upper,src_length,tgt_length,fwd_log_prob,bwd_log_prob,filtered", [
     (None, None, 5, 7, -5.1, -8.2, False),
     (2, None, 5, 5, 0, 0, True),  # ppl = 1
-    (0, 10, 5, 5, 0, 0, False),  # ppl = 1
-    (None, 0.5, 5, 5, 0, 0, True),  # ppl = 1
+    (1, 10, 5, 5, 0, 0, False),  # ppl = 1
 ])
 def test_align_perplexity_hard_threshold(lower,
                                          upper,
