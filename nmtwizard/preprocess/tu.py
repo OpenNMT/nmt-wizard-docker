@@ -1,4 +1,3 @@
-import collections
 import itertools
 import pyonmttok
 
@@ -10,6 +9,8 @@ logger = get_logger(__name__)
 
 class Tokenization(object):
     """Structure to keep tokenizer and tokens together."""
+
+    __slots__ = ["_tokenizer", "_token_objects", "_tokens"]
 
     def __init__(self, tokenizer, tokens=None, token_objects=None):
         self._tokenizer = tokenizer
@@ -34,19 +35,37 @@ class Tokenization(object):
         return self._tokens
 
 
-class PreprocessOutput(collections.namedtuple("TranslationUnitExport", (
-        "src",
-        "tgt",
-        "metadata",
-        "alignment",
-))):
+class PreprocessOutput:
     """Structure containing the preprocessing result."""
 
+    __slots__ = ["src", "tgt", "metadata", "alignment"]
 
-class TokReplace(collections.namedtuple("TokReplace", ("start_tok_idx", "tok_num", "new_tokens"))):
-        """Tuple structure for replacement in tokenization."""
+    def __init__(self, src, tgt, metadata, alignment):
+        self.src = src
+        self.tgt = tgt
+        self.metadata = metadata
+        self.alignment = alignment
+
+
+class TokReplace:
+    """Structure for token replacement in tokenization."""
+
+    __slots__ = ["start_tok_idx", "tok_num", "new_tokens"]
+
+    def __init__(self, start_tok_idx, tok_num, new_tokens):
+        self.start_tok_idx = start_tok_idx
+        self.tok_num = tok_num
+        self.new_tokens = new_tokens
+
+    # For compatibility with tuple usage.
+    # TODO: remove this method and adapt usage.
+    def __iter__(self):
+        return iter((self.start_tok_idx, self.tok_num, self.new_tokens))
+
 
 class Alignment(object):
+
+    __slots__ = ["__alignments", "__log_probs"]
 
     def __init__(self, alignments=None, log_probs=None):
         # A list of alignments, one for each part
@@ -132,6 +151,8 @@ class Alignment(object):
 
 
 class TranslationSide(object):
+
+    __slots__ = ["output_side", "output_delimiter", "__detok", "__tok", "__tokenizer"]
 
     def __init__(self, line, output_side, output_delimiter=None, tokenizer=None):
         self.output_side = output_side
@@ -253,6 +274,9 @@ class TranslationSide(object):
 
 class TranslationUnit(object):
     """Class to store information about translation units."""
+
+    __slots__ = ["__source", "__target", "__metadata", "__annotations", "__alignment"]
+
     def __init__(self,
                  source,
                  target=None,
