@@ -220,13 +220,16 @@ def sample(config, source_dir):
         f.random_sample = random_sample
 
 
-    gsample = 0
-    if 'data' in config and 'sample' in config['data'] :
-        gsample = config['data']['sample']
-        logger.info('Sampling %d lines', gsample)
-    else :
+    gsample = config.get('data', {}).get('sample')
+    if gsample is None:
         logger.warning('No \'sample\' size specified in configuration,'
                        'all data will be sampled.')
+        gsample = 0
+
+    if gsample == 0:
+        logger.info('Sampling all data...')
+    else:
+        logger.info('Sampling %d lines...', gsample)
 
     # TODO V2 : multiple sources and targets
     src_suffix=config["source"]
