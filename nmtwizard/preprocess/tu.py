@@ -214,11 +214,6 @@ class TranslationSide(object):
         self.__detok = detok
         self.__tok = None
 
-    def finalize(self):
-        _ = self.tok
-        _ = self.detok
-        self.__tokenizer = None
-
     def append(self, other):
         other_token_objects = other.tok.token_objects
         if other_token_objects is None:
@@ -491,9 +486,6 @@ class TranslationUnit(object):
         sides_to_merge = (ts for k, ts in all_sides if k != "main" and ts.output_side == name)
         for ts in sides_to_merge:
             main_side.append(ts)
-
-        # Synchronize the main side and detach the Tokenizer instance.
-        main_side.finalize()
 
         # Remove secondary sides.
         for key in list(side.keys()):
