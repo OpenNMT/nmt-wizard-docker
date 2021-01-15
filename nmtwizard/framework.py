@@ -397,7 +397,7 @@ class Framework(utility.Utility):
             training_summary = {}
 
         end_time = time.time()
-        logger.info('Finished training model %s in %s seconds', model_id, str(end_time-start_time))
+        logger.info('Finished training model %s in %.1f seconds', model_id, end_time-start_time)
 
         # Fill training details.
         config['model'] = model_id
@@ -562,7 +562,7 @@ class Framework(utility.Utility):
                 storage.push(path_output, output)
 
                 end_time = time.time()
-                logger.info('Finished translation in %s seconds', str(end_time-start_time))
+                logger.info('Finished translation in %.1f seconds', end_time-start_time)
             except Exception as e:
                 # Catch any exception to not impact other translations.
                 filename = path_input if not isinstance(path_input, tuple) else path_input[0]
@@ -647,8 +647,8 @@ class Framework(utility.Utility):
         data_dir = outputs[0]
 
         end_time = time.time()
-        logger.info('Finished preprocessing data in %s seconds into %s',
-                    str(end_time-start_time), data_dir)
+        logger.info('Finished preprocessing data in %.1f seconds into %s',
+                    end_time-start_time, data_dir)
 
     def preprocess_into_model(self,
                               model_id,
@@ -668,7 +668,7 @@ class Framework(utility.Utility):
             self._build_data(local_config))
 
         end_time = time.time()
-        logger.info('Finished preprocessing %s in %s seconds', model_id, str(end_time-start_time))
+        logger.info('Finished preprocessing %s in %.1f seconds', model_id, end_time-start_time)
 
         _, _, parent_dependencies = self._get_vocabs_info(
             config,
