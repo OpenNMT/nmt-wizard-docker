@@ -212,7 +212,7 @@ class Utility(object):
         start_time = time.time()
         stats = self.exec_function(args)
         end_time = time.time()
-        logger.info('Finished executing utility in %s seconds', str(end_time-start_time))
+        logger.info('Finished executing utility in %.1f seconds', end_time-start_time)
 
         if args.statistics_url is not None:
             requests.post(args.statistics_url, json={
