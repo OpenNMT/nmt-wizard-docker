@@ -1,4 +1,4 @@
-https://github.com/SYSTRAN/storages/archive/8e8f70da4c3cc65f686034e86bd5556f255f62d5.tar.gz
+https://github.com/SYSTRAN/storages/archive/0ced3a0d759dc7afc882636943aa7a78132e04b7.tar.gz
 jsonschema
 pyonmttok>=1.23.0,<2
 requests
