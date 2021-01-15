@@ -215,8 +215,8 @@ class TranslationSide(object):
         self.__tok = None
 
     def append(self, other):
-        other_token_objects = other.tok.token_objects
-        if other_token_objects is None:
+        other_tokens = other.tok.tokens
+        if other_tokens is None:
             if not other.detok:
                 return False
             self.detok = (
@@ -224,19 +224,19 @@ class TranslationSide(object):
                 + ((' ' + other.output_delimiter) if other.output_delimiter is not None else '')
                 + ' ' + other.detok)
         else:
-            if not other_token_objects[0]:
+            if not other_tokens[0]:
                 return False
             tok = self.tok
             tokenizer = tok.tokenizer
-            token_objects = tok.token_objects
-            if token_objects is None:
-                token_objects = [[]]
-            elif len(token_objects) > 1:
+            tokens = tok.tokens
+            if tokens is None:
+                tokens = [[]]
+            elif len(tokens) > 1:
                 return False
-            elif token_objects[0] and other.output_delimiter is not None:
-                token_objects[0].append(pyonmttok.Token(other.output_delimiter))
-            token_objects[0].extend(other_token_objects[0])
-            self.tok = (tokenizer, token_objects)
+            elif tokens[0] and other.output_delimiter is not None:
+                tokens[0].append(other.output_delimiter)
+            tokens[0].extend(other_tokens[0])
+            self.tok = (tokenizer, tokens)
         return True
 
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
