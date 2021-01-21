@@ -228,7 +228,7 @@ class TrainingProcessor(Processor):
                 raise RuntimeError('%s is not a directory' % result_dir)
 
             # Sample files and write information to a special file structure.
-            oversample_as_weights = self._config.get('data', {}).get('oversample_as_weights', False)
+            oversample_as_weights = self._config.get('data', {}).get('oversample_with_sentence_weighting', False)
             all_files, summary = sampler.sample(self._config, data_path, oversample_as_weights)
             batch_size = self._config.get('data', {}).get('batch_size', 100000)
             sampler_loader = loader.SamplerFilesLoader(all_files, batch_size, oversample_as_weights)

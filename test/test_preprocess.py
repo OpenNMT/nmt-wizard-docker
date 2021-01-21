@@ -141,7 +141,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
 
     # Test oversampling as example weights
     shutil.rmtree(str(tmpdir.join("preprocess")))
-    config["data"]["oversample_as_weights"] = True
+    config["data"]["oversample_with_sentence_weighting"] = True
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
     data_path, train_dir, num_samples, summary, _ = \

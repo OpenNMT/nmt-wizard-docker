@@ -132,7 +132,7 @@ class SamplerFileLoader(Loader):
             }
 
             if self._oversample_as_weights:
-                batch_meta["oversample"] = self._file.oversample
+                batch_meta["example_weights"] = self._file.oversample
 
             tu_list = []
 
