@@ -30,6 +30,7 @@ class OpenNMTTFFramework(Framework):
               src_vocab_info,
               tgt_vocab_info,
               align_file=None,
+              example_weights_file=None,
               model_path=None,
               gpuid=0):
         if model_path is None or tf.train.latest_checkpoint(model_path) is None:
@@ -46,6 +47,7 @@ class OpenNMTTFFramework(Framework):
             src_file=src_file,
             tgt_file=tgt_file,
             align_file=align_file,
+            example_weights_file=example_weights_file,
             model_path=model_path)
 
         if prev_src_vocab or prev_tgt_vocab:
@@ -120,6 +122,7 @@ class OpenNMTTFFramework(Framework):
                       src_file=None,
                       tgt_file=None,
                       align_file=None,
+                      example_weights_file=None,
                       model_path=None):
         model_dir = os.path.join(self._output_dir, 'model')
         if os.path.exists(model_dir):
@@ -146,7 +149,8 @@ class OpenNMTTFFramework(Framework):
             tgt_vocab,
             src_file=src_file,
             tgt_file=tgt_file,
-            align_file=align_file)
+            align_file=align_file,
+            example_weights_file=example_weights_file)
         model = opennmt.load_model(
             model_dir,
             model_file=options.get('model'),
@@ -164,7 +168,8 @@ def _build_run_config(config,
                       tgt_vocab,
                       src_file=None,
                       tgt_file=None,
-                      align_file=None):
+                      align_file=None,
+                      example_weights_file=None):
     """Builds the final configuration for OpenNMT-tf."""
     config = opennmt.convert_to_v2_config(config) if config else {}
     config['model_dir'] = model_dir
@@ -180,6 +185,8 @@ def _build_run_config(config,
         data['train_alignments'] = align_file
         params = config.setdefault('params', {})
         params.setdefault('guided_alignment_type', 'ce')
+    if example_weights_file is not None and os.path.exists(example_weights_file):
+        data['example_weights'] = example_weights_file
 
     train = config.setdefault('train', {})
     train.setdefault('sample_buffer_size', -1)

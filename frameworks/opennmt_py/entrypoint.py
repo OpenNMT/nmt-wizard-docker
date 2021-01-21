@@ -22,6 +22,7 @@ class OpenNMTPYFramework(Framework):
               src_vocab_info,
               tgt_vocab_info,
               align_file=None,
+              example_weights_file=None,
               model_path=None,
               gpuid=0):
         # Preprocess training files.
