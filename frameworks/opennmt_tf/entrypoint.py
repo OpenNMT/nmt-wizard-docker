@@ -5,8 +5,6 @@ import shutil
 from nmtwizard.logger import get_logger
 
 import tensorflow as tf
-import tensorflow_addons as tfa
-tfa.register_all()  # Register custom ops.
 
 import opennmt
 
