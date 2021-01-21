@@ -139,6 +139,21 @@ def test_sampler(tmpdir, batch_size, num_threads):
     assert summary['corpus_specific2']['linesampled'] == 0
     assert 'IT' not in summary
 
+    # Test oversampling as example weights
+    shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"]["oversample_as_weights"] = True
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    data_path, train_dir, num_samples, summary, _ = \
+        preprocessor.generate_preprocessed_data()
+
+    assert summary['news_pattern']['linesampled'] == 3000
+    with open(str(tmpdir.join("preprocess/news_pattern.weights")), 'r') as f :
+        rf = f.readlines()
+        assert len(rf) == 3000
+        assert all(el == '2.0\n' for el in rf)
+
+
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["sample_dist"] = [
         {
