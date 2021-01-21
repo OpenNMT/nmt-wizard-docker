@@ -462,6 +462,8 @@ class SamplerFileWriter(Consumer):
         tgt_path = os.path.join(self._result_dir, basename + "." + self._tgt_suffix)
         align_path = os.path.join(self._result_dir, basename + ".align")
         write_alignment = meta.get('write_alignment', False)
+        example_weights_path = os.path.join(self._result_dir, basename + ".weights")
+        oversample = meta.get('oversample', False)
 
         file_summary = self._summary[basename]
         line_filtered = file_summary.setdefault("linefiltered", 0)
@@ -472,6 +474,8 @@ class SamplerFileWriter(Consumer):
             open(tgt_path, "w").close()
             if write_alignment:
                 open(align_path, "w").close()
+            if oversample:
+                open(example_weights_path, "w").close()
 
         file_summary["linefiltered"] += len(outputs)
 
@@ -502,3 +506,8 @@ class SamplerFileWriter(Consumer):
                         for part in alignment:
                             part = " ".join(sorted("%s-%s" % tup for tup in part))
                             align_file.write("%s\n" % part)
+
+        if oversample:
+            with open(example_weights_path, "a") as example_weights_file:
+                for _ in outputs:
+                    example_weights_file.write("%.1f\n" % oversample)

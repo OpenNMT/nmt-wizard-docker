@@ -38,7 +38,7 @@ class SamplerFile(object):
         self.label = label
 
 
-def sample(config, source_dir):
+def sample(config, source_dir, oversample_as_weights):
 
     def _count_lines(root, base_name, annotations):
         file_path = os.path.join(root, base_name)
@@ -270,7 +270,9 @@ def sample(config, source_dir):
                 raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (f.weight, f.pattern))
             if m.groups()[0]:
                 f.oversample = int(m.groups()[0])
-            reserved_sample += f.lines_count * f.oversample
+            reserved_sample += f.lines_count
+            if not oversample_as_weights:
+                reserved_sample *= f.oversample
         else:
             file_weight = f.lines_count / pattern_sizes[f.pattern]
             pattern_weight = f.weight / pattern_weights_sum if pattern_weights_sum else 0
@@ -286,7 +288,9 @@ def sample(config, source_dir):
     logger.info('Summary of sampled lines:')
     for f in all_files.values():
         if isinstance(f.weight, six.string_types) or f.weight != 0.0:
-            lines_kept = f.lines_count * f.oversample
+            lines_kept = f.lines_count
+            if not oversample_as_weights:
+                lines_kept *= f.oversample
             if gsample and not isinstance(f.weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (f.weight / weights_sum)

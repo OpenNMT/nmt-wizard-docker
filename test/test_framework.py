@@ -91,6 +91,7 @@ class DummyFramework(_TestFramework):
               src_vocab_info,
               tgt_vocab_info,
               align_file=None,
+              example_weights_file=None,
               model_path=None,
               gpuid=0):
         # Verify that input files exist.
@@ -190,6 +191,7 @@ class ReplaceVocabChecker(_TestFramework):
               src_vocab_info,
               tgt_vocab_info,
               align_file=None,
+              example_weights_file=None,
               model_path=None,
               gpuid=0):
         if self.joint:
