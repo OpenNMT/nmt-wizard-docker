@@ -72,7 +72,7 @@ class Framework(utility.Utility):
           src_file: The local path to the preprocessed (if any) source file.
           tgt_file: The local path to the preprocessed (if any) target file.
           align_file: The local path to the alignment file (between source and target).
-          example_weights_file: The local path to the containing a weight for each training example (to be used as loss weight).
+          example_weights_file: The local path to the file containing a weight for each training example (to be used as loss weight).
           src_vocab_info: Source vocabulary metadata (see _get_vocab_info).
           tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
           model_path: The path to a model to load from.
