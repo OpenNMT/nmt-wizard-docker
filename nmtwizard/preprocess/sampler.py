@@ -54,7 +54,14 @@ def sample(config, source_dir, oversample_as_weights):
             tgt_file, tgt_lines = utils.count_lines(file_path + "." + tgt_suffix)
             files["tgt"] = tgt_file
             if src_lines != tgt_lines:
-                logger.warning('Target file %s is not aligned with source file %s. Files will be ignored in sampling.', file_path + "." + tgt_suffix, file_path + "." + src_suffix)
+                logger.warning(
+                    'Target file %s (%d lines) is not aligned with source file '
+                    '%s (%d lines). Files will be ignored in sampling.',
+                    file_path + "." + tgt_suffix,
+                    tgt_lines,
+                    file_path + "." + src_suffix,
+                    src_lines,
+                )
                 return files, 0
 
         files["annotations"] = {}
@@ -70,7 +77,14 @@ def sample(config, source_dir, oversample_as_weights):
                     key = key + ":" + suffix
                 files["annotations"][key] = annot_file
                 if src_lines != annot_lines:
-                    logger.warning('Annotation file %s is not aligned with source file %s. Files will be ignored in sampling.', annot_path, file_path + src_suffix)
+                    logger.warning(
+                        'Annotation file %s (%d lines) is not aligned with source '
+                        'file %s (%d lines). Files will be ignored in sampling.',
+                        annot_path,
+                        annot_lines,
+                        file_path + src_suffix,
+                        src_lines,
+                    )
                     return files, 0
 
         return files, src_lines
