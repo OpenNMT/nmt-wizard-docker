@@ -93,16 +93,21 @@ def _process_batch_on_worker(
 ):
     """Processes a batch of TUs using the pipeline cached on the worker process."""
     global worker_pipeline
-    outputs, worker_pipeline = _process_batch(
-        worker_pipeline,
-        tu_batch,
-        options=options,
-        config=config,
-        process_type=process_type,
-        exit_step=exit_step,
-        override_label=override_label,
-        shared_state=shared_state,
-    )
+    try:
+        outputs, worker_pipeline = _process_batch(
+            worker_pipeline,
+            tu_batch,
+            options=options,
+            config=config,
+            process_type=process_type,
+            exit_step=exit_step,
+            override_label=override_label,
+            shared_state=shared_state,
+        )
+    except Exception as e:
+        worker_name = multiprocessing.current_process().name
+        raise RuntimeError(
+            'An exception occured in worker process %s (see above)' % worker_name) from e
     return outputs
 
 
