@@ -41,7 +41,7 @@ def _get_corpus_label(tu_batch):
     return label
 
 def _get_corpus_name(tu_batch):
-    tu_list, batch_meta = tu_batch
+    _, batch_meta = tu_batch
     return batch_meta.get('base_name')
 
 def _process_batch(
