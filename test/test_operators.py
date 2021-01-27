@@ -163,6 +163,23 @@ def test_length_filter(filter_config, filtered):
     target = "Bonjour le monde !"
     assert filtered == _is_filtered(config, tu.TranslationUnit(source, target))
 
+def test_length_filter_empty_target():
+    config = [
+        {
+            "op": "tokenization",
+            "source": {"mode": "conservative", "joiner_annotate": True},
+            "target": {"mode": "conservative", "joiner_annotate": True},
+        },
+        {
+            "op": "length_filter",
+            "min_words_ratio": 0.7,
+            "max_words_ratio": 2,
+        },
+    ]
+    source = "Hello"
+    target = ""
+    assert _is_filtered(config, tu.TranslationUnit(source, target))
+
 
 @pytest.mark.parametrize("mode,lower,upper", [
     ("hard_threshold", 0.5, None),
