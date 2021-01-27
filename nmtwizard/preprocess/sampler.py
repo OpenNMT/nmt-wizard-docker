@@ -45,21 +45,31 @@ def sample(config, source_dir, oversample_as_weights):
         files = {}
         logger.debug("Processing %s", file_path)
 
+        src_path = file_path + "." + src_suffix
+        tgt_path = file_path + "." + tgt_suffix
+
         # Check all directions are present and aligned, open files
-        src_file, src_lines = utils.count_lines(file_path + "." + src_suffix)
+        src_file, src_lines = utils.count_lines(src_path)
         files["src"] = src_file
 
         if src_file and src_lines :
             # TODO V2 : multiple sources and targets
-            tgt_file, tgt_lines = utils.count_lines(file_path + "." + tgt_suffix)
+            tgt_file, tgt_lines = utils.count_lines(tgt_path)
+            if tgt_file is None:
+                logger.warning(
+                    'Target file %s does not exist. The source file %s will be ignored in sampling.',
+                    tgt_path,
+                    src_path,
+                )
+                return files, 0
             files["tgt"] = tgt_file
             if src_lines != tgt_lines:
                 logger.warning(
                     'Target file %s (%d lines) is not aligned with source file '
                     '%s (%d lines). Files will be ignored in sampling.',
-                    file_path + "." + tgt_suffix,
+                    tgt_path,
                     tgt_lines,
-                    file_path + "." + src_suffix,
+                    src_path,
                     src_lines,
                 )
                 return files, 0
