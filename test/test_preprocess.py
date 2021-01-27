@@ -435,6 +435,17 @@ def test_preprocess_pipeline(tmpdir):
         },
         "preprocess": [
             {
+                "op" : "tokenization",
+                "source": {
+                    "mode": "aggressive",
+                    "joiner_annotate": True
+                },
+                "target": {
+                    "mode": "aggressive",
+                    "joiner_annotate": True
+                }
+            },
+            {
                 "op" : "length_filter",
                 "source": {
                     "max_characters" : 3
@@ -450,17 +461,6 @@ def test_preprocess_pipeline(tmpdir):
                     }
                 }
             },
-            {
-                "op" : "tokenization",
-                "source": {
-                    "mode": "aggressive",
-                    "joiner_annotate": True
-                },
-                "target": {
-                    "mode": "aggressive",
-                    "joiner_annotate": True
-                }
-            }
         ]
     }
 
@@ -502,17 +502,6 @@ def test_preprocess_pipeline(tmpdir):
 
     config["preprocess"] = [
         {
-            "op" : "length_filter",
-            "source": {
-                "max_characters" : 3
-            },
-            "overrides": {
-                "generic_label": {
-                    "disabled": True
-                }
-            }
-        },
-        {
             "op" : "tokenization",
             "source": {
                 "mode": "aggressive",
@@ -527,7 +516,18 @@ def test_preprocess_pipeline(tmpdir):
                     "disabled": True
                 }
             }
-        }
+        },
+        {
+            "op" : "length_filter",
+            "source": {
+                "max_characters" : 3
+            },
+            "overrides": {
+                "generic_label": {
+                    "disabled": True
+                }
+            }
+        },
     ]
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
