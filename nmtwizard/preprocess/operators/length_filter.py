@@ -4,8 +4,8 @@ from nmtwizard.preprocess import prepoperator
 class LengthFilter(prepoperator.Filter):
 
     def __init__(self, config, process_type, build_state):
-        source_config = config.get('source', {})
-        target_config = config.get('target', {})
+        source_config = _get_side_config(config, 'source')
+        target_config = _get_side_config(config, 'target')
 
         filters = []
         filters.extend(_get_side_filters(
@@ -30,6 +30,12 @@ class LengthFilter(prepoperator.Filter):
 
         super(LengthFilter, self).__init__(filters)
 
+
+def _get_side_config(config, side):
+    config = config.get(side, {})
+    # Filter empty sentences by default.
+    config.setdefault('min_words', 1)
+    return config
 
 def _get_side_filters(config, chars_fn, words_fn):
     filters = []
