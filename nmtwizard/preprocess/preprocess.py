@@ -142,9 +142,8 @@ class Processor(object):
                 preprocess_exit_step=None,
                 options=None):
 
-        logger.info('Start processing using %d worker(s)', self._num_workers)
-
         if self._num_workers == 0:
+            logger.info('Start processing')
 
             pipeline = None
             for tu_batch in loader():
@@ -163,6 +162,7 @@ class Processor(object):
                 consumer(outputs)
 
         else:
+            logger.info('Start processing using %d worker(s)', self._num_workers)
 
             # Because of the Python GIL (Global Interpreter Lock), we need to use
             # process-based workers to enable true parallelism. The downside is
