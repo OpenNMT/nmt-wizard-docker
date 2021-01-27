@@ -40,6 +40,10 @@ def _get_corpus_label(tu_batch):
             label = { label }
     return label
 
+def _get_corpus_name(tu_batch):
+    _, batch_meta = tu_batch
+    return batch_meta.get('base_name')
+
 def _process_batch(
         pipeline,
         tu_batch,
@@ -65,7 +69,7 @@ def _process_batch(
             shared_state=shared_state)
 
     tu_list, batch_meta = tu_batch
-    base_name = batch_meta.get('base_name')
+    base_name = _get_corpus_name(tu_batch)
     logger.info(
         'Processing %d samples%s',
         len(tu_list),
@@ -93,16 +97,25 @@ def _process_batch_on_worker(
 ):
     """Processes a batch of TUs using the pipeline cached on the worker process."""
     global worker_pipeline
-    outputs, worker_pipeline = _process_batch(
-        worker_pipeline,
-        tu_batch,
-        options=options,
-        config=config,
-        process_type=process_type,
-        exit_step=exit_step,
-        override_label=override_label,
-        shared_state=shared_state,
-    )
+    try:
+        outputs, worker_pipeline = _process_batch(
+            worker_pipeline,
+            tu_batch,
+            options=options,
+            config=config,
+            process_type=process_type,
+            exit_step=exit_step,
+            override_label=override_label,
+            shared_state=shared_state,
+        )
+    except Exception as e:
+        corpus_name = _get_corpus_name(tu_batch)
+        worker_name = multiprocessing.current_process().name
+        raise RuntimeError(
+            "An exception occured %sin worker process %s (see above)" % (
+                "when processing file '%s' " % corpus_name if corpus_name else "",
+                worker_name,
+            )) from e
     return outputs
 
 
