@@ -58,7 +58,9 @@ class OpenNMTTFFramework(Framework):
 
         output_dir, summary = runner.train(
             num_devices=utils.count_devices(gpuid),
-            return_summary=True)
+            return_summary=True,
+            fallback_to_cpu=False,
+        )
         return _list_checkpoint_files(output_dir), summary
 
     def trans(self, config, model_path, input, output, gpuid=0):
