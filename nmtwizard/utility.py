@@ -71,7 +71,7 @@ def resolve_remote_files(config, local_dir, storage_client):
         if not isinstance(value, six.string_types) or not storage_client.is_managed_path(value):
             return value
         storage_id, remote_path = storage_client.parse_managed_path(value)
-        if remote_path[0] == '/':
+        if remote_path and remote_path[0] == '/':
             remote_path = remote_path[1:]
         local_path = os.path.join(local_dir, storage_id, remote_path)
         # can be a file or a directory
