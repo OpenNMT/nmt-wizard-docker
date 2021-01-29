@@ -57,10 +57,10 @@ def _process_batch(
 ):
     """Rebuilds the pipeline if required and processes a batch of TUs."""
     if pipeline is None or override_label != pipeline.override_label:
-        if pipeline is None:
-            logger.info('Building processing pipeline')
+        if override_label is None:
+            logger.info('Building default processing pipeline')
         else:
-            logger.info('Rebuilding processing pipeline for label %s', override_label)
+            logger.info('Building processing pipeline for label %s', override_label)
         pipeline = prepoperator.Pipeline(
             config,
             process_type,
