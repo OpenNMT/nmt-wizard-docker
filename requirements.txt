@@ -3,4 +3,4 @@ jsonschema
 pyonmttok>=1.23.0,<2
 requests
 six>=1.13,<2
-systran-align
+systran-align>=3.2,<4
