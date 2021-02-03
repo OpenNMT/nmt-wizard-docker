@@ -198,9 +198,12 @@ def sample(config, source_dir, oversample_as_weights):
                         continue
                     # Check that the file has not been selected in another distribution
                     if base_name in all_files:
+                        first_file = all_files[base_name]
                         # Different paths in distribution produced files with the same name.
                         # This is not allowed since we write output files in the same folder.
-                        raise RuntimeError('Two files with the same name %s where sampled.' % base_name)
+                        raise RuntimeError("Two files with the same name where sampled: '%s'.\n"
+                                           "First file found in path '%s', triggered by pattern '%s'.\n"
+                                           "Second file found in path '%s', triggered by pattern '%s'." % (base_name, first_file.root, first_file.pattern, sampler_file.root, sampler_file.pattern))
                     all_files[base_name] = sampler_file
 
         return all_files, pattern_weights_sum, pattern_sizes
