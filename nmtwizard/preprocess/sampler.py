@@ -297,9 +297,10 @@ def sample(config, source_dir, oversample_as_weights):
                 raise RuntimeError('Wrong weight format %s for sample pattern %s.' % (f.weight, f.pattern))
             if m.groups()[0]:
                 f.oversample = int(m.groups()[0])
-            reserved_sample += f.lines_count
+            added_sample = f.lines_count
             if not oversample_as_weights:
-                reserved_sample *= f.oversample
+                added_sample *= f.oversample
+            reserved_sample += added_sample
         else:
             file_weight = f.lines_count / pattern_sizes[f.pattern]
             pattern_weight = f.weight / pattern_weights_sum if pattern_weights_sum else 0
