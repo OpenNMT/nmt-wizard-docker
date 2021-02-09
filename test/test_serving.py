@@ -187,9 +187,9 @@ def test_preprocess_examples():
                 metadata = len(tokens)
             return tokens, None, metadata
 
-    with pytest.raises(ValueError):
+    with pytest.raises(serving.InvalidRequest):
         serving.preprocess_examples(["a b c"], Processor())
-    with pytest.raises(ValueError):
+    with pytest.raises(serving.InvalidRequest):
         serving.preprocess_examples([{"toto": "a b c"}], Processor())
 
     config = {"a": 24}
@@ -340,11 +340,11 @@ def test_translate_examples():
     assert outputs[1][0].attention == [None]
 
 def test_run_request():
-    with pytest.raises(ValueError):
+    with pytest.raises(serving.InvalidRequest):
         serving.run_request(["abc"], None)
-    with pytest.raises(ValueError):
+    with pytest.raises(serving.InvalidRequest):
         serving.run_request({"input": "abc"}, None)
-    with pytest.raises(ValueError):
+    with pytest.raises(serving.InvalidRequest):
         serving.run_request({"src": "abc"}, None)
 
     assert serving.run_request({"src": []}, None) == {"tgt": []}
@@ -421,7 +421,7 @@ def test_run_request_with_v2_config():
         ],
     }
 
-    with pytest.raises(ValueError, match="override is not supported"):
+    with pytest.raises(serving.InvalidRequest, match="override is not supported"):
         request = {"src": [{"text": "a b c", "config": {"override": 42}}]}
         serving.run_request(
             request,
