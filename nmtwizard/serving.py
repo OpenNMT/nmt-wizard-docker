@@ -51,6 +51,11 @@ class TranslationBatch(
                                ))):
     pass
 
+class InvalidRequest(Exception):
+    pass
+
+class TranslationTimeout(Exception):
+    pass
 
 def pick_free_port():
     """Selects an available port."""
@@ -104,7 +109,12 @@ def start_server(host,
             self.end_headers()
             self.wfile.write(six.ensure_binary(json.dumps(data)))
 
-        def _send_error(self, status, message):
+        def _send_error(self, status, message, from_request=None):
+            if from_request is not None:
+                logger.exception(
+                    "Exception raised for request:\n%s",
+                    json.dumps(from_request, ensure_ascii=False),
+                )
             data = {"message": message}
             self._send_response(data, status=status)
 
@@ -138,9 +148,11 @@ def start_server(host,
                 self._send_error(400, 'missing request data')
                 return
             post_body = self.rfile.read(content_len)
+            request = None
             try:
+                request = json.loads(six.ensure_str(post_body))
                 result = run_request(
-                    json.loads(six.ensure_str(post_body)),
+                    request,
                     functools.partial(translate_fn, backend_info),
                     preprocessor=preprocessor,
                     postprocessor=postprocessor,
@@ -148,10 +160,12 @@ def start_server(host,
                     rebatch_request=rebatch_request,
                     max_batch_size=global_max_batch_size,
                     timeout=global_timeout)
-            except ValueError as e:
-                self._send_error(400, str(e))
-            except RuntimeError as e:
-                self._send_error(504, str(e))
+            except InvalidRequest as e:
+                self._send_error(400, str(e), from_request=request)
+            except TranslationTimeout as e:
+                self._send_error(504, str(e), from_request=request)
+            except Exception as e:
+                self._send_error(500, str(e), from_request=request)
             else:
                 self._send_response(result)
 
@@ -225,12 +239,12 @@ def run_request(request,
         logger.debug("Incoming request: %s", json.dumps(request, ensure_ascii=False))
 
     if not isinstance(request, dict):
-        raise ValueError('request should be a JSON object')
+        raise InvalidRequest('request should be a JSON object')
     src = request.get('src')
     if src is None:
-        raise ValueError('missing src field')
+        raise InvalidRequest('missing src field')
     if not isinstance(src, list):
-        raise ValueError('src field must be a list')
+        raise InvalidRequest('src field must be a list')
 
     if not src:
         results = []
@@ -265,8 +279,8 @@ def finalize_config(config, override=None, options=None):
         supported_features = config.get('supported_features')
         if config_util.is_v2_config(config):
             if override:
-                raise ValueError("Configuration override is not supported for V2 "
-                                 "configurations")
+                raise InvalidRequest("Configuration override is not supported for V2 "
+                                     "configurations")
             if options:
                 options = config_util.read_options(config, options)
             config = None
@@ -283,10 +297,10 @@ def finalize_config(config, override=None, options=None):
 def preprocess_example(preprocessor, index, raw_example, config=None, config_override=None):
     """Applies preprocessing function on example."""
     if not isinstance(raw_example, dict):
-        raise ValueError('example %d is not a JSON object' % index)
+        raise InvalidRequest('example %d is not a JSON object' % index)
     source_text = raw_example.get('text')
     if source_text is None:
-        raise ValueError('missing text field in example %d' % index)
+        raise InvalidRequest('missing text field in example %d' % index)
     mode = raw_example.get('mode', 'default')
 
     example_config_override = raw_example.get('config')
@@ -304,7 +318,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
     target_prefix = raw_example.get('target_prefix')
     target_fuzzy = raw_example.get('fuzzy')
     if target_prefix is not None and target_fuzzy is not None:
-        raise ValueError("Using both a target prefix and a fuzzy target is currently unsupported")
+        raise InvalidRequest("Using both a target prefix and a fuzzy target is currently unsupported")
 
     target_text = None
     target_name = None
@@ -427,7 +441,7 @@ def translate_examples(examples, func, max_batch_size=None, options=None):
         batch_options['mode'] = batch.mode
         batch_hypotheses = func(batch.source_tokens, batch.target_tokens, batch_options)
         if batch_hypotheses is None:
-            raise RuntimeError('translation failed or timed out')
+            raise TranslationTimeout('translation failed or timed out')
 
         # Gather hypotheses by example id.
         for index, hypotheses in zip(batch.indices, batch_hypotheses):

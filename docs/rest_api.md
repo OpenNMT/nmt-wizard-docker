@@ -82,6 +82,8 @@ Note that the `score` and `align` fields might not be set by all frameworks and 
   * The input data does not contain the `src` field.
   * The `src` field is not a list.
   * The inference option is unexpected or invalid
+* **HTTP 500**
+  * Internal server exception.
 * **HTTP 503**
   * The backend service is unavailable.
 * **HTTP 504**
