@@ -85,7 +85,7 @@ def build_override(config, path, value):
     inner_path = '/'.join(sections[1:])
     if isinstance(config, dict):
         return {section: build_override(config.get(section), inner_path, value)}
-    elif isinstance(config, list):
+    if isinstance(config, list):
         index = int(sections[0])
         override = build_override(config[index], inner_path, value)
         # Since lists can't be merged, the override should contain the full list content.
@@ -95,8 +95,7 @@ def build_override(config, path, value):
         else:
             config[index] = override
         return config
-    else:
-        raise TypeError('Paths in config can only represent object and array structures')
+    raise TypeError('Paths in config can only represent object and array structures')
 
 def index_schema(schema, path):
     """Index a JSON schema with a path-like string."""

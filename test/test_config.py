@@ -142,7 +142,7 @@ def test_read_options():
         config.read_options(cfg, options)
 
     options = {"bpreprocess": {"domain": "IT"}}
-    config.read_options(cfg, options) == {
+    assert config.read_options(cfg, options) == {
         "bpreprocess": {
             "classifiers": [
                 {
