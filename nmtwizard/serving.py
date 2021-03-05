@@ -271,29 +271,6 @@ def run_request(request,
 
     return {'tgt': results}
 
-def finalize_config(config, override=None, options=None):
-    """Finalizes the configuration with possible override and options."""
-    if config is None:
-        supported_features = None
-    else:
-        supported_features = config.get('supported_features')
-        if config_util.is_v2_config(config):
-            if override:
-                raise InvalidRequest("Configuration override is not supported for V2 "
-                                     "configurations")
-            if options:
-                options = config_util.read_options(config, options)
-            config = None
-        else:
-            if override or options:
-                config = copy.deepcopy(config)
-                if override:
-                    config_util.merge_config(config, override)
-                if options:
-                    config_util.read_options(config, options)
-                    options = None
-    return config, options, supported_features
-
 def preprocess_example(preprocessor, index, raw_example, config=None, config_override=None):
     """Applies preprocessing function on example."""
     if not isinstance(raw_example, dict):
@@ -303,17 +280,27 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
         raise InvalidRequest('missing text field in example %d' % index)
     mode = raw_example.get('mode', 'default')
 
+    options = None
     example_config_override = raw_example.get('config')
+
+    # Resolve example options.
+    if config is not None:
+        example_options = raw_example.get('options')
+        if example_options:
+            options_or_override = config_util.read_options(config, example_options)
+            if config_util.is_v2_config(config):
+                options = options_or_override
+            else:
+                example_config_override = config_util.merge_config(
+                    example_config_override or {}, options_or_override)
+
+    # Merge example-level config override into batch-level config override.
     if example_config_override:
         if config_override:
             config_override = config_util.merge_config(
                 copy.deepcopy(config_override), example_config_override)
         else:
             config_override = example_config_override
-    config, options, supported_features = finalize_config(
-        config,
-        override=config_override,
-        options=raw_example.get('options'))
 
     target_prefix = raw_example.get('target_prefix')
     target_fuzzy = raw_example.get('fuzzy')
@@ -325,6 +312,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
     if target_prefix is not None:
         target_text = target_prefix
     elif target_fuzzy is not None:
+        supported_features = config.get('supported_features') if config else None
         if supported_features is not None and supported_features.get("NFA", False):
             target_text = target_fuzzy
             target_name = "fuzzy"
@@ -341,7 +329,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
             source_text,
             target=target_text,
             target_name=target_name,
-            config=config,
+            config=config_override,
             options=options,
         )
 
@@ -353,7 +341,7 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
 
     return TranslationExample(
         index=index,
-        config=config,
+        config=config_override,
         options=options,
         source_tokens=source_tokens,
         target_tokens=target_tokens,

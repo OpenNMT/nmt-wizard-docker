@@ -203,7 +203,7 @@ def test_preprocess_examples():
     assert examples[0].config == {"a": 42}
     assert examples[0].source_tokens == [["a", "b", "c"]]
     assert examples[0].metadata == [3]
-    assert examples[1].config == {"a": 24}
+    assert examples[1].config is None
     assert examples[1].source_tokens == [["d", "e", "f"], ["g"]]
     assert examples[1].metadata == [3, 1]
 
@@ -420,17 +420,6 @@ def test_run_request_with_v2_config():
             },
         ],
     }
-
-    with pytest.raises(serving.InvalidRequest, match="override is not supported"):
-        request = {"src": [{"text": "a b c", "config": {"override": 42}}]}
-        serving.run_request(
-            request,
-            translate,
-            Preprocessor(),
-            Postprocessor(),
-            config=config,
-            rebatch_request=False,
-            max_batch_size=1)
 
     request = {"src": [{"text": "a b c"}]}
     result = serving.run_request(

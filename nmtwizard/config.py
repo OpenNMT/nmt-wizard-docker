@@ -76,6 +76,28 @@ def index_config(config, path, index_structure=True):
     else:
         return config, key
 
+def build_override(config, path, value):
+    """Builds a configuration override to update the value at path."""
+    if not path:
+        return value
+    sections = path.split('/')
+    section = sections[0]
+    inner_path = '/'.join(sections[1:])
+    if isinstance(config, dict):
+        return {section: build_override(config.get(section), inner_path, value)}
+    elif isinstance(config, list):
+        index = int(sections[0])
+        override = build_override(config[index], inner_path, value)
+        # Since lists can't be merged, the override should contain the full list content.
+        config = list(config)
+        if isinstance(override, dict):
+            config[index] = merge_config(copy.deepcopy(config[index]), override)
+        else:
+            config[index] = override
+        return config
+    else:
+        raise TypeError('Paths in config can only represent object and array structures')
+
 def index_schema(schema, path):
     """Index a JSON schema with a path-like string."""
     for section in path.split('/'):
@@ -119,7 +141,7 @@ def validate_mapping(schema, options, config):
 def read_options(config, options):
     """Reads the inference options.
 
-    For V1 configurations, this function updates the global configuration with incoming options.
+    For V1 configurations, this function returns a configuration override.
     For V2 configurations, this function returns a dict mapping operator names to their options.
 
     Raises:
@@ -134,19 +156,21 @@ def read_options(config, options):
         raise ValueError('Options validation error: %s' % e.message)
     v2_config = is_v2_config(config)
     operators_options = collections.defaultdict(dict)
+    config_override = {}
     for mapping in inference_options['options']:
         try:
             option_value = index_config(options, mapping['option_path'])
         except ValueError:
             continue  # Option not passed for this request.
-        dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
         if v2_config:
+            dst_config, dst_key = index_config(config, mapping['config_path'], index_structure=False)
             operators_options[dst_config['name']].update({dst_key: option_value})
         else:
-            dst_config[dst_key] = option_value
+            merge_config(
+                config_override, build_override(config, mapping['config_path'], option_value))
     if v2_config:
         return operators_options
-    return config
+    return config_override
 
 def is_v2_config(config):
     """Returns True if config is a V2 configuration."""

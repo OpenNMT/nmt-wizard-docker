@@ -142,11 +142,27 @@ def test_read_options():
         config.read_options(cfg, options)
 
     options = {"bpreprocess": {"domain": "IT"}}
-    config.get_options(cfg, options)
-    assert cfg["bpreprocess"]["classifiers"][1]["value"] == "IT"
+    config.read_options(cfg, options) == {
+        "bpreprocess": {
+            "classifiers": [
+                {
+                    "name": "politeness"
+                },
+                {
+                    "name": "domain",
+                    "value": "IT",
+                }
+            ]
+        }
+    }
 
-def test_read_options():
+def test_read_options_v2():
     cfg = copy.deepcopy(_test_config_v2)
     cfg['inference_options'] = copy.deepcopy(_test_inference_options_v2)
     options = {"bpreprocess": {"domain": "IT"}}
     assert config.read_options(cfg, options) == {"my-domain-op": {"value": "IT"}}
+
+def test_build_override():
+    c = {"a": {"b": {"c": 42}, "d": [{"e": 43}, {"f": 44}]}}
+    assert config.build_override(c, "a/z", 45) == {"a": {"z": 45}}
+    assert config.build_override(c, "a/d/1/g", 45) == {"a": {"d": [{"e": 43}, {"f": 44, "g": 45}]}}
