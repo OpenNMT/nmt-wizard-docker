@@ -1,10 +1,12 @@
 """Functions for corpus preprocessing."""
 
+import copy
 import collections
 import multiprocessing
 import multiprocessing.managers
 import os
 
+from nmtwizard import config as config_util
 from nmtwizard import utils
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import consumer
@@ -388,7 +390,7 @@ class InferenceProcessor(Processor):
             list of tokens.
           target_name: The name of the target that is passed during inference.
           metadata: Additional metadata of the input.
-          config: The configuration for this example.
+          config: A configuration override for this example.
           options: A dictionary with operators options.
 
         Returns:
@@ -399,7 +401,11 @@ class InferenceProcessor(Processor):
         # thread for each request.
 
         # Rebuild pipeline if the example has its own configuration.
-        if config is not None:
+        if config:
+            if config_util.is_v2_config(self._config):
+                raise ValueError("Configuration override is not supported for V2 "
+                                 "configurations")
+            config = config_util.merge_config(copy.deepcopy(self._config), config)
             pipeline = prepoperator.Pipeline(
                 config,
                 self._pipeline_type,
