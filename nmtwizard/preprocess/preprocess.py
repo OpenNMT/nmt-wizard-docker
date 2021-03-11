@@ -368,8 +368,11 @@ class InferenceProcessor(Processor):
         super().__init__(config, pipeline_type, num_workers=0)
         self._postprocess = postprocess
         # Build a generic pipeline that will be used in process_input.
-        self._pipeline = prepoperator.Pipeline(
-            self._config,
+        self._pipeline = self.build_pipeline(self._config)
+
+    def build_pipeline(self, config):
+        return prepoperator.Pipeline(
+            config,
             self._pipeline_type,
             shared_state=self._global_shared_state.get(),
         )
@@ -406,11 +409,7 @@ class InferenceProcessor(Processor):
                 raise ValueError("Configuration override is not supported for V2 "
                                  "configurations")
             config = config_util.merge_config(copy.deepcopy(self._config), config)
-            pipeline = prepoperator.Pipeline(
-                config,
-                self._pipeline_type,
-                shared_state=self._global_shared_state.get(),
-            )
+            pipeline = self.build_pipeline(config)
         else:
             pipeline = self._pipeline
 
