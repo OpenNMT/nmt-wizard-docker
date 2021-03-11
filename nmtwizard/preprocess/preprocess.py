@@ -142,12 +142,12 @@ class Processor(object):
                 loader,
                 consumer,
                 preprocess_exit_step=None,
-                options=None):
+                options=None,
+                pipeline=None):
 
         if self._num_workers == 0:
             logger.info('Start processing')
 
-            pipeline = None
             for tu_batch in loader():
                 override_label = _get_corpus_label(tu_batch)
                 shared_state = self._global_shared_state.get(override_label)
@@ -466,7 +466,7 @@ class InferenceProcessor(Processor):
             metadata=metadata,
             start_state=self._pipeline.start_state)
         with consumer.FileWriter(output_file, self._postprocess) as file_consumer:
-            self.process(file_loader, file_consumer)
+            self.process(file_loader, file_consumer, pipeline=self._pipeline)
             if self._postprocess:
                 return output_file
             return output_file, file_consumer.metadata
