@@ -159,7 +159,9 @@ class OpenNMTTFFramework(Framework):
         return opennmt.Runner(
             model,
             run_config,
-            auto_config=options.get('auto_config', False))
+            auto_config=options.get('auto_config', False),
+            mixed_precision=options.get('mixed_precision', False),
+        )
 
 
 def _build_run_config(config,
