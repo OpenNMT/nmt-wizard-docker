@@ -209,8 +209,8 @@ def test_align_perplexity_invalid_config(mode, lower, upper):
 
 @pytest.mark.parametrize("lower,upper,src_length,tgt_length,fwd_log_prob,bwd_log_prob,filtered", [
     (None, None, 5, 7, -5.1, -8.2, False),
-    (2, None, 5, 5, 0, 0, True),  # ppl = 1
-    (1, 10, 5, 5, 0, 0, False),  # ppl = 1
+    (-1, 0, 5, 5, 0, 0, False),
+    (-10, -2, 5, 5, -5.1, -8.2, True),
 ])
 def test_align_perplexity_hard_threshold(lower,
                                          upper,

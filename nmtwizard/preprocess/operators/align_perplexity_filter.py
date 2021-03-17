@@ -60,9 +60,9 @@ class AlignPerplexityFilter(prepoperator.Filter):
 
 def _get_hard_threshold(config, field):
     value = config.get(field)
-    if value is not None and value < 1:
+    if value is not None and value > 0:
         raise ValueError("align_perplexity_filter: perplexity values range from "
-                         "+1 (best perplexity) to +inf (worst perplexity), but hard "
+                         "-inf (worst perplexity) to 0 (best perplexity), but hard "
                          "threshold '%s' is set to %.2f" % (field, value))
     return value
 
