@@ -45,7 +45,7 @@ class AlignPerplexityFilter(prepoperator.Filter):
         elif self._percent_threshold is not None:
             # Remove the worst $lower percent and the best $upper percent perplexity values.
             keep_ids = range(batch_size)
-            keep_ids = list(sorted(keep_ids, key=lambda i: perplexity[i]))  # From best to worst.
+            keep_ids = list(sorted(keep_ids, key=lambda i: perplexity[i], reverse=True))  # From best to worst.
             worst_to_remove = int(self._lower * batch_size)
             best_to_remove = int(self._upper * batch_size)
             if worst_to_remove != 0:
@@ -60,9 +60,9 @@ class AlignPerplexityFilter(prepoperator.Filter):
 
 def _get_hard_threshold(config, field):
     value = config.get(field)
-    if value is not None and value < 1:
+    if value is not None and value > 0:
         raise ValueError("align_perplexity_filter: perplexity values range from "
-                         "+1 (best perplexity) to +inf (worst perplexity), but hard "
+                         "-inf (worst perplexity) to 0 (best perplexity), but hard "
                          "threshold '%s' is set to %.2f" % (field, value))
     return value
 
@@ -76,9 +76,13 @@ def _get_percent_threshold(config, field):
 def _compute_perplexity(tu):
     # Compute the average source/target perplexity.
     fwd, bwd = _get_log_probs(tu)
+
     src_size = len(tu.src_tok.tokens[0])
     tgt_size = len(tu.tgt_tok.tokens[0])
-    return (math.exp(-fwd / src_size) + math.exp(-bwd / tgt_size)) / 2
+
+    min_size = min(src_size, tgt_size) or 1
+
+    return math.log((math.exp(fwd / min_size) + math.exp(bwd / min_size)) / 2)
 
 def _get_log_probs(tu):
     log_probs = tu.alignment_log_probs
