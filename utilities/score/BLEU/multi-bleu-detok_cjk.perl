@@ -203,8 +203,8 @@ sub tokenization
 	$norm_text =~ s/([\.,])([^0-9])/ $1 $2/g; # tokenize period and comma unless followed by a digit
 	$norm_text =~ s/([0-9])(-)/$1 $2 /g; # tokenize dash when preceded by a digit
 
-# for CJK
-	$norm_text =~ s/([\p{Sc=Han}\p{Sc=Hiragana}\p{Sc=Katakana}\p{Sc=Hangul}\p{Sc=Thai}])/ $1 /g;
+# for CJK, Thai, Burmese
+	$norm_text =~ s/([\p{Sc=Han}\p{Sc=Hiragana}\p{Sc=Katakana}\p{Sc=Hangul}\p{Sc=Thai}\p{Sc=Mymr}])/ $1 /g;
 	$norm_text =~ s/\s+/ /g; # one space only between words
 	$norm_text =~ s/^\s+//;  # no leading space
 	$norm_text =~ s/\s+$//;  # no trailing space
