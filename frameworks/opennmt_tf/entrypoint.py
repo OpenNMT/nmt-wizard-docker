@@ -155,6 +155,7 @@ class OpenNMTTFFramework(Framework):
             model_dir,
             model_file=options.get('model'),
             model_name=options.get('model_type'),
+            as_builder=True,
         )
         return opennmt.Runner(
             model,
