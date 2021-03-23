@@ -50,10 +50,13 @@ class OpenNMTTFFramework(Framework):
 
         if prev_src_vocab or prev_tgt_vocab:
             previous_model_dir = runner.model_dir
-            runner.update_vocab(
-                os.path.join(self._output_dir, 'new_vocab_checkpoint'),
-                src_vocab=src_vocab_info.current if prev_src_vocab else None,
-                tgt_vocab=tgt_vocab_info.current if prev_tgt_vocab else None)
+            # Update the model vocabulary on CPU to avoid initializing the GPU context
+            # and allow batch size autotuning to run properly afterwards.
+            with tf.device("cpu"):
+                runner.update_vocab(
+                    os.path.join(self._output_dir, 'new_vocab_checkpoint'),
+                    src_vocab=src_vocab_info.current if prev_src_vocab else None,
+                    tgt_vocab=tgt_vocab_info.current if prev_tgt_vocab else None)
             shutil.rmtree(previous_model_dir)
 
         output_dir, summary = runner.train(
