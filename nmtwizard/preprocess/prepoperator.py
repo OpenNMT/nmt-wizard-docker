@@ -345,6 +345,9 @@ class MonolingualOperator(TUOperator):
         self._source_process = None
         self._target_process = None
 
+        self._source_lang = config.get("lang") or config.get("source_lang")
+        self._target_lang = config.get("lang") or config.get("target_lang")
+
         if self._postprocess_only:
             # For postprocess only, the config only applies to the target.
             self._target_process = self._build_process(config, "target", build_state)
@@ -373,7 +376,8 @@ class MonolingualOperator(TUOperator):
 
     def _preprocess_tu(self, tu, meta_batch, **kwargs):
 
-        if self._source_process is not None:
+        options = kwargs.get("options") # Inference options are only applied in source in preprocess.
+        if self._source_process is not None or options:
             if self._detok:
                 for name, detok in tu.src_detok_gen():
                     src_detok = self._apply_process(self._source_process, detok, **kwargs)
@@ -398,7 +402,8 @@ class MonolingualOperator(TUOperator):
 
     def _postprocess_tu(self, tu, **kwargs):
         if self._postprocess_only:
-            if self._target_process is not None:
+            options = kwargs.get("options")
+            if self._target_process is not None or options:
                 if self._detok:
                     tu.tgt_detok = self._apply_process(self._target_process, tu.tgt_detok, **kwargs)
                 else:
