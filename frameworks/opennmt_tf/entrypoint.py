@@ -195,6 +195,7 @@ def _build_run_config(config,
         data['example_weights'] = example_weights_file
 
     train = config.setdefault('train', {})
+    train.setdefault('batch_size_autotune_scale', 0.7)
     train.setdefault('sample_buffer_size', -1)
     # No need to keep multiple checkpoints as only the last one will be pushed.
     train.setdefault('save_checkpoints_steps', None)
