@@ -295,7 +295,7 @@ class Operator(object):
         return True
 
     @staticmethod
-    def is_supported(supported_freatures, process_type):
+    def is_supported(supported_features, process_type):
         return False
 
     @staticmethod
