@@ -145,11 +145,13 @@ class OpenNMTTFFramework(Framework):
             tgt_vocab = self._convert_vocab(config['vocabulary']['target']['path'])
 
         options = config['options']
+        auto_config = options.get('auto_config', False)
         run_config = _build_run_config(
             options.get('config'),
             model_dir,
             src_vocab,
             tgt_vocab,
+            auto_config=auto_config,
             src_file=src_file,
             tgt_file=tgt_file,
             align_file=align_file,
@@ -163,7 +165,7 @@ class OpenNMTTFFramework(Framework):
         return opennmt.Runner(
             model,
             run_config,
-            auto_config=options.get('auto_config', False),
+            auto_config=auto_config,
             mixed_precision=options.get('mixed_precision', False),
         )
 
@@ -172,6 +174,7 @@ def _build_run_config(config,
                       model_dir,
                       src_vocab,
                       tgt_vocab,
+                      auto_config=False,
                       src_file=None,
                       tgt_file=None,
                       align_file=None,
@@ -204,6 +207,8 @@ def _build_run_config(config,
     if train.setdefault('max_step', None) is None:
         # Force a single pass if the number of training steps in unspecified.
         train['single_pass'] = True
+    if auto_config:
+        train.setdefault('moving_average_decay', 0.9999)
 
     return config
 
