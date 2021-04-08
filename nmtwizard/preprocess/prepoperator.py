@@ -36,6 +36,7 @@ def operator_info_generator(config,
                             process_type,
                             override_label=None,
                             preprocess_exit_step=None,
+                            supported_features=None,
                             ignore_disabled=True):
     for i, operator_config in enumerate(config):
         if preprocess_exit_step is not None and i > preprocess_exit_step:
@@ -45,6 +46,9 @@ def operator_info_generator(config,
         operator_cls = get_operator_class(operator_type)
         if not operator_cls.is_applied_for(process_type):
             continue
+        # Ignore 'disabled' for operators supported in inference
+        if operator_cls.is_supported(supported_features, process_type):
+            ignore_disabled = False
         operator_params = get_operator_params(operator_config, operator_type, override_label=override_label)
         if ignore_disabled and operator_params.get("disabled", False):
             continue
@@ -145,11 +149,14 @@ class Pipeline(object):
         # When building a pipeline, a special label can be activated to override operator configuration in some cases (e.g. for some corpora).
         self.override_label = override_label
 
+        supported_features = config.get("supported_features")
+
         # Start state is used in loader, to inform it about input tokenization.
         # TODO: can we do it better ?
         self.start_state = { "src_tokenizer" : None,
                              "tgt_tokenizer" : None,
                              "postprocess_only" : False,
+                             "supported_features": supported_features,
                              "src_vocabulary" : config.get("vocabulary", {}).get("source", {}).get("path"),
                              "tgt_vocabulary" : config.get("vocabulary", {}).get("target", {}).get("path")}
 
@@ -166,7 +173,8 @@ class Pipeline(object):
     def _add_op_list(self, op_list_config, exit_step=None, shared_state=None):
         # Parameters from global configuration that can be useful for individual operators.
 
-        for operator_info in operator_info_generator(op_list_config, self._process_type, self.override_label, exit_step):
+        supported_features = self.build_state.get("supported_features")
+        for operator_info in operator_info_generator(op_list_config, self._process_type, self.override_label, exit_step, supported_features):
             operator_cls, operator_params, operator_type, i  = operator_info
 
             operator = build_operator(
@@ -286,6 +294,9 @@ class Operator(object):
     def is_applied_for(process_type):
         return True
 
+    @staticmethod
+    def is_supported(supported_freatures, process_type):
+        return False
 
     @staticmethod
     def accept_options():
