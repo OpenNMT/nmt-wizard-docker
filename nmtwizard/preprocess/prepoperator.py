@@ -47,7 +47,7 @@ def operator_info_generator(config,
         if not operator_cls.is_applied_for(process_type):
             continue
         # Ignore 'disabled' for operators supported in inference
-        if operator_cls.is_supported(supported_features, process_type):
+        if supported_features and operator_cls.is_supported(supported_features, process_type):
             ignore_disabled = False
         operator_params = get_operator_params(operator_config, operator_type, override_label=override_label)
         if ignore_disabled and operator_params.get("disabled", False):
