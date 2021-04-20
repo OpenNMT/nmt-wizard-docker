@@ -452,14 +452,14 @@ class SamplerFileWriter(Consumer):
         self._result_dir = result_dir
         self._summary = summary
         self._src_suffix = config['source']
-        self._tgt_suffix = config['target']
+        self._tgt_suffix = config.get('target', None)
 
 
     def _consume(self, outputs):
         outputs, meta = outputs
         basename = meta["base_name"]
         src_path = os.path.join(self._result_dir, basename + "." + self._src_suffix)
-        tgt_path = os.path.join(self._result_dir, basename + "." + self._tgt_suffix)
+        tgt_path = os.path.join(self._result_dir, basename + "." + self._tgt_suffix) if self._tgt_suffix else None
         align_path = os.path.join(self._result_dir, basename + ".align")
         write_alignment = meta.get('write_alignment', False)
         example_weights_path = os.path.join(self._result_dir, basename + ".weights")
@@ -471,7 +471,8 @@ class SamplerFileWriter(Consumer):
             # When the batch is coming from a file we did not see yet, clear any existing
             # output files.
             open(src_path, "w").close()
-            open(tgt_path, "w").close()
+            if tgt_path:
+              open(tgt_path, "w").close()
             if write_alignment:
                 open(align_path, "w").close()
             if example_weights:
@@ -480,7 +481,7 @@ class SamplerFileWriter(Consumer):
         file_summary["linefiltered"] += len(outputs)
 
         # Write lines to file from TUs
-        with open(src_path, "a") as src_file, open(tgt_path, "a") as tgt_file:
+        with open(src_path, "a") as src_file:
             for output in outputs:
                 src_tokens = output.src
                 if isinstance(src_tokens, list):
@@ -490,13 +491,16 @@ class SamplerFileWriter(Consumer):
                 else:
                     src_file.write("%s\n" % output.src)
 
-                tgt_tokens = output.tgt
-                if isinstance(tgt_tokens, list):
-                    for part in tgt_tokens :
-                        part = " ".join(part)
-                        tgt_file.write("%s\n" % part)
-                else:
-                    tgt_file.write("%s\n" % output.tgt)
+        if tgt_path:
+          with open(tgt_path, "a") as tgt_file:
+              for output in outputs:
+                  tgt_tokens = output.tgt
+                  if isinstance(tgt_tokens, list):
+                      for part in tgt_tokens :
+                          part = " ".join(part)
+                          tgt_file.write("%s\n" % part)
+                  else:
+                      tgt_file.write("%s\n" % output.tgt)
 
         if write_alignment:
             with open(align_path, "a") as align_file:

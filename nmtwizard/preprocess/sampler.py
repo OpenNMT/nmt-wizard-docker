@@ -46,13 +46,13 @@ def sample(config, source_dir, oversample_as_weights):
         logger.debug("Processing %s", file_path)
 
         src_path = file_path + "." + src_suffix
-        tgt_path = file_path + "." + tgt_suffix
+        tgt_path = file_path + "." + tgt_suffix if tgt_suffix else None
 
         # Check all directions are present and aligned, open files
         src_file, src_lines = utils.count_lines(src_path)
         files["src"] = src_file
 
-        if src_file and src_lines :
+        if src_file and src_lines and tgt_path:
             # TODO V2 : multiple sources and targets
             tgt_file, tgt_lines = utils.count_lines(tgt_path)
             if tgt_file is None:
@@ -260,7 +260,7 @@ def sample(config, source_dir, oversample_as_weights):
 
     # TODO V2 : multiple sources and targets
     src_suffix=config["source"]
-    tgt_suffix=config["target"]
+    tgt_suffix=config.get("target", None)
 
     # If there is not 'sample_dist', take uniform distribution from default data directory.
     if 'data' not in config or 'sample_dist' not in config['data'] :

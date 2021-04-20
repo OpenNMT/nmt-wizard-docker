@@ -81,6 +81,8 @@ def is_gzip_file(path):
     return path.endswith(".gz")
 
 def open_file(path, *args, **kwargs):
+    if path is None:
+        return None
     if is_gzip_file(path):
         return gzip.open(path, *args, **kwargs)
     else:
