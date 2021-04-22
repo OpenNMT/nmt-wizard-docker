@@ -50,6 +50,6 @@ def _get_side_filters(config, chars_fn, words_fn):
 
     min_words = config.get('min_words')
     if min_words is not None:
-        filters.append(lambda tu: (len(words_fn(tu)) < min_words, f"Shorter than max words ({min_words})"))
+        filters.append(lambda tu: (len(words_fn(tu)) < min_words, f"Shorter than min words ({min_words})"))
 
     return filters
