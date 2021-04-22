@@ -31,6 +31,8 @@ class SimilarityFilter(prepoperator.Filter):
                 p = random.random()
                 if mode == "soft_sigmoid":
                     norm_v = 1 / (1 + math.exp(-norm_v))
-            return (p > norm_v, f"Similarity score {norm_v} lower than {p}")
+            if p > norm_v:
+                return (True, f"Similarity score {norm_v} lower than {p}")
+            return False
 
         super().__init__([_filter])
