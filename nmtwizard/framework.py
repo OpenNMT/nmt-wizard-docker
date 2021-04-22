@@ -339,6 +339,9 @@ class Framework(utility.Utility):
             if not args.build_model:
                 self.preprocess(config, self._storage, args.output)
             else:
+                if args.output:
+                    logger.warn('Argument output (=%s) is set but will not be used in "build_model" mode.', args.output)
+
                 if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
                     raise ValueError('cannot preprocess from a model that is not a training '
                                      'checkpoint or a base model')
@@ -648,7 +651,12 @@ class Framework(utility.Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        outputs = self._build_data(local_config)
+        if output:
+          assert local_config["source"]
+          outputs = self._build_data(local_config)
+        else:
+          assert local_config["source"] and local_config["target"]
+          outputs = self._generate_training_data(local_config)
         data_dir = outputs[0]
 
         if output:
@@ -672,6 +680,7 @@ class Framework(utility.Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
+        assert local_config["source"] and local_config["target"]
         data_dir, num_samples, distribution_summary, tokens_to_add = (
             self._build_data(local_config))
 
