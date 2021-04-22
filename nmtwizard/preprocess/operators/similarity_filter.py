@@ -10,6 +10,7 @@ class SimilarityFilter(prepoperator.Filter):
         threshold = config.get("threshold", 0)
         mode = config.get("mode")
         factor = config.get("factor", 1)
+        self._verbose = config.get("verbose", False)
 
         if mode is None:
             raise ValueError("Missing mode field in similarity configuration")
@@ -31,10 +32,7 @@ class SimilarityFilter(prepoperator.Filter):
                 p = random.random()
                 if mode == "soft_sigmoid":
                     norm_v = 1 / (1 + math.exp(-norm_v))
-            if p > norm_v:
-                if self._verbose:
-                    return (True, f"Similarity score {norm_v} lower than {p}")
-                return True
-            return False
+            to_filter = p > norm_v
+            return (to_filter, f"Similarity score {norm_v} lower than {p}") if self._verbose else to_filter
 
         super().__init__([_filter])
