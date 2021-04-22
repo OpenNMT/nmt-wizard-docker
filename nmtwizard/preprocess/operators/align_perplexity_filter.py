@@ -1,6 +1,10 @@
 import math
 
 from nmtwizard.preprocess import prepoperator
+from nmtwizard.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 @prepoperator.register_operator("align_perplexity_filter")
 class AlignPerplexityFilter(prepoperator.Filter):
@@ -41,6 +45,10 @@ class AlignPerplexityFilter(prepoperator.Filter):
                 if ((self._lower is None or perplexity >= self._lower)
                     and (self._upper is None or perplexity <= self._upper)):
                     new_tu_list.append(tu)
+                elif self._verbose:
+                    message = f"Perplexity value ({perplexity:.2f}) outside hard thresholds"
+                    logger.info(f'{message} : \'{self.name}\' operator filters the following sentence \nSRC : {tu.src_detok}\nTGT : {tu.tgt_detok}')
+
 
         elif self._percent_threshold is not None:
             # Remove the worst $lower percent and the best $upper percent perplexity values.
@@ -48,12 +56,23 @@ class AlignPerplexityFilter(prepoperator.Filter):
             keep_ids = list(sorted(keep_ids, key=lambda i: perplexity[i], reverse=True))  # From best to worst.
             worst_to_remove = int(self._lower * batch_size)
             best_to_remove = int(self._upper * batch_size)
+            worst_ids = []
+            best_ids = []
             if worst_to_remove != 0:
+                worst_ids = keep_ids[-worst_to_remove:]
                 keep_ids = keep_ids[:-worst_to_remove]
             if best_to_remove != 0:
+                best_ids = keep_ids[:best_to_remove]
                 keep_ids = keep_ids[best_to_remove:]
             for i in sorted(keep_ids):
                 new_tu_list.append(tu_list[i])
+            if self._verbose:
+                for i in worst_ids:
+                    message = f"Perplexity value ({perplexity[i]:.2f}) worse than percentage threshold"
+                    logger.info(f'{message} : \'{self.name}\' operator filters the following sentence \nSRC : {tu_list[i].src_detok}\nTGT : {tu_list[i].tgt_detok}')
+                for i in best_ids:
+                    message = f"Perplexity value ({perplexity[i]:.2f}) better than percentage threshold"
+                    logger.info(f'{message} : \'{self.name}\' operator filters the following sentence \nSRC : {tu_list[i].src_detok}\nTGT : {tu_list[i].tgt_detok}')
 
         return new_tu_list, meta_batch
 

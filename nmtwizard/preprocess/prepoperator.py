@@ -115,6 +115,7 @@ def build_operator(operator_type,
     # We set common private attributes here so that operators do not need to call
     # the base constructor.
     operator._name = name
+    operator._verbose = operator_params.get("verbose", False)
     operator._process_type = process_type
     return operator
 
@@ -352,6 +353,7 @@ class MonolingualOperator(TUOperator):
 
     def __init__(self, config, process_type, build_state):
         self._postprocess_only = build_state.get("postprocess_only")
+        self._verbose = config.get("verbose")
         self._process_type = process_type
         self._source_process = None
         self._target_process = None
@@ -447,6 +449,12 @@ class Filter(TUOperator):
 
     def _preprocess_tu(self, tu, meta_batch):
         for c in self._criteria:
-            if (c(tu)):
+            to_filter = c(tu)
+            message = ""
+            if isinstance(to_filter, tuple):
+                to_filter, message = to_filter
+            if to_filter:
+                if self._verbose:
+                    logger.info(f'{message} : \'{self.name}\' operator filters the following sentence \nSRC : {tu.src_detok}\nTGT : {tu.tgt_detok}')
                 return []
         return [tu]
