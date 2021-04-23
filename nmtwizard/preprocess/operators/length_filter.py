@@ -23,13 +23,15 @@ class LengthFilter(prepoperator.Filter):
 
         min_words_ratio = config.get('min_words_ratio')
         if min_words_ratio is not None:
+            message = "Too small word length ratio"
             filters.append(lambda tu: (
-                _check_verbose(self._verbose, len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]) < min_words_ratio, f"Too small word length ratio")))
+                len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]) < min_words_ratio, message))
 
         max_words_ratio = config.get('max_words_ratio')
         if max_words_ratio is not None:
+            message = "Too big word length ratio"
             filters.append(lambda tu: (
-                _check_verbose(self._verbose, len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]) > max_words_ratio, f"Too big word length ratio")))
+                len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]) > max_words_ratio, message))
 
         super(LengthFilter, self).__init__(filters)
 
@@ -40,22 +42,22 @@ def _get_side_config(config, side):
     config.setdefault('min_words', 1)
     return config
 
-def _check_verbose(verbose, condition, message):
-    return (condition, message) if verbose else condition
-
 def _get_side_filters(config, chars_fn, words_fn, verbose):
     filters = []
 
     max_chars = config.get('max_characters')
     if max_chars is not None:
-        filters.append(lambda tu: _check_verbose(verbose, len(chars_fn(tu)) > max_chars, f"Longer than max chars ({max_chars})"))
+        message = f"Longer than max chars ({max_chars})"
+        filters.append(lambda tu: (len(chars_fn(tu)) > max_chars, message))
 
     max_words = config.get('max_words')
     if max_words is not None:
-        filters.append(lambda tu: _check_verbose(verbose, len(words_fn(tu)) > max_words, f"Longer than max words ({max_words})"))
+        message = f"Longer than max words ({max_words})"
+        filters.append(lambda tu: (len(words_fn(tu)) > max_words, message))
 
     min_words = config.get('min_words')
     if min_words is not None:
-        filters.append(lambda tu: _check_verbose(verbose, len(words_fn(tu)) < min_words, f"Shorter than min words ({min_words})"))
+        message = f"Shorter than min words ({min_words})"
+        filters.append(lambda tu: (len(words_fn(tu)) < min_words, message))
 
     return filters
