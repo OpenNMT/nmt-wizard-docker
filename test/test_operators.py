@@ -127,6 +127,7 @@ def test_identity_filter():
     config = [
         {
             "op": "identity_filter",
+            "verbose": True,
             "min_characters": 0,
         },
     ]
@@ -149,7 +150,13 @@ def test_identity_filter():
     (dict(max_words_ratio=0.5), True),
 ])
 def test_length_filter(filter_config, filtered):
-    filter_config["op"] = "length_filter"
+    filter_config.update(
+        {
+            "op": "length_filter",
+            "verbose": True
+        }
+    )
+
     config = [
         {
             "op": "tokenization",
@@ -222,6 +229,7 @@ def test_align_perplexity_hard_threshold(lower,
     config = [
         {
             "op": "align_perplexity_filter",
+            "verbose": True,
             "hard_threshold": {
                 "lower": lower,
                 "upper": upper,
@@ -272,6 +280,7 @@ def test_align_perplexity_percent_threshold(lower, upper, log_probs, expected_lo
         "preprocess": [
             {
                 "op": "align_perplexity_filter",
+                "verbose": True,
                 "percent_threshold": {
                     "lower": lower,
                     "upper": upper,

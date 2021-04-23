@@ -182,7 +182,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
     (dict(mode="soft_sigmoid"), None),  # Same.
 ])
 def test_sampler_with_annotations(tmpdir, similarity_filter_config, expected_num_samples):
-    similarity_filter_config.update({"op": "similarity_filter"})
+    similarity_filter_config.update({"op": "similarity_filter", "verbose": True})
 
     with open(str(tmpdir.join("train.en")), "w") as en:
         en.write("\n".join(["1", "2", "3", "4", "5", "6"]))
