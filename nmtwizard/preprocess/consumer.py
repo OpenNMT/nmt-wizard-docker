@@ -95,48 +95,52 @@ class SummaryLogger(Consumer):
     def __init__(self):
         super().__init__()
         self._summary = { "filtered": collections.defaultdict(lambda: collections.defaultdict(int)),
-                          "added": collections.defaultdict(lambda: collections.defaultdict(int)) }
+                          "added": collections.defaultdict(lambda: collections.defaultdict(int)),
+                          "unknown": collections.defaultdict(lambda: collections.defaultdict(int))
+        }
 
     def _consume(self, outputs):
         _, batch_meta = outputs
-        filter_summary = batch_meta.get("filter_summary")
-        add_summary = batch_meta.get("add_summary")
         base_name = batch_meta.get("base_name")
-        if filter_summary:
-            for name, value in filter_summary.items():
-                if base_name:
-                    self._summary["filtered"][base_name][name] += value
-                self._summary["filtered"][None][name] += value
-        if add_summary:
-            for name, value in add_summary.items():
-                if base_name:
-                    self._summary["added"][base_name][name] += value
-                self._summary["filtered"][None][name] += value
 
+        def _add_summary(summary_name, proc):
+            summary = batch_meta.get(summary_name)
+            if summary:
+                for name, value in summary.items():
+                    if base_name:
+                        self._summary[proc][base_name][name] += value
+                    self._summary[proc][None][name] += value
+
+        _add_summary("filter_summary", "filtered")
+        _add_summary("add_summary", "added")
+        _add_summary("unk_summary", "unknown")
 
     def finalize(self):
 
-        def _log_info(file_info, file_summary, proc):
+        def _log_info(file_info, file_summary, proc, units):
+            sum_value = sum(file_summary.values())
             logger.info(
-                "Summary of %s sentences %s(%d %s sentences in total):",
-                proc, file_info, sum(file_summary.values()), proc)
+                f"Summary of {proc} {units} {file_info}({sum_value} {proc} {units} in total):")
             sorted_summary = sorted(
                 file_summary.items(),
                 key=lambda item: item[1],
                 reverse=True)
             for name, value in sorted_summary:
-                logger.info("\t%s %s %d sentences", name, proc, value)
+                logger.info(f"\t'{name}' {proc} {value} {units}")
 
-        for proc in ["filtered", "added"]:
+        for proc, units in {"filtered": "sentences",
+                            "added": "sentences",
+                            "unknown": "tokens"}.items():
             summary = self._summary[proc]
             if summary:
+                print (summary)
                 all_files_summary = summary.pop(None)
-                _log_info("for the whole sample ", all_files_summary, proc)
+                _log_info("for the whole sample ", all_files_summary, proc, units)
                 sorted_by_base_name = sorted(
                     summary.items(),
                     key=lambda item: item[0])
                 for base_name, file_summary in sorted_by_base_name:
-                    _log_info(f"for file '{base_name}' ", file_summary, proc)
+                    _log_info(f"for the file '{base_name}' ", file_summary, proc, units)
 
 class RegisterNewTokens(Consumer):
     """Registers new tokens that should be added to the vocabulary."""
