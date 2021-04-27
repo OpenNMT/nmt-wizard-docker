@@ -133,7 +133,6 @@ class SummaryLogger(Consumer):
                             "unknown": "tokens"}.items():
             summary = self._summary[proc]
             if summary:
-                print (summary)
                 all_files_summary = summary.pop(None)
                 _log_info("for the whole sample ", all_files_summary, proc, units)
                 sorted_by_base_name = sorted(
