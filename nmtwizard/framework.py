@@ -234,6 +234,8 @@ class Framework(utility.Utility):
         parser_preprocess = subparsers.add_parser('preprocess', help='Sample and preprocess corpus.')
         parser_preprocess.add_argument('--build_model', default=False, action='store_true',
                                        help='Preprocess data into a model.')
+        parser_preprocess.add_argument('-o', '--output', help='Output files')
+
         parser.build_vocab = subparsers.add_parser('buildvocab', help='Build vocabularies.')
         self.parser = parser
 
@@ -335,8 +337,11 @@ class Framework(utility.Utility):
                 config, model_path, args.host, args.port, gpuid=self._gpuid)
         elif args.cmd == 'preprocess':
             if not args.build_model:
-                self.preprocess(config, self._storage)
+                self.preprocess(config, self._storage, args.output)
             else:
+                if args.output:
+                    logger.warn('Argument output (=%s) is set but will not be used in "build_model" mode.', args.output)
+
                 if parent_model is not None and config['modelType'] not in ('checkpoint', 'base'):
                     raise ValueError('cannot preprocess from a model that is not a training '
                                      'checkpoint or a base model')
@@ -641,13 +646,21 @@ class Framework(utility.Utility):
             backend_info_fn=self.backend_info,
             rebatch_request=not self.has_own_request_batching)
 
-    def preprocess(self, config, storage):
+    def preprocess(self, config, storage, output=None):
         logger.info('Starting preprocessing data ')
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        outputs = self._generate_training_data(local_config)
+        if output:
+          assert local_config["source"], "Source language needs to be set."
+          outputs = self._build_data(local_config)
+        else:
+          assert local_config["source"] and local_config["target"], "Source and Target languages need to be set."
+          outputs = self._generate_training_data(local_config)
         data_dir = outputs[0]
+
+        if output:
+          storage.push(os.path.join(data_dir, "train."+config["source"]), output)
 
         end_time = time.time()
         logger.info('Finished preprocessing data in %.1f seconds into %s',
@@ -667,6 +680,7 @@ class Framework(utility.Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
+        assert local_config["source"] and local_config["target"], "Source and Target languages need to be set."
         data_dir, num_samples, distribution_summary, tokens_to_add = (
             self._build_data(local_config))
 
@@ -900,7 +914,7 @@ class Framework(utility.Utility):
         if num_samples == 0:
             raise RuntimeError('data sampling generated 0 sentences')
         data_dir = self._merge_multi_training_files(
-            data_dir, train_dir, config['source'], config['target'])
+            data_dir, train_dir, config['source'], config.get('target',None))
         return data_dir, num_samples, distribution_summary, tokens_to_add
 
     def _merge_multi_training_files(self, data_path, train_dir, source, target):

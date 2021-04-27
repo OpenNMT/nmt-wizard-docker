@@ -92,7 +92,7 @@ class SamplerFileLoader(Loader):
 
     def __call__(self):
         src_file = utils.open_file(self._file.files["src"])
-        tgt_file = utils.open_file(self._file.files["tgt"])
+        tgt_file = utils.open_file(self._file.files.get("tgt", None))
         annotations = {
             key:utils.open_file(path)
             for key, path in self._file.files.get("annotations", {}).items()}
@@ -100,7 +100,7 @@ class SamplerFileLoader(Loader):
         def _get_samples():
             for i in range(self._file.lines_count):
                 src_line = src_file.readline()
-                tgt_line = tgt_file.readline()
+                tgt_line = tgt_file.readline() if tgt_file else None
                 annot_lines = {}
                 for key, annot_file in annotations.items():
                     annot_lines[key] = annot_file.readline()
@@ -110,7 +110,8 @@ class SamplerFileLoader(Loader):
                     continue
 
                 src_line = src_line.strip()
-                tgt_line = tgt_line.strip()
+                if tgt_line:
+                  tgt_line = tgt_line.strip()
                 for key, line in annot_lines.items():
                     annot_lines[key] = line.strip()
 
@@ -146,7 +147,8 @@ class SamplerFileLoader(Loader):
                 yield tu_list, batch_meta.copy()
         finally:
             src_file.close()
-            tgt_file.close()
+            if tgt_file:
+                tgt_file.close()
             for f in annotations.values():
                 f.close()
 
