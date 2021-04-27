@@ -600,6 +600,31 @@ def test_preprocess_as_model(tmpdir):
     assert os.path.isfile(os.path.join(model_dir, "data", "train.%s" % config["source"]))
     assert os.path.isfile(os.path.join(model_dir, "data", "train.%s" % config["target"]))
 
+def test_preprocess_sample_mono(tmpdir):
+    storage_config = {
+        "corpus": {
+            "type": "local",
+            "basedir": os.path.join(_test_dir(), "corpus")
+        }
+    }
+    config = {
+      "source": "en",
+      "data": {
+            "sample": 1000,
+            "sample_dist": [{
+                "path": "${DATA_DIR}/train",
+                "distribution": [
+                    ["europarl", 1]
+                ]
+            }]
+      }
+    }
+    os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
+    model_dir = _run_framework(tmpdir, "preprocess0", "preprocess -o corpus:sample.en", config=config, storage_config=storage_config)
+    config = _read_config(model_dir)
+    assert config["build"]["sentenceCount"] == 1000
+    assert config["build"]["cumSentenceCount"] == 1000
+
 def test_description(tmpdir):
     description = "A description with a non ascii character: é"
     config = copy.deepcopy(config_base)
