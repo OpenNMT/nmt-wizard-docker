@@ -652,10 +652,10 @@ class Framework(utility.Utility):
 
         local_config = self._finalize_config(config)
         if output:
-          assert local_config["source"]
+          assert local_config["source"], "Source language needs to be set."
           outputs = self._build_data(local_config)
         else:
-          assert local_config["source"] and local_config["target"]
+          assert local_config["source"] and local_config["target"], "Source and Target languages need to be set."
           outputs = self._generate_training_data(local_config)
         data_dir = outputs[0]
 
@@ -680,7 +680,7 @@ class Framework(utility.Utility):
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        assert local_config["source"] and local_config["target"]
+        assert local_config["source"] and local_config["target"], "Source and Target languages need to be set."
         data_dir, num_samples, distribution_summary, tokens_to_add = (
             self._build_data(local_config))
 
