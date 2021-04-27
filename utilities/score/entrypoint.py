@@ -13,18 +13,19 @@ from nmtwizard.preprocess import tokenizer
 
 LOGGER = get_logger(__name__)
 
+
 class ScoreUtility(Utility):
     def __init__(self):
         super(ScoreUtility, self).__init__()
-        self._tools_dir = os.getenv('TOOLS_DIR', '/root/tools')
+        self._tools_dir = os.getenv("TOOLS_DIR", "/root/tools")
         self.metric_lang = {
             # comma separated if there are multi languages
             "BLEU": "all",
             "TER": "all",
             "Otem-Utem": "all",
             "NIST": "all",
-            "Meteor": "cz,de,en,es,fr,ru"
-            }
+            "Meteor": "cz,de,en,es,fr,ru",
+        }
         self.pool = ThreadPool(processes=int(os.getenv("NB_CPU", "5")))
 
     @property
@@ -32,55 +33,73 @@ class ScoreUtility(Utility):
         return "score"
 
     def declare_arguments(self, parser):
-        subparsers = parser.add_subparsers(help='Run type', dest='cmd')
-        parser_score = subparsers.add_parser('score', help='Evaluate translation.')
-        parser_score.add_argument('-o', '--output', required=True, nargs='+',
-                                  help='Output file from translation.')
-        parser_score.add_argument('-r', '--ref', required=True, nargs='+',
-                                  help='Reference file.')
-        parser_score.add_argument('-f', '--file', default='-',
-                                  help='file to save score result to.')
-        parser_score.add_argument('-l', '--lang', default='en',
-                                  help='Lang ID')
-        parser_score.add_argument('-tok', '--tok_config',
-                                  help='Configuration for tokenizer')
-        parser_score.add_argument('-ph', '--keep_placeholder', action="store_true",
-                                  help='Remove placeholder by default')
-        parser_score.add_argument('-m', '--metrics', default=['BLEU', 'Otem-Utem', 'NIST'], nargs='+',
-                                  help='Specify metrics to evaluate, by default ignore TER and METEOR')
+        subparsers = parser.add_subparsers(help="Run type", dest="cmd")
+        parser_score = subparsers.add_parser("score", help="Evaluate translation.")
+        parser_score.add_argument(
+            "-o",
+            "--output",
+            required=True,
+            nargs="+",
+            help="Output file from translation.",
+        )
+        parser_score.add_argument(
+            "-r", "--ref", required=True, nargs="+", help="Reference file."
+        )
+        parser_score.add_argument(
+            "-f", "--file", default="-", help="file to save score result to."
+        )
+        parser_score.add_argument("-l", "--lang", default="en", help="Lang ID")
+        parser_score.add_argument(
+            "-tok", "--tok_config", help="Configuration for tokenizer"
+        )
+        parser_score.add_argument(
+            "-ph",
+            "--keep_placeholder",
+            action="store_true",
+            help="Remove placeholder by default",
+        )
+        parser_score.add_argument(
+            "-m",
+            "--metrics",
+            default=["BLEU", "Otem-Utem", "NIST"],
+            nargs="+",
+            help="Specify metrics to evaluate, by default ignore TER and METEOR",
+        )
 
     def check_supported_metric(self, lang, allmetrics):
         metric_supported = []
         for metric, lang_defined in self.metric_lang.items():
             if metric not in allmetrics:
                 continue
-            lang_group = lang_defined.split(',')
-            if 'all' in lang_group or lang in lang_group:
+            lang_group = lang_defined.split(",")
+            if "all" in lang_group or lang in lang_group:
                 metric_supported.append(metric)
         return metric_supported
 
     def build_tokenizer_by_config(self, tok_config, lang):
         if tok_config is None:
             tok_config = {"mode": "aggressive"}
-            if lang == 'zh':
-              tok_config['segment_alphabet'] = ['Han']
-              tok_config['segment_alphabet_change'] = True
+            if lang == "zh":
+                tok_config["segment_alphabet"] = ["Han"]
+                tok_config["segment_alphabet_change"] = True
         # to avoid SentencePiece sampling
-        if 'sp_nbest_size' in tok_config:
-            tok_config['sp_nbest_size'] = 0
+        if "sp_nbest_size" in tok_config:
+            tok_config["sp_nbest_size"] = 0
         return tokenizer.build_tokenizer(tok_config)
 
     def remove_ph_escape(self, obj):
         obj = obj.group(2)
-        obj = obj.replace('％FF03', '＃')
-        obj = obj.replace('％FF1A', '?')
-        obj = obj.replace('％003F', '：')
-        obj = obj.replace('％0020', ' ')
+        obj = obj.replace("％FF03", "＃")
+        obj = obj.replace("％FF1A", "?")
+        obj = obj.replace("％003F", "：")
+        obj = obj.replace("％0020", " ")
         return obj
 
     def remove_ph(self, filename):
         outfile = tempfile.NamedTemporaryFile(delete=False)
-        with open(filename, 'r', encoding='utf-8') as input_file, open(outfile.name, 'w', encoding='utf-8') as output_file:
+        with open(filename, "r", encoding="utf-8") as input_file, open(
+            outfile.name, "w", encoding="utf-8"
+        ) as output_file:
             for line in input_file:
                 line = re.sub(r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape, line)
                 output_file.write(line)
@@ -101,7 +120,9 @@ class ScoreUtility(Utility):
         return outfile_group
 
     def exec_command_with_timeout(self, cmd, timeout=300, shell=False):
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell)
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell
+        )
 
         iterations = 0
         while p.poll() is None and iterations < timeout:
@@ -114,82 +135,122 @@ class ScoreUtility(Utility):
         return p.stdout.read()
 
     def eval_BLEU(self, tgtfile, reffile):
-        reffile = reffile.replace(',', ' ')
-        result = self.exec_command_with_timeout('/usr/bin/perl %s %s < %s' % (
-                                            os.path.join(self._tools_dir, 'BLEU', 'multi-bleu-detok_cjk.perl'),
-                                            reffile,
-                                            tgtfile), shell=True)  # nosec
-        bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode('ascii'))
-        bleu_score = {'BLEU': 0, 'BLEU-1': 0}
+        reffile = reffile.replace(",", " ")
+        result = self.exec_command_with_timeout(
+            "/usr/bin/perl %s %s < %s"
+            % (
+                os.path.join(self._tools_dir, "BLEU", "multi-bleu-detok_cjk.perl"),
+                reffile,
+                tgtfile,
+            ),
+            shell=True,
+        )  # nosec
+        bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode("ascii"))
+        bleu_score = {"BLEU": 0, "BLEU-1": 0}
         if bleu is not None:
-            bleu_score['BLEU'] = float(bleu.group(1))
-            bleu_score['BLEU-1'] = float(bleu.group(2))
+            bleu_score["BLEU"] = float(bleu.group(1))
+            bleu_score["BLEU-1"] = float(bleu.group(2))
         return bleu_score
 
     def eval_TER(self, tgtfile, reffile):
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as file_tgt, tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as file_ref:
-            with open(tgtfile, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8"
+        ) as file_tgt, tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8"
+        ) as file_ref:
+            with open(tgtfile, encoding="utf-8") as f:
                 for i, line in enumerate(f):
-                    file_tgt.write('%s\t(%d-)\n' % (line.rstrip(), i))
+                    file_tgt.write("%s\t(%d-)\n" % (line.rstrip(), i))
             for ref in reffile:
-                with open(ref, encoding='utf-8') as f:
+                with open(ref, encoding="utf-8") as f:
                     for i, line in enumerate(f):
-                        file_ref.write('%s\t(%d-)\n' % (line.rstrip(), i))
+                        file_ref.write("%s\t(%d-)\n" % (line.rstrip(), i))
             file_tgt.flush()
             file_ref.flush()
-            result = self.exec_command_with_timeout(['/usr/bin/java', '-jar',
-                                  os.path.join(self._tools_dir, 'TER', 'tercom.7.25.jar'),
-                                  '-r', file_ref.name,
-                                  '-h', file_tgt.name,
-                                  '-s', '-N'])
-            ter = re.match(r"^.*Total\sTER:\s([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
+            result = self.exec_command_with_timeout(
+                [
+                    "/usr/bin/java",
+                    "-jar",
+                    os.path.join(self._tools_dir, "TER", "tercom.7.25.jar"),
+                    "-r",
+                    file_ref.name,
+                    "-h",
+                    file_tgt.name,
+                    "-s",
+                    "-N",
+                ]
+            )
+            ter = re.match(
+                r"^.*Total\sTER:\s([\d\.]+).*$", result.decode("ascii"), re.DOTALL
+            )
             if ter is not None:
-                return round(float(ter.group(1))*100, 2)
+                return round(float(ter.group(1)) * 100, 2)
 
             return 0
 
     def eval_Otem_Utem(self, tgtfile, reffile):
-        reffile_prefix = reffile[0] + 'prefix'
+        reffile_prefix = reffile[0] + "prefix"
         for idx, f in enumerate(reffile):
-            subprocess.call(['/bin/ln', '-s', f, '%s%d' % (reffile_prefix, idx)])
+            subprocess.call(["/bin/ln", "-s", f, "%s%d" % (reffile_prefix, idx)])
 
-        otem_utem_score = {'OTEM': 0, 'UTEM': 0}
-        result = self.exec_command_with_timeout(['/usr/bin/python',
-                                            os.path.join(self._tools_dir, 'Otem-Utem', 'metric.py'),
-                                            tgtfile,
-                                            reffile_prefix])
-        otem = re.match(r"^OTEM-2/UTEM-4/BLEU-4: ([\d\.]+)/([\d\.]+)/([\d\.]+)", result.decode('ascii'))
+        otem_utem_score = {"OTEM": 0, "UTEM": 0}
+        result = self.exec_command_with_timeout(
+            [
+                "/usr/bin/python",
+                os.path.join(self._tools_dir, "Otem-Utem", "metric.py"),
+                tgtfile,
+                reffile_prefix,
+            ]
+        )
+        otem = re.match(
+            r"^OTEM-2/UTEM-4/BLEU-4: ([\d\.]+)/([\d\.]+)/([\d\.]+)",
+            result.decode("ascii"),
+        )
         if otem is not None:
-            otem_utem_score['OTEM'] = float(otem.group(1))
-            otem_utem_score['UTEM'] = float(otem.group(2))
+            otem_utem_score["OTEM"] = float(otem.group(1))
+            otem_utem_score["UTEM"] = float(otem.group(2))
 
         for idx in range(len(reffile)):
-            os.remove('%s%d' % (reffile_prefix, idx))
+            os.remove("%s%d" % (reffile_prefix, idx))
 
         return otem_utem_score
 
     def eval_NIST_create_tempfile(self, typename, filename, inputfiles):
         file_handle = open(filename, "wb")
-        subprocess.call(['/usr/bin/perl',
-                                            os.path.join(self._tools_dir, 'NIST', 'xml_wrap.pl'),
-                                            typename] + inputfiles,
-                                            stdout=file_handle)
+        subprocess.call(
+            [
+                "/usr/bin/perl",
+                os.path.join(self._tools_dir, "NIST", "xml_wrap.pl"),
+                typename,
+            ]
+            + inputfiles,
+            stdout=file_handle,
+        )
 
     def eval_NIST(self, tgtfile, reffile):
         file_prefix = tempfile.NamedTemporaryFile(delete=False)
-        file_src_xml = file_prefix.name + '_src.xml'
-        self.eval_NIST_create_tempfile('src', file_src_xml, [tgtfile])
-        file_tst_xml = file_prefix.name + '_tst.xml'
-        self.eval_NIST_create_tempfile('tst', file_tst_xml, [tgtfile])
-        file_ref_xml = file_prefix.name + '_ref.xml'
-        self.eval_NIST_create_tempfile('ref', file_ref_xml, reffile)
+        file_src_xml = file_prefix.name + "_src.xml"
+        self.eval_NIST_create_tempfile("src", file_src_xml, [tgtfile])
+        file_tst_xml = file_prefix.name + "_tst.xml"
+        self.eval_NIST_create_tempfile("tst", file_tst_xml, [tgtfile])
+        file_ref_xml = file_prefix.name + "_ref.xml"
+        self.eval_NIST_create_tempfile("ref", file_ref_xml, reffile)
 
-        result = self.exec_command_with_timeout(['/usr/bin/perl',
-                                            os.path.join(self._tools_dir, 'NIST', 'mteval-v14.pl'),
-                                            '-s', file_src_xml,
-                                            '-t', file_tst_xml,
-                                            '-r', file_ref_xml])
-        nist = re.match(r"^.*NIST\sscore\s=\s([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
+        result = self.exec_command_with_timeout(
+            [
+                "/usr/bin/perl",
+                os.path.join(self._tools_dir, "NIST", "mteval-v14.pl"),
+                "-s",
+                file_src_xml,
+                "-t",
+                file_tst_xml,
+                "-r",
+                file_ref_xml,
+            ]
+        )
+        nist = re.match(
+            r"^.*NIST\sscore\s=\s([\d\.]+).*$", result.decode("ascii"), re.DOTALL
+        )
 
         os.remove(file_prefix.name)
         os.remove(file_src_xml)
@@ -202,11 +263,11 @@ class ScoreUtility(Utility):
         return 0
 
     def eval_METEOR(self, tgtfile, reffile, lang):
-        reffile = reffile.split(',')
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as file_ref:
+        reffile = reffile.split(",")
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as file_ref:
             file_handles = []
             for ref in reffile:
-                file_handles.append(open(ref, encoding='utf-8'))
+                file_handles.append(open(ref, encoding="utf-8"))
             nRef = len(file_handles)
             for line in file_handles[0]:
                 file_ref.write(line)
@@ -214,13 +275,26 @@ class ScoreUtility(Utility):
                     line = file_handles[idx].readline()
                     file_ref.write(line)
             file_ref.flush()
-            result = self.exec_command_with_timeout(['/usr/bin/java', '-Xmx2G', '-jar',
-                                  os.path.join(self._tools_dir, 'METEOR', 'meteor-1.5.jar'),
-                                  tgtfile, file_ref.name,
-                                  '-l', lang.lower(), '-norm', '-r', str(nRef)])
-            meteor = re.match(r"^.*Final\sscore:\s+([\d\.]+).*$", result.decode('ascii'), re.DOTALL)
+            result = self.exec_command_with_timeout(
+                [
+                    "/usr/bin/java",
+                    "-Xmx2G",
+                    "-jar",
+                    os.path.join(self._tools_dir, "METEOR", "meteor-1.5.jar"),
+                    tgtfile,
+                    file_ref.name,
+                    "-l",
+                    lang.lower(),
+                    "-norm",
+                    "-r",
+                    str(nRef),
+                ]
+            )
+            meteor = re.match(
+                r"^.*Final\sscore:\s+([\d\.]+).*$", result.decode("ascii"), re.DOTALL
+            )
             if meteor is not None:
-                return round(float(meteor.group(1))*100, 2)
+                return round(float(meteor.group(1)) * 100, 2)
 
             return 0
 
@@ -237,14 +311,16 @@ class ScoreUtility(Utility):
         list_ref = self.convert_to_local_file(args.ref)
 
         if len(list_output) != len(list_ref):
-            raise ValueError("`--output` and `--ref` should have same number of parameters")
+            raise ValueError(
+                "`--output` and `--ref` should have same number of parameters"
+            )
 
         metric_supported = self.check_supported_metric(args.lang, args.metrics)
         lang_tokenizer = self.build_tokenizer_by_config(args.tok_config, args.lang)
 
         score = {}
         for i, output in enumerate(list_output):
-            list_ref_files = list_ref[i].split(',')
+            list_ref_files = list_ref[i].split(",")
             if not self.check_file_exist([output] + list_ref_files):
                 continue
 
@@ -257,39 +333,49 @@ class ScoreUtility(Utility):
             print("Starting to evaluate ... %s" % args.output[i])
             thread_list = {}
             for metric in metric_supported:
-                if metric == 'BLEU':
-                    thread_list[metric] = self.pool.apply_async(self.eval_BLEU, (output, list_ref[i]))
-                if metric == 'TER':
-                    thread_list[metric] = self.pool.apply_async(self.eval_TER, (output_tok[0], reffile_tok))
-                if metric == 'Otem-Utem':
-                    thread_list[metric] = self.pool.apply_async(self.eval_Otem_Utem, (output_tok[0], reffile_tok))
-                if metric == 'NIST':
-                    thread_list[metric] = self.pool.apply_async(self.eval_NIST, (output_tok[0], reffile_tok))
-                if metric == 'Meteor':
+                if metric == "BLEU":
+                    thread_list[metric] = self.pool.apply_async(
+                        self.eval_BLEU, (output, list_ref[i])
+                    )
+                if metric == "TER":
+                    thread_list[metric] = self.pool.apply_async(
+                        self.eval_TER, (output_tok[0], reffile_tok)
+                    )
+                if metric == "Otem-Utem":
+                    thread_list[metric] = self.pool.apply_async(
+                        self.eval_Otem_Utem, (output_tok[0], reffile_tok)
+                    )
+                if metric == "NIST":
+                    thread_list[metric] = self.pool.apply_async(
+                        self.eval_NIST, (output_tok[0], reffile_tok)
+                    )
+                if metric == "Meteor":
                     # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
-                    thread_list[metric] = self.pool.apply_async(self.eval_METEOR, (output, list_ref[i], args.lang))
+                    thread_list[metric] = self.pool.apply_async(
+                        self.eval_METEOR, (output, list_ref[i], args.lang)
+                    )
 
             score[args.output[i]] = {}
             for metric in metric_supported:
-                if metric == 'BLEU':
+                if metric == "BLEU":
                     bleu_score = thread_list[metric].get()
                     for k, v in bleu_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
-                if metric == 'TER':
+                if metric == "TER":
                     v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
-                if metric == 'Otem-Utem':
+                if metric == "Otem-Utem":
                     otem_utem_score = thread_list[metric].get()
                     for k, v in otem_utem_score.items():
                         print("%s: %.2f" % (k, v))
                         score[args.output[i]][k] = v
-                if metric == 'NIST':
+                if metric == "NIST":
                     v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
-                if metric == 'Meteor':
+                if metric == "Meteor":
                     v = thread_list[metric].get()
                     print("%s: %.2f" % (metric, v))
                     score[args.output[i]][metric] = v
@@ -300,12 +386,12 @@ class ScoreUtility(Utility):
 
         # dump score to stdout, or transfer to storage as specified
         print(json.dumps(score))
-        if args.file != '-':
-            with tempfile.NamedTemporaryFile(mode='w') as file_handler:
+        if args.file != "-":
+            with tempfile.NamedTemporaryFile(mode="w") as file_handler:
                 file_handler.write(json.dumps(score))
                 file_handler.flush()
                 self._storage.push(file_handler.name, args.file)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     ScoreUtility().run()

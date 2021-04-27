@@ -3,9 +3,9 @@ import math
 
 from nmtwizard.preprocess import prepoperator
 
+
 @prepoperator.register_operator("similarity_filter")
 class SimilarityFilter(prepoperator.Filter):
-
     def __init__(self, config, process_type, build_state):
         threshold = config.get("threshold", 0)
         mode = config.get("mode")
@@ -33,6 +33,10 @@ class SimilarityFilter(prepoperator.Filter):
                 if mode == "soft_sigmoid":
                     norm_v = 1 / (1 + math.exp(-norm_v))
             to_filter = p > norm_v
-            return (to_filter, f"Similarity score {norm_v} lower than {p}") if self._verbose else to_filter
+            return (
+                (to_filter, f"Similarity score {norm_v} lower than {p}")
+                if self._verbose
+                else to_filter
+            )
 
         super().__init__([_filter])

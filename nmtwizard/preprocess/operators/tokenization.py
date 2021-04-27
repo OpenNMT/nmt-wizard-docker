@@ -3,9 +3,9 @@ import tempfile
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import tokenizer
 
+
 @prepoperator.register_operator("tokenization")
 class Tokenizer(prepoperator.MonolingualOperator):
-
     @property
     def _detok(self):
         return False
@@ -19,9 +19,12 @@ class Tokenizer(prepoperator.MonolingualOperator):
 
         if config.get("restrict_subword_vocabulary", False):
             vocabulary_path = build_state.get(
-                "src_vocabulary" if side == "source" else "tgt_vocabulary")
+                "src_vocabulary" if side == "source" else "tgt_vocabulary"
+            )
             if vocabulary_path is None:
-                raise ValueError("restrict_subword_vocabulary is set but no vocabulary is set")
+                raise ValueError(
+                    "restrict_subword_vocabulary is set but no vocabulary is set"
+                )
 
             # The open source Tokenizer does not accept the custom vocabulary format
             # produced by build_vocab so we create a temporary vocabulary with a simpler
@@ -43,10 +46,12 @@ class Tokenizer(prepoperator.MonolingualOperator):
             else:
                 previous_tokenizer = build_state["tgt_tokenizer"]
                 build_state["tgt_tokenizer"] = current_tokenizer
-        if self.process_type == prepoperator.ProcessType.POSTPROCESS and not self._postprocess_only:
+        if (
+            self.process_type == prepoperator.ProcessType.POSTPROCESS
+            and not self._postprocess_only
+        ):
             return previous_tokenizer
         return current_tokenizer
-
 
     def _apply_process(self, tokenizer, src_tok):
         return (tokenizer, None)

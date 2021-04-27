@@ -27,7 +27,8 @@ class Tokenization(object):
             return None
         if self._token_objects is None:
             self._token_objects = [
-                self._tokenizer.deserialize_tokens(part) for part in self._tokens]
+                self._tokenizer.deserialize_tokens(part) for part in self._tokens
+            ]
         return self._token_objects
 
     @property
@@ -71,11 +72,11 @@ class Alignment(object):
         # A list of alignments, one for each part
         self.__alignments = alignments
         if isinstance(self.__alignments, list):
-            for i,part in enumerate(self.__alignments):
+            for i, part in enumerate(self.__alignments):
                 if isinstance(part, str):
                     # Initialize from pharaoh format
                     # TODO : add checks.
-                    self.__alignments[i] = {tuple(al.split('-')) for al in part.split()}
+                    self.__alignments[i] = {tuple(al.split("-")) for al in part.split()}
                 elif isinstance(part, list):
                     # Initialize from a list of tuples
                     self.__alignments[i] = {tuple(al) for al in part}
@@ -98,12 +99,13 @@ class Alignment(object):
         for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
             align_result = aligner.align(src_tok_part, tgt_tok_part)
             alignments.append(set(align_result["alignments"]))
-            log_probs.append((
-                align_result["forward_log_prob"], align_result["backward_log_prob"]))
+            log_probs.append(
+                (align_result["forward_log_prob"], align_result["backward_log_prob"])
+            )
         self.__alignments = alignments
         self.__log_probs = log_probs
 
-    def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part = 0):
+    def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part=0):
         # Shift alignments behind insertion/deletion.
         # Remove alignments to deleted tokens.
         # Align dangling alignments to the first token.
@@ -137,17 +139,28 @@ class Alignment(object):
 
             self.__alignments[part] = new_alignment
 
-    def insert_alignments(self, src_start_idx, tgt_start_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part = 0):
+    def insert_alignments(
+        self,
+        src_start_idx,
+        tgt_start_idx,
+        src_nb_inserted_tokens,
+        tgt_nb_inserted_tokens,
+        part=0,
+    ):
         # After adjusting alignment, some placeholder operators need to insert new aligned tokens
-        
+
         # Align all source tokens to first target token
         for i in range(src_nb_inserted_tokens):
             self.__alignments[part].add((src_start_idx + i, tgt_start_idx))
 
         # Align last source token to last target token
         if tgt_nb_inserted_tokens > 1:
-            self.__alignments[part].add((src_start_idx + src_nb_inserted_tokens - 1, tgt_start_idx + tgt_nb_inserted_tokens - 1))
-
+            self.__alignments[part].add(
+                (
+                    src_start_idx + src_nb_inserted_tokens - 1,
+                    tgt_start_idx + tgt_nb_inserted_tokens - 1,
+                )
+            )
 
 
 class TranslationSide(object):
@@ -195,8 +208,12 @@ class TranslationSide(object):
             # Set a new tokenizer, perform detokenization with previous one.
             if self.__tok is not None:
                 if self.__tokenizer is None:
-                    raise RuntimeError('No tokenizer is set, cannot perform detokenization.')
-                self.__detok = self.__tokenizer.detokenize(self.__tok[0]) # TODO : preperly deal with multipart.
+                    raise RuntimeError(
+                        "No tokenizer is set, cannot perform detokenization."
+                    )
+                self.__detok = self.__tokenizer.detokenize(
+                    self.__tok[0]
+                )  # TODO : preperly deal with multipart.
             self.__tok = None
             self.__tokenizer = tokenizer
 
@@ -206,7 +223,7 @@ class TranslationSide(object):
             if self.__tokenizer is not None and self.__tok is not None:
                 self.__detok = self.__tokenizer.detokenize(self.__tok[0])
             else:
-                raise RuntimeError('Cannot perform detokenization.')
+                raise RuntimeError("Cannot perform detokenization.")
         return self.__detok
 
     @detok.setter
@@ -221,8 +238,14 @@ class TranslationSide(object):
                 return False
             self.detok = (
                 self.detok
-                + ((' ' + other.output_delimiter) if other.output_delimiter is not None else '')
-                + ' ' + other.detok)
+                + (
+                    (" " + other.output_delimiter)
+                    if other.output_delimiter is not None
+                    else ""
+                )
+                + " "
+                + other.detok
+            )
         else:
             if not other_tokens[0]:
                 return False
@@ -247,11 +270,11 @@ class TranslationSide(object):
             cur_tokens = cur_tokens[part]
             cur_length = len(cur_tokens)
             if start_idx > cur_length:
-                raise IndexError('Start index is too big for replacement.')
+                raise IndexError("Start index is too big for replacement.")
 
             end_idx = start_idx + tok_num
             if end_idx > cur_length:
-                raise IndexError('Too many tokens to delete.')
+                raise IndexError("Too many tokens to delete.")
 
             if not new_tokens:  # Deletion.
                 if start_idx < cur_length:
@@ -272,51 +295,69 @@ class TranslationUnit(object):
 
     __slots__ = ["__source", "__target", "__metadata", "__annotations", "__alignment"]
 
-    def __init__(self,
-                 source,
-                 target=None,
-                 metadata=None,
-                 annotations=None,
-                 alignment=None,
-                 alignment_log_probs=None,
-                 source_tokenizer=None,
-                 target_tokenizer=None):
-        self.__source = {"main": TranslationSide(source, "source", tokenizer=source_tokenizer)}
+    def __init__(
+        self,
+        source,
+        target=None,
+        metadata=None,
+        annotations=None,
+        alignment=None,
+        alignment_log_probs=None,
+        source_tokenizer=None,
+        target_tokenizer=None,
+    ):
+        self.__source = {
+            "main": TranslationSide(source, "source", tokenizer=source_tokenizer)
+        }
         self.__target = None
-        self.__metadata = metadata if metadata is not None else [None] #TODO: proper metadata
+        self.__metadata = (
+            metadata if metadata is not None else [None]
+        )  # TODO: proper metadata
         self.__annotations = annotations
         self.__alignment = None
 
         if target is not None:
-            self.__target = {"main": TranslationSide(target, "target", tokenizer=target_tokenizer)}
+            self.__target = {
+                "main": TranslationSide(target, "target", tokenizer=target_tokenizer)
+            }
             if alignment is not None:
-                self.__alignment = Alignment(alignments=alignment, log_probs=alignment_log_probs)
+                self.__alignment = Alignment(
+                    alignments=alignment, log_probs=alignment_log_probs
+                )
 
-    def add_source(self,
-                   source,
-                   name=None,
-                   tokenizer=None,
-                   output_side="source",
-                   output_delimiter=None):
+    def add_source(
+        self,
+        source,
+        name=None,
+        tokenizer=None,
+        output_side="source",
+        output_delimiter=None,
+    ):
         if name is None:
             name = "main"
-        ts = TranslationSide(source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
+        ts = TranslationSide(
+            source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter
+        )
         if self.__source is not None:
             if name in self.__source:
                 raise RuntimeError("The source named '{}' already exists.".format(name))
             self.__source[name] = ts
         else:
-            self.__source = {name:ts}
+            self.__source = {name: ts}
 
-    def add_target(self,
-                   target,
-                   name=None,
-                   tokenizer=None,
-                   output_side="target",
-                   output_delimiter=None):
+    def add_target(
+        self,
+        target,
+        name=None,
+        tokenizer=None,
+        output_side="target",
+        output_delimiter=None,
+    ):
         if name is None:
             name = "main"
-        ts = TranslationSide(target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter)
+        ts = TranslationSide(
+            target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter
+        )
         if self.__target is not None:
             if name in self.__target:
                 raise RuntimeError("The target named '{}' already exists.".format(name))
@@ -343,7 +384,6 @@ class TranslationUnit(object):
         target.output_side = side
         target.output_delimiter = delimiter
 
-
     @property
     def src_tok(self):
         return self.get_src_tok("main")
@@ -356,7 +396,7 @@ class TranslationUnit(object):
 
     def src_tok_gen(self):
         if self.__source is not None:
-            for i,s in self.__source.items():
+            for i, s in self.__source.items():
                 yield i, s.tok
 
     @property
@@ -372,7 +412,7 @@ class TranslationUnit(object):
 
     def tgt_tok_gen(self):
         if self.__target is not None:
-            for i,t in self.__target.items():
+            for i, t in self.__target.items():
                 yield i, t.tok
 
     @src_tok.setter
@@ -415,9 +455,11 @@ class TranslationUnit(object):
 
     def set_alignment(self, aligner):
         if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
-            raise RuntimeError('Cannot set alignment if not tokenization is set.')
+            raise RuntimeError("Cannot set alignment if not tokenization is set.")
         self.__alignment = Alignment()
-        self.__alignment.set_alignments(aligner, self.src_tok.tokens, self.tgt_tok.tokens)
+        self.__alignment.set_alignments(
+            aligner, self.src_tok.tokens, self.tgt_tok.tokens
+        )
 
     @property
     def src_detok(self):
@@ -431,7 +473,7 @@ class TranslationUnit(object):
 
     def src_detok_gen(self):
         if self.__source is not None:
-            for i,s in self.__source.items():
+            for i, s in self.__source.items():
                 yield i, s.detok
 
     @property
@@ -447,7 +489,7 @@ class TranslationUnit(object):
 
     def tgt_detok_gen(self):
         if self.__target is not None:
-            for i,t in self.__target.items():
+            for i, t in self.__target.items():
                 yield i, t.detok
 
     @src_detok.setter
@@ -460,7 +502,6 @@ class TranslationUnit(object):
             source.detok = detok
         if key == "main":
             self.__alignment = None
-
 
     @tgt_detok.setter
     def tgt_detok(self, detok):
@@ -483,7 +524,9 @@ class TranslationUnit(object):
         all_sides = self.__source.items()
         if self.__target is not None:
             all_sides = itertools.chain(all_sides, self.__target.items())
-        sides_to_merge = (ts for k, ts in all_sides if k != "main" and ts.output_side == name)
+        sides_to_merge = (
+            ts for k, ts in all_sides if k != "main" and ts.output_side == name
+        )
         for ts in sides_to_merge:
             main_side.append(ts)
 
@@ -531,10 +574,12 @@ class TranslationUnit(object):
     def annotations(self):
         return self.__annotations
 
-    def replace_tokens(self,
-                       src_replace = None, # TokReplace structure
-                       tgt_replace = None, # TokReplace structure
-                       part = 0): # TODO : maybe rather send multi-part replacements ?
+    def replace_tokens(
+        self,
+        src_replace=None,  # TokReplace structure
+        tgt_replace=None,  # TokReplace structure
+        part=0,
+    ):  # TODO : maybe rather send multi-part replacements ?
 
         # Replace (delete, insert) tokens in a TU and adjust alignment without retokenization/realignment.
 
@@ -547,11 +592,23 @@ class TranslationUnit(object):
             # replace tokens in source and adjust_alignment if any
             tgt_replace = TokReplace(*tgt_replace)
             self.replace_tokens_side("target", tgt_replace, part=part)
-            
-        if src_replace and src_replace.new_tokens and tgt_replace and tgt_replace.new_tokens and self.__alignment is not None:
+
+        if (
+            src_replace
+            and src_replace.new_tokens
+            and tgt_replace
+            and tgt_replace.new_tokens
+            and self.__alignment is not None
+        ):
             src_nb_inserted_tokens = len(src_replace.new_tokens)
             tgt_nb_inserted_tokens = len(tgt_replace.new_tokens)
-            self.__alignment.insert_alignments(src_replace.start_tok_idx, tgt_replace.start_tok_idx, src_nb_inserted_tokens, tgt_nb_inserted_tokens, part=part)
+            self.__alignment.insert_alignments(
+                src_replace.start_tok_idx,
+                tgt_replace.start_tok_idx,
+                src_nb_inserted_tokens,
+                tgt_nb_inserted_tokens,
+                part=part,
+            )
 
     def replace_tokens_side(self, side, replacement, part=0):
 

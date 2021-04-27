@@ -3,66 +3,74 @@
 
 import pyonmttok
 
-_ALLOWED_TOKENIZER_ARGS = set([
-    "bpe_dropout",
-    "bpe_model_path",
-    "case_feature",
-    "case_markup",
-    "joiner",
-    "joiner_annotate",
-    "joiner_new",
-    "mode",
-    "no_substitution",
-    "preserve_placeholders",
-    "preserve_segmented_tokens",
-    "segment_alphabet",
-    "segment_alphabet_change",
-    "segment_case",
-    "segment_numbers",
-    "sp_alpha",
-    "sp_model_path",
-    "sp_nbest_size",
-    "spacer_annotate",
-    "spacer_new",
-    "support_prior_joiners",
-    "vocabulary_path",
-    "vocabulary_threshold",
-])
+_ALLOWED_TOKENIZER_ARGS = set(
+    [
+        "bpe_dropout",
+        "bpe_model_path",
+        "case_feature",
+        "case_markup",
+        "joiner",
+        "joiner_annotate",
+        "joiner_new",
+        "mode",
+        "no_substitution",
+        "preserve_placeholders",
+        "preserve_segmented_tokens",
+        "segment_alphabet",
+        "segment_alphabet_change",
+        "segment_case",
+        "segment_numbers",
+        "sp_alpha",
+        "sp_model_path",
+        "sp_nbest_size",
+        "spacer_annotate",
+        "spacer_new",
+        "support_prior_joiners",
+        "vocabulary_path",
+        "vocabulary_threshold",
+    ]
+)
+
 
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
-    args = {name:value for name, value in args.items() if name in _ALLOWED_TOKENIZER_ARGS}
+    args = {
+        name: value for name, value in args.items() if name in _ALLOWED_TOKENIZER_ARGS
+    }
     if not args:
         return None
     return pyonmttok.Tokenizer(**args)
 
+
 def make_subword_learner(subword_config, subword_dir, tokenizer=None):
-    params = subword_config.get('params')
+    params = subword_config.get("params")
     if params is None:
-        raise ValueError('\'params\' field should be specified for subword model learning.')
-    subword_type = subword_config.get('type')
+        raise ValueError(
+            "'params' field should be specified for subword model learning."
+        )
+    subword_type = subword_config.get("type")
     if subword_type is None:
-        raise ValueError('\'type\' field should be specified for subword model learning.')
-    vocab_size = params.get('vocab_size')
+        raise ValueError("'type' field should be specified for subword model learning.")
+    vocab_size = params.get("vocab_size")
     if vocab_size is None:
-        raise ValueError('\'vocab_size\' parameter should be specified for subword model learning.')
+        raise ValueError(
+            "'vocab_size' parameter should be specified for subword model learning."
+        )
 
     if subword_type == "bpe":
         learner = pyonmttok.BPELearner(
             tokenizer=tokenizer,
             symbols=vocab_size,
-            min_frequency=params.get('min-frequency', 0),
-            total_symbols=params.get('total_symbols', False))
+            min_frequency=params.get("min-frequency", 0),
+            total_symbols=params.get("total_symbols", False),
+        )
     elif subword_type == "sp":
         learner = pyonmttok.SentencePieceLearner(tokenizer=tokenizer, **params)
     else:
-        raise ValueError('Invalid subword type : \'%s\'.' % subword_type)
+        raise ValueError("Invalid subword type : '%s'." % subword_type)
 
-    return {
-        "learner": learner,
-        "subword_type": subword_type,
-        "size": vocab_size
-    }
+    return {"learner": learner, "subword_type": subword_type, "size": vocab_size}
+
 
 def vocabulary_iterator(vocabulary_path):
     """Iterates over each token included in the vocabulary file."""
@@ -70,11 +78,11 @@ def vocabulary_iterator(vocabulary_path):
         header = True
         for line in vocabulary_file:
             # The vocabulary file might start with some comments prefixed with '#'.
-            if header and line[0] == '#':
+            if header and line[0] == "#":
                 continue
             header = False
-            line = line.rstrip('\n\r')
-            fields = line.split(' ')
+            line = line.rstrip("\n\r")
+            fields = line.split(" ")
             if len(fields) == 1:
                 # No frequency value, the line is just the token.
                 yield fields[0]
@@ -86,7 +94,8 @@ def vocabulary_iterator(vocabulary_path):
                     fields.pop()
                 except ValueError:
                     pass
-                yield ' '.join(fields)
+                yield " ".join(fields)
+
 
 def load_vocabulary(vocabulary_path):
     if vocabulary_path and isinstance(vocabulary_path, str):

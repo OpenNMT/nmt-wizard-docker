@@ -10,17 +10,16 @@ logger = get_logger(__name__)
 
 
 class GoogleTranslateFramework(CloudTranslationFramework):
-
     def __init__(self):
         super(GoogleTranslateFramework, self).__init__()
-        credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         if credentials is None:
             raise ValueError("missing credentials")
-        if credentials.startswith('{'):
-            credential_path = os.path.join(self._tmp_dir, 'Gateway-Translate-API.json')
-            with open(credential_path, 'w') as f:
+        if credentials.startswith("{"):
+            credential_path = os.path.join(self._tmp_dir, "Gateway-Translate-API.json")
+            with open(credential_path, "w") as f:
                 f.write(credentials)
-            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credential_path
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credential_path
         self._client = translate.Client()
         self.max_retry = 5
         self._GOOGLE_LIMIT_TIME = 100
@@ -34,10 +33,14 @@ class GoogleTranslateFramework(CloudTranslationFramework):
                     batch,
                     source_language=source_lang,
                     target_language=target_lang,
-                    format_='text')
+                    format_="text",
+                )
             except Exception as e:
                 if e.code == 403 and "User Rate Limit Exceeded" in e.message:
-                    logger.warning("Exceeding the Google API limit, retrying in %d seconds ..." % self._GOOGLE_LIMIT_TIME)
+                    logger.warning(
+                        "Exceeding the Google API limit, retrying in %d seconds ..."
+                        % self._GOOGLE_LIMIT_TIME
+                    )
                     time.sleep(self._GOOGLE_LIMIT_TIME)
                     retry += 1
                     continue
@@ -46,7 +49,7 @@ class GoogleTranslateFramework(CloudTranslationFramework):
             break
 
         for trans in translation:
-            yield trans['translatedText']
+            yield trans["translatedText"]
 
 
 if __name__ == "__main__":

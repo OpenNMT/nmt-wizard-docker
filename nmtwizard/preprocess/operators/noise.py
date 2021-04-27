@@ -3,9 +3,9 @@ import random
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
 
+
 @prepoperator.register_operator("noise")
 class Noise(prepoperator.TUOperator):
-
     @staticmethod
     def is_applied_for(process_type):
         return process_type == prepoperator.ProcessType.TRAINING
@@ -35,10 +35,11 @@ class Noise(prepoperator.TUOperator):
             elif self._drop_space_prob > 0 and random.random() <= self._drop_space_prob:
                 token.join_left = True
 
-            if ((self._drop_char_prob > 0
-                 or self._duplicate_char_prob > 0
-                 or self._swap_char_prob > 0)
-                and not token.is_placeholder()):
+            if (
+                self._drop_char_prob > 0
+                or self._duplicate_char_prob > 0
+                or self._swap_char_prob > 0
+            ) and not token.is_placeholder():
                 token.surface = self._apply_character_noise(token.surface)
             if len(token.surface) != 0:  # Delete token if empty.
                 new_tokens.append(token)
@@ -50,11 +51,16 @@ class Noise(prepoperator.TUOperator):
         while i < len(cur_surface):
             if self._drop_char_prob > 0 and random.random() <= self._drop_char_prob:
                 pass
-            elif self._duplicate_char_prob > 0 and random.random() <= self._duplicate_char_prob:
+            elif (
+                self._duplicate_char_prob > 0
+                and random.random() <= self._duplicate_char_prob
+            ):
                 new_surface += cur_surface[i] * 2
-            elif (self._swap_char_prob > 0
-                  and i + 1 < len(cur_surface)
-                  and random.random() <= self._swap_char_prob):
+            elif (
+                self._swap_char_prob > 0
+                and i + 1 < len(cur_surface)
+                and random.random() <= self._swap_char_prob
+            ):
                 new_surface += cur_surface[i + 1]
                 new_surface += cur_surface[i]
                 i += 1
