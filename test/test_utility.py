@@ -8,10 +8,7 @@ from nmtwizard import utility
 
 
 def test_resolve_env():
-    config = {
-        "a": "${A_DIR}/a",
-        "b": ["${B_DIR}/b", "${A_TRAIN_DIR}/a"]
-    }
+    config = {"a": "${A_DIR}/a", "b": ["${B_DIR}/b", "${A_TRAIN_DIR}/a"]}
     os.environ["A_DIR"] = "foo"
     os.environ["B_DIR"] = "bar"
     config = utility.resolve_environment_variables(config)
@@ -20,22 +17,21 @@ def test_resolve_env():
     del os.environ["A_DIR"]
     del os.environ["B_DIR"]
 
+
 def test_resolve_env_no_training():
-    config = {
-        "a": "${A_DIR}/a",
-        "b": "${A_TRAIN_DIR}/a"
-    }
+    config = {"a": "${A_DIR}/a", "b": "${A_TRAIN_DIR}/a"}
     os.environ["A_DIR"] = "foo"
     config = utility.resolve_environment_variables(config, training=False)
     assert config["a"] == "foo/a"
     assert config["b"] == "${A_TRAIN_DIR}/a"
+
 
 def test_resolve_remote_files(tmpdir):
     tmpdir.join("remote").join("dir").join("a.txt").write("toto", ensure=True)
     tmpdir.join("local").ensure_dir()
     storage_config = {
         "tmp": {"type": "local", "basedir": str(tmpdir)},
-        "tmp2": {"type": "local", "basedir": str(tmpdir.join("remote"))}
+        "tmp2": {"type": "local", "basedir": str(tmpdir.join("remote"))},
     }
     client = StorageClient(config=storage_config)
     config = {

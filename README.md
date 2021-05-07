@@ -314,3 +314,19 @@ This repository consists of a Python module `nmtwizard` that implements the shar
 * define a `Dockerfile` that includes the framework, the `nmtwizard` module, and all dependencies.
 
 Advanced users could extend existing frameworks to implement customized behavior.
+
+## Run tests
+
+```bash
+# Install test requirements:
+pip install -r tests/requirements.txt
+
+# Run unit tests:
+PYTHONPATH=$PWD pytest test/
+
+# Automatically reformat code:
+black .
+
+# Check code for errors:
+flake8 .
+```

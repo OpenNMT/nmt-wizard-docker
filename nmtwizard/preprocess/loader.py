@@ -5,6 +5,7 @@ import abc
 from nmtwizard import utils
 from nmtwizard.preprocess import tu
 
+
 @six.add_metaclass(abc.ABCMeta)
 class Loader(object):
     """Base class for creating batches of TUs."""
@@ -24,17 +25,19 @@ class Loader(object):
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
-    def __init__(self,
-                 source_file,
-                 target_file=None,
-                 metadata=None,
-                 start_state=None,
-                 batch_size=None):
+    def __init__(
+        self,
+        source_file,
+        target_file=None,
+        metadata=None,
+        start_state=None,
+        batch_size=None,
+    ):
         super().__init__(batch_size)
         if start_state is None:
             start_state = {}
-        self._source_tokenizer = start_state.get('src_tokenizer')
-        self._target_tokenizer = start_state.get('tgt_tokenizer')
+        self._source_tokenizer = start_state.get("src_tokenizer")
+        self._target_tokenizer = start_state.get("tgt_tokenizer")
         self._metadata = metadata
         self._files = [source_file]
         if target_file:
@@ -52,22 +55,29 @@ class FileLoader(Loader):
 
                     # TODO : prefix, features
                     num_parts = len(meta)
-                    src_lines = [next(files[0]).strip().split() for _ in range(num_parts)]
-                    tgt_lines = [next(files[1]).strip().split() for _ in range(num_parts)]
+                    src_lines = [
+                        next(files[0]).strip().split() for _ in range(num_parts)
+                    ]
+                    tgt_lines = [
+                        next(files[1]).strip().split() for _ in range(num_parts)
+                    ]
 
-                    tu_list.append(tu.TranslationUnit(
-                        source=src_lines,
-                        target=tgt_lines,
-                        metadata=meta,
-                        source_tokenizer=self._source_tokenizer,
-                        target_tokenizer=self._target_tokenizer))
+                    tu_list.append(
+                        tu.TranslationUnit(
+                            source=src_lines,
+                            target=tgt_lines,
+                            metadata=meta,
+                            source_tokenizer=self._source_tokenizer,
+                            target_tokenizer=self._target_tokenizer,
+                        )
+                    )
 
                     if len(tu_list) == self._batch_size:
                         yield tu_list, {}
                         tu_list = []
 
             # Preprocess.
-            else :
+            else:
                 for line in files[0]:
                     tu_list.append(tu.TranslationUnit(source=line))
                     if len(tu_list) == self._batch_size:
@@ -88,14 +98,15 @@ class SamplerFileLoader(Loader):
         # TODO V2: multiple src
         super().__init__(batch_size)
         self._file = f
-        self._oversample_as_weights=oversample_as_weights
+        self._oversample_as_weights = oversample_as_weights
 
     def __call__(self):
         src_file = utils.open_file(self._file.files["src"])
         tgt_file = utils.open_file(self._file.files.get("tgt", None))
         annotations = {
-            key:utils.open_file(path)
-            for key, path in self._file.files.get("annotations", {}).items()}
+            key: utils.open_file(path)
+            for key, path in self._file.files.get("annotations", {}).items()
+        }
 
         def _get_samples():
             for i in range(self._file.lines_count):
@@ -111,15 +122,14 @@ class SamplerFileLoader(Loader):
 
                 src_line = src_line.strip()
                 if tgt_line:
-                  tgt_line = tgt_line.strip()
+                    tgt_line = tgt_line.strip()
                 for key, line in annot_lines.items():
                     annot_lines[key] = line.strip()
 
                 while num_samples > 0:
                     yield tu.TranslationUnit(
-                        source=src_line,
-                        target=tgt_line,
-                        annotations=annot_lines)
+                        source=src_line, target=tgt_line, annotations=annot_lines
+                    )
                     num_samples -= 1
 
         try:

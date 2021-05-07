@@ -2,8 +2,10 @@ import pytest
 
 from nmtwizard import serving
 
+
 def _make_output(tokens, score=None, attention=None):
     return serving.TranslationOutput(tokens, score=score, attention=attention)
+
 
 def _make_example(tokens, index=0, metadata=None, mode="default"):
     if metadata is None:
@@ -15,7 +17,9 @@ def _make_example(tokens, index=0, metadata=None, mode="default"):
         source_tokens=tokens,
         target_tokens=[None] * len(tokens),
         mode=mode,
-        metadata=metadata)
+        metadata=metadata,
+    )
+
 
 def test_batch_iterator():
     examples = [
@@ -25,32 +29,36 @@ def test_batch_iterator():
         _make_example([5], index=3, mode="alternatives"),
     ]
 
-    sorted_batches = list(sorted(
-        serving.batch_iterator(examples, max_batch_size=2),
-        key=lambda batch: batch.mode))
+    sorted_batches = list(
+        sorted(
+            serving.batch_iterator(examples, max_batch_size=2),
+            key=lambda batch: batch.mode,
+        )
+    )
     assert sorted_batches == [
         serving.TranslationBatch(
             indices=[1, 3],
             source_tokens=[2, 5],
             target_tokens=[None, None],
-            mode="alternatives"),
+            mode="alternatives",
+        ),
         serving.TranslationBatch(
             indices=[0, 2],
             source_tokens=[1, 3],
             target_tokens=[None, None],
-            mode="default"),
+            mode="default",
+        ),
         serving.TranslationBatch(
-            indices=[2],
-            source_tokens=[4],
-            target_tokens=[None],
-            mode="default"),
+            indices=[2], source_tokens=[4], target_tokens=[None], mode="default"
+        ),
     ]
 
-def test_preprocess_example():
 
+def test_preprocess_example():
     class Processor:
         def process_input(self, source, **kwargs):
             return source.split(), None, None
+
     example = serving.preprocess_example(Processor(), 1, {"text": "a b c"})
     assert example.index == 1
     assert example.source_tokens == [["a", "b", "c"]]
@@ -60,6 +68,7 @@ def test_preprocess_example():
     class Processor:
         def process_input(self, source, target=None, **kwargs):
             return source.split(), target.split(), len(source)
+
     raw_example = {"text": "a b c", "target_prefix": "d e", "mode": "alternatives"}
     example = serving.preprocess_example(Processor(), 2, raw_example)
     assert example.index == 2
@@ -72,17 +81,19 @@ def test_preprocess_example():
         def process_input(self, source, **kwargs):
             source = source.split()
             return [source[:2], source[2:]], None, [1, 2]
+
     example = serving.preprocess_example(Processor(), 3, {"text": "a b c d"})
     assert example.index == 3
     assert example.source_tokens == [["a", "b"], ["c", "d"]]
     assert example.metadata == [1, 2]
     assert example.mode == "default"
 
-def test_preprocess_example_with_fuzzy():
 
+def test_preprocess_example_with_fuzzy():
     class Processor:
         def __init__(self, support_fuzzy):
             self._support_fuzzy = support_fuzzy
+
         def process_input(self, source, target=None, target_name=None, **kwargs):
             if self._support_fuzzy:
                 assert target is not None
@@ -97,6 +108,7 @@ def test_preprocess_example_with_fuzzy():
     config = {"supported_features": {"NFA": True}}
     serving.preprocess_example(Processor(False), 0, example)
     serving.preprocess_example(Processor(True), 0, example, config=config)
+
 
 def test_preprocess_example_with_v1_options():
     config = {
@@ -114,27 +126,30 @@ def test_preprocess_example_with_v1_options():
                     "politeness": {
                         "type": "string",
                         "default": "neutral",
-                        "enum": ["formal", "informal", "neutral"]
+                        "enum": ["formal", "informal", "neutral"],
                     }
-                }
+                },
             },
             "options": [
                 {
                     "option_path": "politeness",
-                    "config_path": "preprocess/politeness/value"
+                    "config_path": "preprocess/politeness/value",
                 },
-            ]
-        }
+            ],
+        },
     }
 
     class Processor:
-        def process_input(self, source, target=None, config=None, options=None, **kwargs):
+        def process_input(
+            self, source, target=None, config=None, options=None, **kwargs
+        ):
             assert config["preprocess"]["politeness"]["value"] == "informal"
             assert options is None
             return source.split(), None, None
 
     example = {"text": "a b c d", "options": {"politeness": "informal"}}
     serving.preprocess_example(Processor(), 0, example, config=config)
+
 
 def test_preprocess_example_with_v2_options():
     config = {
@@ -154,27 +169,30 @@ def test_preprocess_example_with_v2_options():
                     "politeness": {
                         "type": "string",
                         "default": "neutral",
-                        "enum": ["formal", "informal", "neutral"]
+                        "enum": ["formal", "informal", "neutral"],
                     }
-                }
+                },
             },
             "options": [
                 {
                     "option_path": "politeness",
-                    "config_path": "preprocess/politeness-op/value"
+                    "config_path": "preprocess/politeness-op/value",
                 },
-            ]
-        }
+            ],
+        },
     }
 
     class Processor:
-        def process_input(self, source, target=None, config=None, options=None, **kwargs):
+        def process_input(
+            self, source, target=None, config=None, options=None, **kwargs
+        ):
             assert config is None
             assert options == {"politeness-op": {"value": "informal"}}
             return source.split(), None, None
 
     example = {"text": "a b c d", "options": {"politeness": "informal"}}
     serving.preprocess_example(Processor(), 0, example, config=config)
+
 
 def test_preprocess_examples():
     class Processor:
@@ -193,10 +211,7 @@ def test_preprocess_examples():
         serving.preprocess_examples([{"toto": "a b c"}], Processor())
 
     config = {"a": 24}
-    raw_examples = [
-        {"text": "a b c", "config": {"a": 42}},
-        {"text": "d e f g"}
-    ]
+    raw_examples = [{"text": "a b c", "config": {"a": 42}}, {"text": "d e f g"}]
 
     examples = serving.preprocess_examples(raw_examples, Processor(), config=config)
     assert len(examples) == 2
@@ -206,6 +221,7 @@ def test_preprocess_examples():
     assert examples[1].config is None
     assert examples[1].source_tokens == [["d", "e", "f"], ["g"]]
     assert examples[1].metadata == [3, 1]
+
 
 def test_postprocess_output():
     output = _make_output([["a", "b", "c"]], score=[2], attention=[None])
@@ -222,6 +238,7 @@ def test_postprocess_output():
     assert result["text"] == "x y a b c"
     assert result["score"] == 2
 
+
 def test_postprocess_output_with_metadata():
     output = _make_output([["a", "b", "c"]], score=[2], attention=[None])
     example = _make_example([["x", "y"]], metadata=[3])
@@ -236,6 +253,7 @@ def test_postprocess_output_with_metadata():
     result = serving.postprocess_output(output, example, Processor())
     assert result["score"] == 2
 
+
 def test_postprocess_output_multiparts():
     example = _make_example([["x", "y"], ["z"]], metadata=[3, 2])
 
@@ -246,16 +264,23 @@ def test_postprocess_output_multiparts():
             assert metadata == [3, 2]
             return ""
 
-    output = _make_output([["a", "b", "c"], ["d", "e"]], score=[2, 6], attention=[None, None])
+    output = _make_output(
+        [["a", "b", "c"], ["d", "e"]], score=[2, 6], attention=[None, None]
+    )
     result = serving.postprocess_output(output, example, Processor())
     assert result["score"] == 8
 
+
 def test_postprocess_outputs():
     outputs = [
-        [_make_output([["a", "b", "c"]], score=[1], attention=[None]),
-         _make_output([["a", "c", "b"]], score=[2], attention=[None])],
-        [_make_output([["d", "e"]], score=[3], attention=[None]),
-         _make_output([["e", "e"]], score=[4], attention=[None])]
+        [
+            _make_output([["a", "b", "c"]], score=[1], attention=[None]),
+            _make_output([["a", "c", "b"]], score=[2], attention=[None]),
+        ],
+        [
+            _make_output([["d", "e"]], score=[3], attention=[None]),
+            _make_output([["e", "e"]], score=[4], attention=[None]),
+        ],
     ]
     examples = [
         _make_example([["x", "y"]]),
@@ -275,21 +300,29 @@ def test_postprocess_outputs():
     assert results[1][0] == {"text": "d e", "score": 3}
     assert results[1][1] == {"text": "e e", "score": 4}
 
+
 def test_postprocess_outputs_multiparts():
     # 2 parts and 2 hypothesis.
-    outputs = [[
-        _make_output([["a", "b", "c"], ["d", "e"]], score=[1, 3], attention=[None, None]),
-        _make_output([["a", "c", "b"], ["e", "e"]], score=[2, 4], attention=[None, None])
-    ]]
-    examples = [
-        _make_example([["x", "y"], ["z"]], metadata=[3, 2])]
+    outputs = [
+        [
+            _make_output(
+                [["a", "b", "c"], ["d", "e"]], score=[1, 3], attention=[None, None]
+            ),
+            _make_output(
+                [["a", "c", "b"], ["e", "e"]], score=[2, 4], attention=[None, None]
+            ),
+        ]
+    ]
+    examples = [_make_example([["x", "y"], ["z"]], metadata=[3, 2])]
 
     class Processor:
         def process_input(self, source, target=None, metadata=None, **kwargs):
             assert source == [["x", "y"], ["z"]]
             assert metadata == [3, 2]
-            assert (target == [["a", "b", "c"], ["d", "e"]]
-                    or target == [["a", "c", "b"], ["e", "e"]])
+            assert target == [["a", "b", "c"], ["d", "e"]] or target == [
+                ["a", "c", "b"],
+                ["e", "e"],
+            ]
             return " ".join(target[0] + target[1])
 
     results = serving.postprocess_outputs(outputs, examples, Processor())
@@ -297,6 +330,7 @@ def test_postprocess_outputs_multiparts():
     assert len(results[0]) == 2
     assert results[0][0] == {"text": "a b c d e", "score": 1 + 3}
     assert results[0][1] == {"text": "a c b e e", "score": 2 + 4}
+
 
 def test_align_tokens():
     assert serving.align_tokens([], [], []) == []
@@ -309,23 +343,25 @@ def test_align_tokens():
     assert len(alignments) == 3
     assert alignments[0] == {
         "src": [{"range": (3, 4), "id": 1}],
-        "tgt": [{"range": (0, 1), "id": 0}]}
+        "tgt": [{"range": (0, 1), "id": 0}],
+    }
     assert alignments[1] == {
         "src": [{"range": (0, 2), "id": 0}],
-        "tgt": [{"range": (2, 5), "id": 1}]}
+        "tgt": [{"range": (2, 5), "id": 1}],
+    }
     assert alignments[2] == {
         "src": [{"range": (0, 2), "id": 0}],
-        "tgt": [{"range": (6, 8), "id": 2}]}
+        "tgt": [{"range": (6, 8), "id": 2}],
+    }
+
 
 def test_translate_examples():
     def func(source_tokens, target_tokens, options=None):
-        return [
-            [_make_output(list(reversed(element)))]
-            for element in source_tokens]
+        return [[_make_output(list(reversed(element)))] for element in source_tokens]
 
     examples = [
         _make_example([["a", "b"], ["c", "d"]], index=0, metadata=[3, 2]),
-        _make_example([["e", "f", "g"]], index=1, metadata=[4])
+        _make_example([["e", "f", "g"]], index=1, metadata=[4]),
     ]
 
     outputs = serving.translate_examples(examples, func)
@@ -338,6 +374,7 @@ def test_translate_examples():
     assert outputs[1][0].output == [["g", "f", "e"]]
     assert outputs[1][0].score == [None]
     assert outputs[1][0].attention == [None]
+
 
 def test_run_request():
     with pytest.raises(serving.InvalidRequest):
@@ -367,18 +404,21 @@ def test_run_request():
         assert "mode" in options
         assert options["max_batch_size"] == 1
         return [
-            [_make_output((target if target is not None else []) + list(reversed(source)))]
-            for source, target in zip(source_tokens, target_tokens)]
+            [
+                _make_output(
+                    (target if target is not None else []) + list(reversed(source))
+                )
+            ]
+            for source, target in zip(source_tokens, target_tokens)
+        ]
 
     config = {"separator": "-"}
     request = {
         "src": [
             {"text": "a b c", "target_prefix": "1 2", "mode": "alternatives"},
-            {"text": "x_y_z", "config": {"separator": "_"}}
+            {"text": "x_y_z", "config": {"separator": "_"}},
         ],
-        "options": {
-            "config": {"separator": " "}
-        }
+        "options": {"config": {"separator": " "}},
     }
 
     result = serving.run_request(
@@ -388,11 +428,12 @@ def test_run_request():
         Postprocessor(),
         config=config,
         rebatch_request=False,
-        max_batch_size=1)
-    assert result == {'tgt': [[{'text': '1 2 c b a'}], [{'text': 'z_y_x'}]]}
+        max_batch_size=1,
+    )
+    assert result == {"tgt": [[{"text": "1 2 c b a"}], [{"text": "z_y_x"}]]}
+
 
 def test_run_request_with_v2_config():
-
     class Preprocessor:
         def process_input(self, source, target=None, config=None, **kwargs):
             assert config is None
@@ -406,14 +447,19 @@ def test_run_request_with_v2_config():
 
     def translate(source_tokens, target_tokens, options=None):
         return [
-            [_make_output((target if target is not None else []) + list(reversed(source)))]
-            for source, target in zip(source_tokens, target_tokens)]
+            [
+                _make_output(
+                    (target if target is not None else []) + list(reversed(source))
+                )
+            ]
+            for source, target in zip(source_tokens, target_tokens)
+        ]
 
     config = {
         "source": "en",
         "target": "fr",
         "preprocess": [
-           {
+            {
                 "op": "tokenization",
                 "source": {"mode": "space"},
                 "target": {"mode": "space"},
@@ -429,6 +475,7 @@ def test_run_request_with_v2_config():
         Postprocessor(),
         config=config,
         rebatch_request=False,
-        max_batch_size=1)
+        max_batch_size=1,
+    )
 
-    assert result == {'tgt': [[{'text': 'c b a'}]]}
+    assert result == {"tgt": [[{"text": "c b a"}]]}

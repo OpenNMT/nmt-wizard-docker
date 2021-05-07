@@ -20,58 +20,72 @@ logger = get_logger(__name__)
 
 class TranslationOutput(object):
     """Simple structure holding translation outputs."""
+
     def __init__(self, output, score=None, attention=None):
         self.output = output
         self.score = score
         self.attention = attention
 
-class TranslationExample(
-        collections.namedtuple("TranslationExample",
-                               (
-                                   "index",
-                                   "config",
-                                   "options",
-                                   "source_tokens",
-                                   "target_tokens",
-                                   "mode",
-                                   "metadata",
-                               ))):
 
+class TranslationExample(
+    collections.namedtuple(
+        "TranslationExample",
+        (
+            "index",
+            "config",
+            "options",
+            "source_tokens",
+            "target_tokens",
+            "mode",
+            "metadata",
+        ),
+    )
+):
     @property
     def num_parts(self):
         return len(self.source_tokens)
 
+
 class TranslationBatch(
-        collections.namedtuple("TranslationBatch",
-                               (
-                                   "indices",
-                                   "source_tokens",
-                                   "target_tokens",
-                                   "mode",
-                               ))):
+    collections.namedtuple(
+        "TranslationBatch",
+        (
+            "indices",
+            "source_tokens",
+            "target_tokens",
+            "mode",
+        ),
+    )
+):
     pass
+
 
 class InvalidRequest(Exception):
     pass
 
+
 class TranslationTimeout(Exception):
     pass
+
 
 def pick_free_port():
     """Selects an available port."""
     s = socket.socket()
-    s.bind(('', 0))
+    s.bind(("", 0))
     return s.getsockname()[1]
 
-def start_server(host,
-                 port,
-                 config,
-                 backend_service_fn,
-                 translate_fn,
-                 preprocessor=None,
-                 postprocessor=None,
-                 backend_info_fn=None,
-                 rebatch_request=True):
+
+def start_server(
+    host,
+    port,
+    config,
+    backend_service_fn,
+    translate_fn,
+    preprocessor=None,
+    postprocessor=None,
+    backend_info_fn=None,
+    rebatch_request=True,
+):
     """Start a serving service.
 
     This function will only return on SIGINT or SIGTERM signals.
@@ -92,20 +106,23 @@ def start_server(host,
     global backend_process
     global backend_info
     backend_process, backend_info = backend_service_fn()
-    serving_config = config.get('serving')
+    serving_config = config.get("serving")
     if serving_config is None:
         serving_config = {}
-    global_timeout = serving_config.get('timeout')
-    global_max_batch_size = serving_config.get('max_batch_size')
+    global_timeout = serving_config.get("timeout")
+    global_max_batch_size = serving_config.get("max_batch_size")
 
     def _backend_is_reachable():
-        return (backend_info is not None
-                and backend_process is None or _process_is_running(backend_process))
+        return (
+            backend_info is not None
+            and backend_process is None
+            or _process_is_running(backend_process)
+        )
 
     class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         def _send_response(self, data, status=200):
             self.send_response(status)
-            self.send_header('Content-type', 'application/json')
+            self.send_header("Content-type", "application/json")
             self.end_headers()
             self.wfile.write(six.ensure_binary(json.dumps(data)))
 
@@ -119,33 +136,35 @@ def start_server(host,
             self._send_response(data, status=status)
 
         def do_GET(self):
-            if self.path == '/status':
+            if self.path == "/status":
                 self.status()
-            elif self.path == '/health':
+            elif self.path == "/health":
                 self.health()
             else:
-                self._send_error(404, 'invalid route %s' % self.path)
+                self._send_error(404, "invalid route %s" % self.path)
 
         def do_POST(self):
-            if self.path == '/translate':
+            if self.path == "/translate":
                 self.translate()
-            elif self.path == '/unload_model':
+            elif self.path == "/unload_model":
                 self.unload_model()
-            elif self.path == '/reload_model':
+            elif self.path == "/reload_model":
                 self.reload_model()
             else:
-                self._send_error(404, 'invalid route %s' % self.path)
+                self._send_error(404, "invalid route %s" % self.path)
 
         def translate(self):
             if not _backend_is_reachable():
-                self._send_error(503, 'backend service is unavailable')
+                self._send_error(503, "backend service is unavailable")
                 return
             header_fn = (
-                self.headers.getheader if hasattr(self.headers, "getheader")
-                else self.headers.get)
-            content_len = int(header_fn('content-length', 0))
+                self.headers.getheader
+                if hasattr(self.headers, "getheader")
+                else self.headers.get
+            )
+            content_len = int(header_fn("content-length", 0))
             if content_len == 0:
-                self._send_error(400, 'missing request data')
+                self._send_error(400, "missing request data")
                 return
             post_body = self.rfile.read(content_len)
             request = None
@@ -159,7 +178,8 @@ def start_server(host,
                     config=config,
                     rebatch_request=rebatch_request,
                     max_batch_size=global_max_batch_size,
-                    timeout=global_timeout)
+                    timeout=global_timeout,
+                )
             except InvalidRequest as e:
                 self._send_error(400, str(e), from_request=request)
             except TranslationTimeout as e:
@@ -171,7 +191,7 @@ def start_server(host,
 
         def health(self):
             if not _backend_is_reachable():
-                self._send_error(503, 'backend service is unavailable')
+                self._send_error(503, "backend service is unavailable")
                 return
             if backend_info_fn is None:
                 self._send_response({})
@@ -218,7 +238,7 @@ def start_server(host,
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    logger.info('Serving model on port %d', port)
+    logger.info("Serving model on port %d", port)
     server_thread = threading.Thread(target=frontend_server.serve_forever)
     server_thread.start()
     while server_thread.is_alive():
@@ -226,99 +246,106 @@ def start_server(host,
     frontend_server.server_close()
 
 
-def run_request(request,
-                translate_fn,
-                preprocessor=None,
-                postprocessor=None,
-                config=None,
-                rebatch_request=True,
-                max_batch_size=None,
-                timeout=None):
+def run_request(
+    request,
+    translate_fn,
+    preprocessor=None,
+    postprocessor=None,
+    config=None,
+    rebatch_request=True,
+    max_batch_size=None,
+    timeout=None,
+):
     """Runs a translation request."""
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug("Incoming request: %s", json.dumps(request, ensure_ascii=False))
 
     if not isinstance(request, dict):
-        raise InvalidRequest('request should be a JSON object')
-    src = request.get('src')
+        raise InvalidRequest("request should be a JSON object")
+    src = request.get("src")
     if src is None:
-        raise InvalidRequest('missing src field')
+        raise InvalidRequest("missing src field")
     if not isinstance(src, list):
-        raise InvalidRequest('src field must be a list')
+        raise InvalidRequest("src field must be a list")
 
     if not src:
         results = []
     else:
         # Read request specific options and config.
-        options = request.get('options', {})
-        options.setdefault('timeout', timeout)
-        max_batch_size = options.get('max_batch_size', max_batch_size)
+        options = request.get("options", {})
+        options.setdefault("timeout", timeout)
+        max_batch_size = options.get("max_batch_size", max_batch_size)
         if not rebatch_request and max_batch_size is not None:
-            options['max_batch_size'] = max_batch_size
+            options["max_batch_size"] = max_batch_size
             max_batch_size = None
 
         examples = preprocess_examples(
-            src,
-            preprocessor,
-            config=config,
-            config_override=options.get('config'))
+            src, preprocessor, config=config, config_override=options.get("config")
+        )
         outputs = translate_examples(
-            examples,
-            translate_fn,
-            max_batch_size=max_batch_size,
-            options=options)
+            examples, translate_fn, max_batch_size=max_batch_size, options=options
+        )
         results = postprocess_outputs(outputs, examples, postprocessor)
 
-    return {'tgt': results}
+    return {"tgt": results}
 
-def preprocess_example(preprocessor, index, raw_example, config=None, config_override=None):
+
+def preprocess_example(
+    preprocessor, index, raw_example, config=None, config_override=None
+):
     """Applies preprocessing function on example."""
     if not isinstance(raw_example, dict):
-        raise InvalidRequest('example %d is not a JSON object' % index)
-    source_text = raw_example.get('text')
+        raise InvalidRequest("example %d is not a JSON object" % index)
+    source_text = raw_example.get("text")
     if source_text is None:
-        raise InvalidRequest('missing text field in example %d' % index)
-    mode = raw_example.get('mode', 'default')
+        raise InvalidRequest("missing text field in example %d" % index)
+    mode = raw_example.get("mode", "default")
 
     options = None
-    example_config_override = raw_example.get('config')
+    example_config_override = raw_example.get("config")
 
     # Resolve example options.
     if config is not None:
-        example_options = raw_example.get('options')
+        example_options = raw_example.get("options")
         if example_options:
             options_or_override = config_util.read_options(config, example_options)
             if config_util.is_v2_config(config):
                 options = options_or_override
             else:
                 example_config_override = config_util.merge_config(
-                    example_config_override or {}, options_or_override)
+                    example_config_override or {}, options_or_override
+                )
 
     # Merge example-level config override into batch-level config override.
     if example_config_override:
         if config_override:
             config_override = config_util.merge_config(
-                copy.deepcopy(config_override), example_config_override)
+                copy.deepcopy(config_override), example_config_override
+            )
         else:
             config_override = example_config_override
 
-    target_prefix = raw_example.get('target_prefix')
-    target_fuzzy = raw_example.get('fuzzy')
+    target_prefix = raw_example.get("target_prefix")
+    target_fuzzy = raw_example.get("fuzzy")
     if target_prefix is not None and target_fuzzy is not None:
-        raise InvalidRequest("Using both a target prefix and a fuzzy target is currently unsupported")
+        raise InvalidRequest(
+            "Using both a target prefix and a fuzzy target is currently unsupported"
+        )
 
     target_text = None
     target_name = None
     if target_prefix is not None:
         target_text = target_prefix
     elif target_fuzzy is not None:
-        supported_features = config.get('supported_features') if config else None
+        supported_features = config.get("supported_features") if config else None
         if supported_features is not None and supported_features.get("NFA", False):
             target_text = target_fuzzy
             target_name = "fuzzy"
         else:
-            logger.warning("The fuzzy target is ignored because this model does not "
-                           "support Neural Fuzzy Adaptation")
+            logger.warning(
+                "The fuzzy target is ignored because this model does not "
+                "support Neural Fuzzy Adaptation"
+            )
 
     if preprocessor is None:
         source_tokens = source_text
@@ -346,16 +373,20 @@ def preprocess_example(preprocessor, index, raw_example, config=None, config_ove
         source_tokens=source_tokens,
         target_tokens=target_tokens,
         mode=mode,
-        metadata=metadata)
+        metadata=metadata,
+    )
+
 
 def preprocess_examples(raw_examples, preprocessor, config=None, config_override=None):
     """Applies preprocessing on a list of example structures."""
     examples = []
     for i, raw_example in enumerate(raw_examples):
         example = preprocess_example(
-            preprocessor, i, raw_example, config=config, config_override=config_override)
+            preprocessor, i, raw_example, config=config, config_override=config_override
+        )
         examples.append(example)
     return examples
+
 
 def postprocess_output(output, example, postprocessor):
     """Applies postprocessing function on a translation output."""
@@ -379,25 +410,32 @@ def postprocess_output(output, example, postprocessor):
         attention = output.attention
         if attention and len(attention) == 1:
             attention = attention[0]
-            align = align_tokens(src_tokens, tgt_tokens, attention) if attention else None
+            align = (
+                align_tokens(src_tokens, tgt_tokens, attention) if attention else None
+            )
         else:
             align = None
 
-    result = {'text': text}
+    result = {"text": text}
     if score is not None:
-        result['score'] = score
+        result["score"] = score
     if align is not None:
-        result['align'] = align
+        result["align"] = align
     return result
+
 
 def postprocess_outputs(outputs, examples, postprocessor):
     """Applies postprocess on model outputs."""
     results = []
     for hypotheses, example in zip(outputs, examples):
-        results.append([
-            postprocess_output(hypothesis, example, postprocessor)
-            for hypothesis in hypotheses])
+        results.append(
+            [
+                postprocess_output(hypothesis, example, postprocessor)
+                for hypothesis in hypotheses
+            ]
+        )
     return results
+
 
 def align_tokens(src_tokens, tgt_tokens, attention):
     if not src_tokens or not tgt_tokens:
@@ -414,10 +452,14 @@ def align_tokens(src_tokens, tgt_tokens, attention):
         tgt_range = (offset, offset + len(tgt_token))
         src_range = src_ranges[src_id]
         offset += len(tgt_token) + 1
-        alignments.append({
-            "tgt": [{"range": tgt_range, "id": tgt_id}],
-            "src": [{"range": src_range, "id": src_id}]})
+        alignments.append(
+            {
+                "tgt": [{"range": tgt_range, "id": tgt_id}],
+                "src": [{"range": src_range, "id": src_id}],
+            }
+        )
     return alignments
+
 
 def translate_examples(examples, func, max_batch_size=None, options=None):
     """Translates examples."""
@@ -426,10 +468,10 @@ def translate_examples(examples, func, max_batch_size=None, options=None):
     hypotheses_per_example = collections.defaultdict(list)
     for batch in batch_iterator(examples, max_batch_size=max_batch_size):
         batch_options = options.copy()
-        batch_options['mode'] = batch.mode
+        batch_options["mode"] = batch.mode
         batch_hypotheses = func(batch.source_tokens, batch.target_tokens, batch_options)
         if batch_hypotheses is None:
-            raise TranslationTimeout('translation failed or timed out')
+            raise TranslationTimeout("translation failed or timed out")
 
         # Gather hypotheses by example id.
         for index, hypotheses in zip(batch.indices, batch_hypotheses):
@@ -441,10 +483,14 @@ def translate_examples(examples, func, max_batch_size=None, options=None):
         num_hypotheses = len(hypotheses[0])
         outputs.insert(
             index,
-            [merge_translation_outputs(part[h] for part in hypotheses)
-             for h in range(num_hypotheses)])
+            [
+                merge_translation_outputs(part[h] for part in hypotheses)
+                for h in range(num_hypotheses)
+            ],
+        )
 
     return outputs
+
 
 def batch_iterator(examples, max_batch_size=None):
     """Yields batch of tokens not larger than max_batch_size."""
@@ -465,7 +511,8 @@ def batch_iterator(examples, max_batch_size=None):
                 indices=indices,
                 source_tokens=source_tokens,
                 target_tokens=target_tokens,
-                mode=mode)
+                mode=mode,
+            )
         else:
             offset = 0
             while offset < batch_size:
@@ -475,8 +522,10 @@ def batch_iterator(examples, max_batch_size=None):
                     indices=indices[lower_bound:upper_bound],
                     source_tokens=source_tokens[lower_bound:upper_bound],
                     target_tokens=target_tokens[lower_bound:upper_bound],
-                    mode=mode)
+                    mode=mode,
+                )
                 offset = upper_bound
+
 
 def merge_translation_outputs(parts):
     """Merges multiple translation outputs in a single one."""
@@ -488,6 +537,7 @@ def merge_translation_outputs(parts):
         score.append(part.score)
         attention.append(part.attention)
     return TranslationOutput(output, score=score, attention=attention)
+
 
 def _process_is_running(process):
     return process is not None and process.poll() is None

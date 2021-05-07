@@ -2,6 +2,7 @@ import pytest
 
 from nmtwizard import data
 
+
 def test_paste_files(tmpdir):
     a = str(tmpdir.join("a.txt"))
     b = str(tmpdir.join("b.txt"))

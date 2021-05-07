@@ -24,6 +24,15 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r test/requirements.txt
 
+      - name: Check code format with Black
+        run: |
+          black --check .
+
+      - name: Check code style with Flake8
+        if: ${{ always() }}
+        run: |
+          flake8 .
+
       - name: Test with pytest
         run: |
           PYTHONPATH=$PWD python -m pytest test/
