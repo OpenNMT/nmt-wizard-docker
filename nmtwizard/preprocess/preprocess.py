@@ -123,12 +123,13 @@ def _process_batch_on_worker(
 
 class Processor(object):
 
-    def __init__(self, config, pipeline_type, num_workers=None):
+    def __init__(self, config, pipeline_type, preprocess_exit_step=None, num_workers=None):
         if num_workers is None:
             num_workers = _get_num_workers()
         self._num_workers = num_workers
         self._config = config
         self._pipeline_type = pipeline_type
+        self._preprocess_exit_step = preprocess_exit_step
 
         # The global shared state contains all objects that are shared accross workers.
         # It includes shared objects defined in the main configuration as well as shared
@@ -136,6 +137,7 @@ class Processor(object):
         self._global_shared_state = SharedState(
             self._config,
             self._pipeline_type,
+            preprocess_exit_step=self._preprocess_exit_step,
             num_workers=self._num_workers)
 
     def process(self,
@@ -209,12 +211,15 @@ class Processor(object):
 
 class TrainingProcessor(Processor):
 
-    def __init__(self, config, corpus_dir, data_dir, num_workers=None):
-        super().__init__(config, prepoperator.ProcessType.TRAINING, num_workers=num_workers)
+    def __init__(self, config, corpus_dir, data_dir, preprocess_exit_step=None, num_workers=None):
+        super().__init__(config, prepoperator.ProcessType.TRAINING, preprocess_exit_step=preprocess_exit_step, num_workers=num_workers)
         self._corpus_dir = corpus_dir
         self._data_dir = data_dir
 
     def generate_preprocessed_data(self, result='preprocess', preprocess_exit_step=None):
+
+        if preprocess_exit_step is None:
+            preprocess_exit_step = self._preprocess_exit_step
 
         # TODO V2 : annotations
 
