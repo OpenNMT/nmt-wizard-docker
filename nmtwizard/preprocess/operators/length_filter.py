@@ -28,23 +28,23 @@ class LengthFilter(prepoperator.Filter):
 
         min_words_ratio = config.get("min_words_ratio")
         if min_words_ratio is not None:
-            message = "Too small word length ratio"
+            message_min_words_ratio = "Too small word length ratio"
             filters.append(
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     < min_words_ratio,
-                    message,
+                    message_min_words_ratio,
                 )
             )
 
         max_words_ratio = config.get("max_words_ratio")
         if max_words_ratio is not None:
-            message = "Too big word length ratio"
+            message_max_words_ratio = "Too big word length ratio"
             filters.append(
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     > max_words_ratio,
-                    message,
+                    message_max_words_ratio,
                 )
             )
 
@@ -63,17 +63,17 @@ def _get_side_filters(config, chars_fn, words_fn, verbose):
 
     max_chars = config.get("max_characters")
     if max_chars is not None:
-        message = f"Longer than max chars ({max_chars})"
-        filters.append(lambda tu: (len(chars_fn(tu)) > max_chars, message))
+        message_max_chars = f"Longer than max chars ({max_chars})"
+        filters.append(lambda tu: (len(chars_fn(tu)) > max_chars, message_max_chars))
 
     max_words = config.get("max_words")
     if max_words is not None:
-        message = f"Longer than max words ({max_words})"
-        filters.append(lambda tu: (len(words_fn(tu)) > max_words, message))
+        message_max_words = f"Longer than max words ({max_words})"
+        filters.append(lambda tu: (len(words_fn(tu)) > max_words, message_max_words))
 
     min_words = config.get("min_words")
     if min_words is not None:
-        message = f"Shorter than min words ({min_words})"
-        filters.append(lambda tu: (len(words_fn(tu)) < min_words, message))
+        message_min_words = f"Shorter than min words ({min_words})"
+        filters.append(lambda tu: (len(words_fn(tu)) < min_words, message_min_words))
 
     return filters
