@@ -489,7 +489,7 @@ class Filter(TUOperator):
             if to_filter:
                 if self._verbose:
                     logger.info(
-                        f"{message} : '{self.name}' operator filters the following sentence \nSRC : {tu.src_detok}\nTGT : {tu.tgt_detok}"
+                        f"{message} : '{self.name}' operator filters the following sentence \tSRC : {tu.src_detok}\tTGT : {tu.tgt_detok}"
                     )
                 return []
         return [tu]

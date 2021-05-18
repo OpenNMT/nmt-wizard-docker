@@ -59,7 +59,7 @@ class AlignPerplexityFilter(prepoperator.Filter):
                         f"Perplexity value ({perplexity:.2f}) outside hard thresholds"
                     )
                     logger.info(
-                        f"{message} : '{self.name}' operator filters the following sentence \nSRC : {tu.src_detok}\nTGT : {tu.tgt_detok}"
+                        f"{message} : '{self.name}' operator filters the following sentence \tSRC : {tu.src_detok}\tTGT : {tu.tgt_detok}"
                     )
 
         elif self._percent_threshold is not None:
@@ -84,12 +84,12 @@ class AlignPerplexityFilter(prepoperator.Filter):
                 for i in worst_ids:
                     message = f"Perplexity value ({perplexity[i]:.2f}) worse than percentage threshold"
                     logger.info(
-                        f"{message} : '{self.name}' operator filters the following sentence \nSRC : {tu_list[i].src_detok}\nTGT : {tu_list[i].tgt_detok}"
+                        f"{message} : '{self.name}' operator filters the following sentence \tSRC : {tu_list[i].src_detok}\tTGT : {tu_list[i].tgt_detok}"
                     )
                 for i in best_ids:
                     message = f"Perplexity value ({perplexity[i]:.2f}) better than percentage threshold"
                     logger.info(
-                        f"{message} : '{self.name}' operator filters the following sentence \nSRC : {tu_list[i].src_detok}\nTGT : {tu_list[i].tgt_detok}"
+                        f"{message} : '{self.name}' operator filters the following sentence \tSRC : {tu_list[i].src_detok}\tTGT : {tu_list[i].tgt_detok}"
                     )
 
         return new_tu_list, meta_batch
