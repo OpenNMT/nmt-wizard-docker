@@ -5,6 +5,9 @@ from nmtwizard.preprocess import prepoperator
 class IdentityFilter(prepoperator.Filter):
     """Ignore TU with the same source and target."""
 
+    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
+                             ["min_characters"]
+
     def __init__(self, config, *args, **kwargs):
         # Do not ignore identity TU if it has less than this number of characters.
         min_characters = config.get("min_characters", 0)

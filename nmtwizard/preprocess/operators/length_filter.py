@@ -3,6 +3,10 @@ from nmtwizard.preprocess import prepoperator
 
 @prepoperator.register_operator("length_filter")
 class LengthFilter(prepoperator.Filter):
+
+    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
+                             ["source", "target", "min_words_ratio", "max_words_ratio"]
+
     def __init__(self, config, process_type, build_state):
         source_config = _get_side_config(config, "source")
         target_config = _get_side_config(config, "target")

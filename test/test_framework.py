@@ -613,6 +613,9 @@ def test_release_change_file(tmpdir):
 # Dummy domain classifier operator.
 @prepoperator.register_operator("domain")
 class _DomainClassifier(prepoperator.Operator):
+
+    _authorized_parameters = prepoperator.Operator._authorized_parameters + ["source", "target"]
+
     def _preprocess(self, tu_batch):
         return tu_batch
 

@@ -6,6 +6,10 @@ from nmtwizard.preprocess import prepoperator
 
 @prepoperator.register_operator("alignment")
 class Aligner(prepoperator.Operator):
+
+    _authorized_parameters = prepoperator.Operator._authorized_parameters + \
+                             ["forward", "backward", "write_alignment"]
+
     @staticmethod
     def is_applied_for(process_type):
         return process_type == prepoperator.ProcessType.TRAINING

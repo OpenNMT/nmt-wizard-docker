@@ -6,6 +6,9 @@ from nmtwizard.preprocess.tu import TokReplace
 
 @prepoperator.register_operator("noise")
 class Noise(prepoperator.TUOperator):
+
+    _authorized_parameters = prepoperator.TUOperator._authorized_parameters + \
+                             ["source", "drop_word_prob", "drop_space_prob", "drop_char_prob", "duplicate_char_prob", "swap_char_prob"]
     @staticmethod
     def is_applied_for(process_type):
         return process_type == prepoperator.ProcessType.TRAINING

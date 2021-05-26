@@ -6,6 +6,9 @@ from nmtwizard.preprocess import tokenizer
 
 @prepoperator.register_operator("tokenization")
 class Tokenizer(prepoperator.MonolingualOperator):
+
+    _authorized_parameters = prepoperator.MonolingualOperator._authorized_parameters + ["multi"]
+
     @property
     def _detok(self):
         return False

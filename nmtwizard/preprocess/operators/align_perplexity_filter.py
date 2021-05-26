@@ -8,6 +8,10 @@ logger = get_logger(__name__)
 
 @prepoperator.register_operator("align_perplexity_filter")
 class AlignPerplexityFilter(prepoperator.Filter):
+
+    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
+                             ["hard_threshold", "percent_threshold"]
+
     def __init__(self, config, process_type, build_state):
         super().__init__([])
         self._hard_threshold = config.get("hard_threshold")

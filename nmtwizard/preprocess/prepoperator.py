@@ -128,6 +128,7 @@ def build_operator(
     if shared_state:
         args.append(shared_state)
     name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    operator_cls.check_parameters(operator_params, name)
     logger.debug("Building operator %s", name)
     operator = operator_cls(operator_params, process_type, build_state, *args)
     # We set common private attributes here so that operators do not need to call
@@ -288,6 +289,8 @@ class Pipeline(object):
 class Operator(object):
     """Base class for preprocessing operators."""
 
+    _authorized_parameters = ["source_lang", "target_lang", "verbose"]
+
     def __init__(self, params, process_type, build_state):
         pass
 
@@ -298,6 +301,13 @@ class Operator(object):
     @property
     def process_type(self):
         return self._process_type
+
+    @classmethod
+    def check_parameters(cls, params, name):
+        if cls._authorized_parameters is not None:
+            for param in params:
+                if param not in cls._authorized_parameters:
+                    raise ValueError(f"Parameter '{param}' is not authorized for '{name}' operator")
 
     def __call__(self, tu_batch, **kwargs):
         if self.process_type == ProcessType.POSTPROCESS:
@@ -374,6 +384,8 @@ class TUOperator(Operator):
 
 class MonolingualOperator(TUOperator):
     """Base class for operations applying monolingual processing in each TU in a batch."""
+
+    _authorized_parameters = ["source", "target"]
 
     def __init__(self, config, process_type, build_state):
         self._postprocess_only = build_state.get("postprocess_only")
