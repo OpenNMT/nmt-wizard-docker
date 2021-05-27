@@ -1,4 +1,5 @@
 import random
+import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
@@ -7,8 +8,18 @@ from nmtwizard.preprocess.tu import TokReplace
 @prepoperator.register_operator("noise")
 class Noise(prepoperator.TUOperator):
 
-    _authorized_parameters = prepoperator.TUOperator._authorized_parameters + \
-                             ["source", "drop_word_prob", "drop_space_prob", "drop_char_prob", "duplicate_char_prob", "swap_char_prob"]
+    _config_json_schema = copy.deepcopy(prepoperator.TUOperator._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "source": {"type": "object"},
+            "drop_word_prob": {"type": "number"},
+            "drop_space_prob": {"type": "number"},
+            "drop_char_prob": {"type": "number"},
+            "duplicate_char_prob": {"type": "number"},
+            "swap_char_prob": {"type": "number"}
+        }
+    )
+
     @staticmethod
     def is_applied_for(process_type):
         return process_type == prepoperator.ProcessType.TRAINING

@@ -1,3 +1,5 @@
+import copy
+
 from nmtwizard.preprocess import prepoperator
 
 
@@ -5,8 +7,13 @@ from nmtwizard.preprocess import prepoperator
 class IdentityFilter(prepoperator.Filter):
     """Ignore TU with the same source and target."""
 
-    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
-                             ["min_characters"]
+    _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "min_characters": {"type": "integer"}
+        }
+    )
+
 
     def __init__(self, config, *args, **kwargs):
         # Do not ignore identity TU if it has less than this number of characters.

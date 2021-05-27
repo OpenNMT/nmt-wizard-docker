@@ -1,4 +1,5 @@
 import tempfile
+import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import tokenizer
@@ -7,7 +8,12 @@ from nmtwizard.preprocess import tokenizer
 @prepoperator.register_operator("tokenization")
 class Tokenizer(prepoperator.MonolingualOperator):
 
-    _authorized_parameters = prepoperator.MonolingualOperator._authorized_parameters + ["multi"]
+    _config_json_schema = copy.deepcopy(prepoperator.MonolingualOperator._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "multi": {"type": "object"}
+        }
+    )
 
     @property
     def _detok(self):

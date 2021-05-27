@@ -1,5 +1,6 @@
 import random
 import math
+import copy
 
 from nmtwizard.preprocess import prepoperator
 
@@ -7,8 +8,14 @@ from nmtwizard.preprocess import prepoperator
 @prepoperator.register_operator("similarity_filter")
 class SimilarityFilter(prepoperator.Filter):
 
-    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
-                             ["threshold", "mode", "factor"]
+    _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "threshold": {"type": "number"},
+            "mode": {"enum": ["hard", "soft_linear", "soft_sigmoid"]},
+            "factor": {"type": "number"}
+        }
+    )
 
     def __init__(self, config, process_type, build_state):
         threshold = config.get("threshold", 0)

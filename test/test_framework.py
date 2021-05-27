@@ -614,7 +614,14 @@ def test_release_change_file(tmpdir):
 @prepoperator.register_operator("domain")
 class _DomainClassifier(prepoperator.Operator):
 
-    _authorized_parameters = prepoperator.Operator._authorized_parameters + ["source", "target"]
+    _config_json_schema = copy.deepcopy(prepoperator.Operator._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "source": {"type": "object"},
+            "target": {"type": "object"}
+        }
+    )
+
 
     def _preprocess(self, tu_batch):
         return tu_batch

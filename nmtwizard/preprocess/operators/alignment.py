@@ -1,4 +1,5 @@
 import os
+import copy
 import systran_align
 
 from nmtwizard.preprocess import prepoperator
@@ -7,8 +8,14 @@ from nmtwizard.preprocess import prepoperator
 @prepoperator.register_operator("alignment")
 class Aligner(prepoperator.Operator):
 
-    _authorized_parameters = prepoperator.Operator._authorized_parameters + \
-                             ["forward", "backward", "write_alignment"]
+    _config_json_schema = copy.deepcopy(prepoperator.Operator._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "forward": {"type": "object"},
+            "backward": {"type": "object"},
+            "write_alignment": {"type": "boolean"}
+        }
+    )
 
     @staticmethod
     def is_applied_for(process_type):

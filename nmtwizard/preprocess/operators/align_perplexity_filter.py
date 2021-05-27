@@ -1,4 +1,5 @@
 import math
+import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.logger import get_logger
@@ -9,8 +10,13 @@ logger = get_logger(__name__)
 @prepoperator.register_operator("align_perplexity_filter")
 class AlignPerplexityFilter(prepoperator.Filter):
 
-    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
-                             ["hard_threshold", "percent_threshold"]
+    _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "hard_threshold": {"type": "object"},
+            "percent_threshold": {"type": "object"}
+        }
+    )
 
     def __init__(self, config, process_type, build_state):
         super().__init__([])

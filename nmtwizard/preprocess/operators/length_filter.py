@@ -1,11 +1,20 @@
+import copy
+
 from nmtwizard.preprocess import prepoperator
 
 
 @prepoperator.register_operator("length_filter")
 class LengthFilter(prepoperator.Filter):
 
-    _authorized_parameters = prepoperator.Filter._authorized_parameters + \
-                             ["source", "target", "min_words_ratio", "max_words_ratio"]
+    _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
+    _config_json_schema["properties"].update(
+        {
+            "source": {"type": "object"},
+            "target": {"type": "object"},
+            "min_words_ratio": {"type": "number"},
+            "max_words_ratio": {"type": "number"}
+        }
+    )
 
     def __init__(self, config, process_type, build_state):
         source_config = _get_side_config(config, "source")

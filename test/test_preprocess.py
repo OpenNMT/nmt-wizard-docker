@@ -969,7 +969,12 @@ def test_shared_state_with_overrides(num_workers):
     @prepoperator.register_operator(op_name)
     class OpWithSharedState(prepoperator.Operator):
 
-        _authorized_parameters = prepoperator.Operator._authorized_parameters + ["value"]
+        _config_json_schema = deepcopy(prepoperator.Operator._config_json_schema)
+        _config_json_schema["properties"].update(
+            {
+                "value": {"type": "string"}
+            }
+        )
 
         @staticmethod
         def get_shared_classes():
