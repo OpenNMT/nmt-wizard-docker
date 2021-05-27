@@ -129,7 +129,8 @@ def build_operator(
     if shared_state:
         args.append(shared_state)
     name = operator_params.pop("name", "%s_%d" % (operator_type, index))
-    operator_cls.validate_parameters(operator_params, name)
+    if process_type == ProcessType.TRAINING:
+        operator_cls.validate_parameters(operator_params, name)
     logger.debug("Building operator %s", name)
     operator = operator_cls(operator_params, process_type, build_state, *args)
     # We set common private attributes here so that operators do not need to call
@@ -398,7 +399,10 @@ class MonolingualOperator(TUOperator):
 
     _config_json_schema = copy.deepcopy(TUOperator._config_json_schema)
     _config_json_schema["properties"].update(
-        {"source": {"type": "object"}, "target": {"type": "object"}}
+        {
+            "source": {"type": "object", "additionalProperties": False},
+            "target": {"type": "object", "additionalProperties": False},
+        }
     )
 
     def __init__(self, config, process_type, build_state):
