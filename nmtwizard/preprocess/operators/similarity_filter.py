@@ -12,7 +12,10 @@ class SimilarityFilter(prepoperator.Filter):
     _config_json_schema["properties"].update(
         {
             "threshold": {"type": "number"},
-            "mode": {"enum": ["hard", "soft_linear", "soft_sigmoid"]},
+            "mode": {
+                "type": "string",
+                "enum": ["hard", "soft_linear", "soft_sigmoid"]
+            },
             "factor": {"type": "number"}
         }
     )

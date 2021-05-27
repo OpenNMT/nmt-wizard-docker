@@ -9,16 +9,24 @@ from nmtwizard.preprocess.tu import TokReplace
 class Noise(prepoperator.TUOperator):
 
     _config_json_schema = copy.deepcopy(prepoperator.TUOperator._config_json_schema)
+    noise_block = {
+        "lang": {"type": "string"},
+        "drop_word_prob": { "type": "number", "minimum": 0, "maximum": 1},
+        "drop_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
+        "drop_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
+        "duplicate_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
+        "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1}
+    }
     _config_json_schema["properties"].update(
         {
-            "source": {"type": "object"},
-            "drop_word_prob": {"type": "number"},
-            "drop_space_prob": {"type": "number"},
-            "drop_char_prob": {"type": "number"},
-            "duplicate_char_prob": {"type": "number"},
-            "swap_char_prob": {"type": "number"}
+            "source": {
+                "type": "object",
+                "properties": noise_block,
+                "additionalProperties": False
+            }
         }
     )
+    _config_json_schema["properties"].update(noise_block)
 
     @staticmethod
     def is_applied_for(process_type):

@@ -9,11 +9,26 @@ from nmtwizard.preprocess import prepoperator
 class Aligner(prepoperator.Operator):
 
     _config_json_schema = copy.deepcopy(prepoperator.Operator._config_json_schema)
+    alignment_block = {
+        "type": "object",
+        "properties": {
+            "probs": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": False,
+        "required": ["probs"]
+    }
+
     _config_json_schema["properties"].update(
         {
-            "forward": {"type": "object"},
-            "backward": {"type": "object"},
-            "write_alignment": {"type": "boolean"}
+            "forward": alignment_block,
+            "backward": alignment_block,
+            "write_alignment": {"type": "boolean"},
+            "sample": {
+                "type": "integer",
+                "minimum": 0
+            }
         }
     )
 

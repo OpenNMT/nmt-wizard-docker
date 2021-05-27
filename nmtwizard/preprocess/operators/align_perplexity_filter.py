@@ -11,10 +11,23 @@ logger = get_logger(__name__)
 class AlignPerplexityFilter(prepoperator.Filter):
 
     _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
+    threshold_block = {
+        "type": "object",
+        "properties": {
+            "lower": {
+                "type": ["number", "null"]
+            },
+            "upper": {
+                "type": ["number", "null"]
+            }
+        },
+        "additionalProperties": False
+    }
+
     _config_json_schema["properties"].update(
         {
-            "hard_threshold": {"type": "object"},
-            "percent_threshold": {"type": "object"}
+            "hard_threshold": threshold_block,
+            "percent_threshold": threshold_block
         }
     )
 

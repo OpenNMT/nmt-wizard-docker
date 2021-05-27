@@ -9,9 +9,102 @@ from nmtwizard.preprocess import tokenizer
 class Tokenizer(prepoperator.MonolingualOperator):
 
     _config_json_schema = copy.deepcopy(prepoperator.MonolingualOperator._config_json_schema)
+    tokenization_block = {
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": [
+                    "aggressive", "conservative", "char", "space", "none"
+                ]
+            },
+            "no_substitution": {
+                "type": "boolean"
+            },
+            "case_feature": {
+                "type": "boolean"
+            },
+            "case_markup": {
+                "type": "boolean"
+            },
+            "soft_case_regions": {
+                "type": "boolean"
+            },
+            "lang": {
+                "type": "string"
+            },
+            "bpe_model_path": {
+                "type": "string"
+            },
+            "bpe_dropout": {
+                "type": "number"
+            },
+            "sp_model_path": {
+                "type": "string"
+            },
+            "sp_nbest_size": {
+                "type": "integer"
+            },
+            "sp_alpha": {
+                "type": "number"
+            },
+            "joiner_annotate": {
+                "type": "boolean"
+            },
+            "joiner": {
+                "type": "string"
+            },
+            "joiner_new": {
+                "type": "boolean"
+            },
+            "spacer_annotate": {
+                "type": "boolean"
+            },
+            "spacer_new": {
+                "type": "boolean"
+            },
+            "preserve_placeholders": {
+                "type": "boolean"
+            },
+            "preserve_segmented_tokens": {
+                "type": "boolean"
+            },
+            "support_prior_joiners": {
+                "type": "boolean"
+            },
+            "segment_case": {
+                "type": "boolean"
+            },
+            "segment_numbers": {
+                "type": "boolean"
+            },
+            "segment_alphabet": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "segment_alphabet_change": {
+                "type": "boolean"
+            },
+            "restrict_subword_vocabulary": {
+                "type": "boolean"
+            },
+            "build_vocabulary": {
+                "type": "object"
+            },
+            "build_subword": {
+                "type": ["object", "null"]
+            }
+        },
+        "additionalProperties": False
+    }
+
     _config_json_schema["properties"].update(
         {
-            "multi": {"type": "object"}
+            "source": {**tokenization_block, "required": ["mode"] },
+            "target": {**tokenization_block, "required": ["mode"] },
+            "multi": tokenization_block
         }
     )
 

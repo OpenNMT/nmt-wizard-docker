@@ -253,6 +253,8 @@ def old_to_new_config(config):
             new_tok_config = copy.deepcopy(tok_config)
             new_tok_config["source"].pop("vocabulary", None)
             new_tok_config["target"].pop("vocabulary", None)
+            new_tok_config["source"].pop("replace_vocab", None)
+            new_tok_config["target"].pop("replace_vocab", None)
             new_config["preprocess"] = [
                 {
                     "op": "tokenization",

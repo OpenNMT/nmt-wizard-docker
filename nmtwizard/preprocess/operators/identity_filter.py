@@ -10,7 +10,10 @@ class IdentityFilter(prepoperator.Filter):
     _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
     _config_json_schema["properties"].update(
         {
-            "min_characters": {"type": "integer"}
+            "min_characters": {
+                "type": "integer",
+                "minimum": 0
+            }
         }
     )
 
