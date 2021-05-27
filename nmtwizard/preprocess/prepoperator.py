@@ -295,9 +295,9 @@ class Operator(object):
         "properties": {
             "source_lang": {"type": "string"},
             "target_lang": {"type": "string"},
-            "verbose": {"type": "boolean"}
+            "verbose": {"type": "boolean"},
         },
-        "additionalProperties": False
+        "additionalProperties": False,
     }
 
     def __init__(self, params, process_type, build_state):
@@ -316,7 +316,9 @@ class Operator(object):
         try:
             jsonschema.validate(instance=params, schema=cls._config_json_schema)
         except jsonschema.exceptions.ValidationError as err:
-            raise ValueError(f"Invalid configuration for '{name}' operator: {err.message}") from None
+            raise ValueError(
+                f"Invalid configuration for '{name}' operator: {err.message}"
+            ) from None
 
     def __call__(self, tu_batch, **kwargs):
         if self.process_type == ProcessType.POSTPROCESS:
@@ -396,10 +398,7 @@ class MonolingualOperator(TUOperator):
 
     _config_json_schema = copy.deepcopy(TUOperator._config_json_schema)
     _config_json_schema["properties"].update(
-        {
-            "source": {"type": "object"},
-            "target": {"type": "object"}
-        }
+        {"source": {"type": "object"}, "target": {"type": "object"}}
     )
 
     def __init__(self, config, process_type, build_state):

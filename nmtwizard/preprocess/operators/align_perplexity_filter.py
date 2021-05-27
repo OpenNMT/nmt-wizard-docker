@@ -14,21 +14,14 @@ class AlignPerplexityFilter(prepoperator.Filter):
     threshold_block = {
         "type": "object",
         "properties": {
-            "lower": {
-                "type": ["number", "null"]
-            },
-            "upper": {
-                "type": ["number", "null"]
-            }
+            "lower": {"type": ["number", "null"]},
+            "upper": {"type": ["number", "null"]},
         },
-        "additionalProperties": False
+        "additionalProperties": False,
     }
 
     _config_json_schema["properties"].update(
-        {
-            "hard_threshold": threshold_block,
-            "percent_threshold": threshold_block
-        }
+        {"hard_threshold": threshold_block, "percent_threshold": threshold_block}
     )
 
     def __init__(self, config, process_type, build_state):

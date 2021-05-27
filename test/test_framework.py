@@ -616,12 +616,8 @@ class _DomainClassifier(prepoperator.Operator):
 
     _config_json_schema = copy.deepcopy(prepoperator.Operator._config_json_schema)
     _config_json_schema["properties"].update(
-        {
-            "source": {"type": "object"},
-            "target": {"type": "object"}
-        }
+        {"source": {"type": "object"}, "target": {"type": "object"}}
     )
-
 
     def _preprocess(self, tu_batch):
         return tu_batch

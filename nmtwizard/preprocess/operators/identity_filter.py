@@ -9,14 +9,8 @@ class IdentityFilter(prepoperator.Filter):
 
     _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
     _config_json_schema["properties"].update(
-        {
-            "min_characters": {
-                "type": "integer",
-                "minimum": 0
-            }
-        }
+        {"min_characters": {"type": "integer", "minimum": 0}}
     )
-
 
     def __init__(self, config, *args, **kwargs):
         # Do not ignore identity TU if it has less than this number of characters.

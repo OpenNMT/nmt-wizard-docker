@@ -11,27 +11,18 @@ class LengthFilter(prepoperator.Filter):
         "type": "object",
         "properties": {
             "lang": {"type": "string"},
-            "max_characters": {
-                "type": "integer",
-                "minimum": 0
-            },
-            "max_words": {
-                "type": "integer",
-                "minimum": 0
-            },
-            "min_words": {
-                "type": "integer",
-                "minimum": 0
-            }
+            "max_characters": {"type": "integer", "minimum": 0},
+            "max_words": {"type": "integer", "minimum": 0},
+            "min_words": {"type": "integer", "minimum": 0},
         },
-        "additionalProperties": False
+        "additionalProperties": False,
     }
     _config_json_schema["properties"].update(
         {
             "source": length_mono_block,
             "target": length_mono_block,
             "min_words_ratio": {"type": "number"},
-            "max_words_ratio": {"type": "number"}
+            "max_words_ratio": {"type": "number"},
         }
     )
 
