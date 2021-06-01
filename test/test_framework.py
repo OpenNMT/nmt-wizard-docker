@@ -494,12 +494,9 @@ def test_train_chain(tmpdir):
     assert DummyCheckpoint(model_dir).index() == 1
 
 
-# For V2 configuration, the default config update mode is "replace" while it is "merge"
-# for V1 configuration.
 @pytest.mark.parametrize(
     "config,custom_field,new_field,mode,expected_field",
     [
-        (config_base, {"a": 1, "b": 2}, {"a": 3}, "default", {"a": 3}),
         (config_base_old, {"a": 1, "b": 2}, {"a": 3}, "default", {"a": 3, "b": 2}),
         (config_base_old, {"a": 1, "b": 2}, {"a": 3}, "replace", {"a": 3}),
     ],

@@ -41,9 +41,7 @@ def update_config(a, b, mode="default"):
         a = {k: v for k, v in a.items() if k in _non_user_fields}
         return replace_config(a, b)
 
-    if mode == "default":
-        mode = "merge" if from_version == 1 else "replace"
-    if mode == "merge":
+    if mode == "default" or mode == "merge":
         return merge_config(a, b)
     if mode == "replace":
         return replace_config(a, b)
