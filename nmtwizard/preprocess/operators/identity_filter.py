@@ -1,5 +1,3 @@
-import copy
-
 from nmtwizard.preprocess import prepoperator
 
 

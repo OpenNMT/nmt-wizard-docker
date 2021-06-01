@@ -1,6 +1,5 @@
 import random
 import math
-import copy
 
 from nmtwizard.preprocess import prepoperator
 

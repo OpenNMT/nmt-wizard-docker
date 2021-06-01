@@ -1,5 +1,4 @@
 import random
-import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace

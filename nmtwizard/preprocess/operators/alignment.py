@@ -1,5 +1,4 @@
 import os
-import copy
 import systran_align
 
 from nmtwizard.preprocess import prepoperator

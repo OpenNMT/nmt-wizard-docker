@@ -1,5 +1,4 @@
 import tempfile
-import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import tokenizer

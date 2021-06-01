@@ -1,5 +1,4 @@
 import math
-import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.logger import get_logger
