@@ -6,6 +6,28 @@ from nmtwizard.preprocess import prepoperator
 
 @prepoperator.register_operator("alignment")
 class Aligner(prepoperator.Operator):
+    @classmethod
+    def _config_schema(cls):
+        schema = super(Aligner, cls)._config_schema()
+
+        alignment_block = {
+            "type": "object",
+            "properties": {"probs": {"type": "string"}},
+            "additionalProperties": False,
+            "required": ["probs"],
+        }
+
+        schema["properties"].update(
+            {
+                "forward": alignment_block,
+                "backward": alignment_block,
+                "write_alignment": {"type": "boolean"},
+                "sample": {"type": "integer", "minimum": 0},
+            }
+        )
+
+        return schema
+
     @staticmethod
     def is_applied_for(process_type):
         return process_type == prepoperator.ProcessType.TRAINING

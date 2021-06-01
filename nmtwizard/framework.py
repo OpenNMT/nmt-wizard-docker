@@ -769,12 +769,14 @@ class Framework(utility.Utility):
 
         local_config = self._finalize_config(config)
         if output:
-            assert local_config["source"], "Source language needs to be set."
+            assert local_config.get(
+                "source"
+            ), "'source' option (source language) must be set."
             outputs = self._build_data(local_config)
         else:
-            assert (
-                local_config["source"] and local_config["target"]
-            ), "Source and Target languages need to be set."
+            assert local_config.get("source") and local_config.get(
+                "target"
+            ), "'source' and 'target' options (source and target languages) must be set."
             outputs = self._generate_training_data(local_config)
         data_dir = outputs[0]
 

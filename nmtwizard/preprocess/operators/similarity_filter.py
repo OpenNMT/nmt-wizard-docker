@@ -6,6 +6,23 @@ from nmtwizard.preprocess import prepoperator
 
 @prepoperator.register_operator("similarity_filter")
 class SimilarityFilter(prepoperator.Filter):
+    @classmethod
+    def _config_schema(cls):
+        schema = super(SimilarityFilter, cls)._config_schema()
+
+        schema["properties"].update(
+            {
+                "threshold": {"type": "number"},
+                "mode": {
+                    "type": "string",
+                    "enum": ["hard", "soft_linear", "soft_sigmoid"],
+                },
+                "factor": {"type": "number"},
+            }
+        )
+
+        return schema
+
     def __init__(self, config, process_type, build_state):
         threshold = config.get("threshold", 0)
         mode = config.get("mode")
