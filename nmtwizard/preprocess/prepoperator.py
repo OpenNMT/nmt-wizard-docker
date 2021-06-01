@@ -291,17 +291,19 @@ class Pipeline(object):
 class Operator(object):
     """Base class for preprocessing operators."""
 
-    _config_json_schema = {
-        "type": "object",
-        "properties": {
-            "source_lang": {"type": "string"},
-            "target_lang": {"type": "string"},
-            "verbose": {"type": "boolean"},
-            "comments": {"type": "string"},
-            "overrides": {"type": "object"}
-        },
-        "additionalProperties": False,
-    }
+    @classmethod
+    def _config_schema(cls):
+        return {
+            "type": "object",
+            "properties": {
+                "source_lang": {"type": "string"},
+                "target_lang": {"type": "string"},
+                "verbose": {"type": "boolean"},
+                "comments": {"type": "string"},
+                "overrides": {"type": "object"}
+            },
+            "additionalProperties": False,
+        }
 
     def __init__(self, params, process_type, build_state):
         pass
@@ -317,7 +319,7 @@ class Operator(object):
     @classmethod
     def validate_parameters(cls, params, name):
         try:
-            jsonschema.validate(instance=params, schema=cls._config_json_schema)
+            jsonschema.validate(instance=params, schema=cls._config_schema())
         except jsonschema.exceptions.ValidationError as err:
             raise ValueError(
                 f"Invalid configuration for '{name}' operator: {err.message}"
@@ -399,13 +401,16 @@ class TUOperator(Operator):
 class MonolingualOperator(TUOperator):
     """Base class for operations applying monolingual processing in each TU in a batch."""
 
-    _config_json_schema = copy.deepcopy(TUOperator._config_json_schema)
-    _config_json_schema["properties"].update(
-        {
-            "source": {"type": "object", "additionalProperties": False},
-            "target": {"type": "object", "additionalProperties": False},
-        }
-    )
+    @classmethod
+    def _config_schema(cls):
+        schema = super(MonolingualOperator, cls)._config_schema()
+        schema["properties"].update(
+            {
+                "source": {"type": "object", "additionalProperties": False},
+                "target": {"type": "object", "additionalProperties": False},
+            }
+        )
+        return schema
 
     def __init__(self, config, process_type, build_state):
         self._postprocess_only = build_state.get("postprocess_only")

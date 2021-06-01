@@ -8,22 +8,27 @@ from nmtwizard.preprocess import prepoperator
 @prepoperator.register_operator("alignment")
 class Aligner(prepoperator.Operator):
 
-    _config_json_schema = copy.deepcopy(prepoperator.Operator._config_json_schema)
-    alignment_block = {
-        "type": "object",
-        "properties": {"probs": {"type": "string"}},
-        "additionalProperties": False,
-        "required": ["probs"],
-    }
+    @classmethod
+    def _config_schema(cls):
+        schema = super(Aligner, cls)._config_schema()
 
-    _config_json_schema["properties"].update(
-        {
-            "forward": alignment_block,
-            "backward": alignment_block,
-            "write_alignment": {"type": "boolean"},
-            "sample": {"type": "integer", "minimum": 0},
+        alignment_block = {
+            "type": "object",
+            "properties": {"probs": {"type": "string"}},
+            "additionalProperties": False,
+            "required": ["probs"],
         }
-    )
+
+        schema["properties"].update(
+            {
+                "forward": alignment_block,
+                "backward": alignment_block,
+                "write_alignment": {"type": "boolean"},
+                "sample": {"type": "integer", "minimum": 0},
+            }
+        )
+
+        return schema
 
     @staticmethod
     def is_applied_for(process_type):

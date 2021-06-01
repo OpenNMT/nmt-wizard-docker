@@ -6,25 +6,29 @@ from nmtwizard.preprocess import prepoperator
 @prepoperator.register_operator("length_filter")
 class LengthFilter(prepoperator.Filter):
 
-    _config_json_schema = copy.deepcopy(prepoperator.Filter._config_json_schema)
-    length_mono_block = {
-        "type": "object",
-        "properties": {
-            "lang": {"type": "string"},
-            "max_characters": {"type": "integer", "minimum": 0},
-            "max_words": {"type": "integer", "minimum": 0},
-            "min_words": {"type": "integer", "minimum": 0},
-        },
-        "additionalProperties": False,
-    }
-    _config_json_schema["properties"].update(
-        {
-            "source": length_mono_block,
-            "target": length_mono_block,
-            "min_words_ratio": {"type": "number"},
-            "max_words_ratio": {"type": "number"},
+    @classmethod
+    def _config_schema(cls):
+        schema = super(LengthFilter, cls)._config_schema()
+
+        length_mono_block = {
+            "type": "object",
+            "properties": {
+                "lang": {"type": "string"},
+                "max_characters": {"type": "integer", "minimum": 0},
+                "max_words": {"type": "integer", "minimum": 0},
+                "min_words": {"type": "integer", "minimum": 0},
+            },
+            "additionalProperties": False,
         }
-    )
+        schema["properties"].update(
+            {
+                "source": length_mono_block,
+                "target": length_mono_block,
+                "min_words_ratio": {"type": "number"},
+                "max_words_ratio": {"type": "number"},
+            }
+        )
+        return schema
 
     def __init__(self, config, process_type, build_state):
         source_config = _get_side_config(config, "source")
