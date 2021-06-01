@@ -3,7 +3,6 @@ from nmtwizard.preprocess import prepoperator
 
 @prepoperator.register_operator("length_filter")
 class LengthFilter(prepoperator.Filter):
-
     @classmethod
     def _config_schema(cls):
         schema = super(LengthFilter, cls)._config_schema()

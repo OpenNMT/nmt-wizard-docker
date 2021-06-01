@@ -6,7 +6,6 @@ from nmtwizard.preprocess import prepoperator
 
 @prepoperator.register_operator("alignment")
 class Aligner(prepoperator.Operator):
-
     @classmethod
     def _config_schema(cls):
         schema = super(Aligner, cls)._config_schema()

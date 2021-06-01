@@ -8,7 +8,6 @@ logger = get_logger(__name__)
 
 @prepoperator.register_operator("align_perplexity_filter")
 class AlignPerplexityFilter(prepoperator.Filter):
-
     @classmethod
     def _config_schema(cls):
         schema = super(AlignPerplexityFilter, cls)._config_schema()
@@ -26,7 +25,6 @@ class AlignPerplexityFilter(prepoperator.Filter):
             {"hard_threshold": threshold_block, "percent_threshold": threshold_block}
         )
         return schema
-
 
     def __init__(self, config, process_type, build_state):
         super().__init__([])

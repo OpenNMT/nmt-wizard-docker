@@ -6,7 +6,6 @@ from nmtwizard.preprocess.tu import TokReplace
 
 @prepoperator.register_operator("noise")
 class Noise(prepoperator.TUOperator):
-
     @classmethod
     def _config_schema(cls):
         schema = super(Noise, cls)._config_schema()

@@ -6,7 +6,6 @@ from nmtwizard.preprocess import tokenizer
 
 @prepoperator.register_operator("tokenization")
 class Tokenizer(prepoperator.MonolingualOperator):
-
     @classmethod
     def _config_schema(cls):
         schema = super(Tokenizer, cls)._config_schema()

@@ -300,7 +300,7 @@ class Operator(object):
                 "target_lang": {"type": "string"},
                 "verbose": {"type": "boolean"},
                 "comments": {"type": "string"},
-                "overrides": {"type": "object"}
+                "overrides": {"type": "object"},
             },
             "additionalProperties": False,
         }
