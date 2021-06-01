@@ -297,6 +297,8 @@ class Operator(object):
             "source_lang": {"type": "string"},
             "target_lang": {"type": "string"},
             "verbose": {"type": "boolean"},
+            "comments": {"type": "string"},
+            "overrides": {"type": "object"}
         },
         "additionalProperties": False,
     }
