@@ -5,34 +5,25 @@ import pysystran
 
 from nmtwizard.preprocess import prepoperator
 
+
 @prepoperator.register_operator("parentheses")
 class ParenthesesFilter(prepoperator.Filter):
-
     @classmethod
     def _config_schema(cls):
         schema = super(ParenthesesFilter, cls)._config_schema()
 
         schema["properties"].update(
             {
-                "side": {
-                    "type": "string",
-                    "enum": [
-                        "source",
-                        "target",
-                        "both"
-                    ]
-                },
+                "side": {"type": "string", "enum": ["source", "target", "both"]},
                 "type": {
                     "type": "array",
                     "items": {
                         "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
+                        "items": {"type": "string"},
                         "minItems": 2,
-                        "maxItems": 2
-                    }
-                }
+                        "maxItems": 2,
+                    },
+                },
             }
         )
 
@@ -52,10 +43,9 @@ class ParenthesesFilter(prepoperator.Filter):
             for par in parentheses_types:
                 self._parentheses_types.add(tuple(par))
 
-        filters = [ self._filter_parentheses ]
+        filters = [self._filter_parentheses]
 
         super(ParenthesesFilter, self).__init__(filters)
-
 
     def _discover_parentheses(self, tokens):
         replacements = collections.defaultdict(list)
@@ -67,30 +57,34 @@ class ParenthesesFilter(prepoperator.Filter):
                 if closing in tok:
                     return None
                 if opening in tok:
-                    for j in range(i+1,len(tokens)):
+                    for j in range(i + 1, len(tokens)):
                         tok_after = tokens[j]
                         if closing in tok_after:
                             joiner_marker = "￭"
                             repl = []
-                            if tok.startswith(joiner_marker) and tok_after.endswith(joiner_marker):
+                            if tok.startswith(joiner_marker) and tok_after.endswith(
+                                joiner_marker
+                            ):
                                 repl.append(joiner_marker)
-                            replacements[parentheses_type].append((i, j-i+1, repl))
+                            replacements[parentheses_type].append((i, j - i + 1, repl))
                             i = j
                             break
-                        if j == len(tokens)-1: # Didn't find a pair
+                        if j == len(tokens) - 1:  # Didn't find a pair
                             return None
-                        for par in itertools.chain(*self._parentheses_types): # Found a nested/mismatched parenthesis after
+                        for par in itertools.chain(
+                            *self._parentheses_types
+                        ):  # Found a nested/mismatched parenthesis after
                             if par in tok_after:
                                 return None
                 i += 1
         return replacements
-        
+
     def _filter_parentheses(self, tu):
         src_tokens = tu.src_tok.tokens[0]
         src_replacements = self._discover_parentheses(src_tokens)
-        if src_replacements is None: # Unbalanced or nested parentheses in source
+        if src_replacements is None:  # Unbalanced or nested parentheses in source
             return True
-        
+
         tgt_tokens = tu.tgt_tok.tokens[0]
         tgt_replacements = self._discover_parentheses(tgt_tokens)
         if tgt_replacements is None:  # Unbalanced or nested parentheses in target
@@ -101,8 +95,9 @@ class ParenthesesFilter(prepoperator.Filter):
             tgt_repl = tgt_replacements[parentheses_type]
             length_src_repl = len(src_repl)
             length_tgt_repl = len(tgt_repl)
-            if length_src_repl != length_tgt_repl and \
-               (length_src_repl > 1 or length_tgt_repl > 1): # Unabalanced source/target
+            if length_src_repl != length_tgt_repl and (
+                length_src_repl > 1 or length_tgt_repl > 1
+            ):  # Unabalanced source/target
                 return True
 
             if self._remove_src and length_src_repl == 1 and length_tgt_repl == 0:
