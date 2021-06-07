@@ -1,8 +1,6 @@
 import itertools
 import collections
 
-import pysystran
-
 from nmtwizard.preprocess import prepoperator
 
 
