@@ -313,3 +313,165 @@ def test_align_perplexity_percent_threshold(
     assert len(tu_list) == len(expected_log_probs)
     for single_tu, log_prob in zip(tu_list, expected_log_probs):
         assert single_tu.alignment_log_probs[0][0] == log_prob
+
+
+@pytest.mark.parametrize(
+    "src,tgt,filtered,expected",
+    [
+        (
+            "This is a test without parentheses.",
+            "Ceci est un test sans parenthèses.",
+            False,
+            (None, None),
+        ),
+        (
+            "This () is a test with one parenthesis in source.",
+            "Ceci est un test avec une parenthèse en source.",
+            False,
+            ("This is a test with one parenthesis in source.", None),
+        ),
+        (
+            "This is a test with one parenthesis in target.",
+            "Ceci est un test avec (une parenthèse en cible)",
+            False,
+            (None, "Ceci est un test avec"),
+        ),
+        (
+            "This is a test with one parenthesis (in source) and one in target.",
+            "Ceci est un test avec une parenthèse en source (et une en cible).",
+            False,
+            (None, None),
+        ),
+        (
+            "This is a test with (two) parentheses in source and (none) in target.",
+            "Ceci est un test avec deux parenthèses en source et aucune en cible.",
+            True,
+            (None, None),
+        ),
+        (
+            "(This is a test with two) parentheses in source and (two) in target.",
+            "Ceci est un test avec (deux parenthèses en source) et (deux en cible).",
+            False,
+            (None, None),
+        ),
+        (
+            "This is a test with (two) parentheses in source and (three in target)",
+            "Ceci est un test avec (deux) parenthèses (en source) et (trois) en cible.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is a test with (mismatched> parentheses in source.",
+            "Ceci est un test avec des parenthèses incorrectes en source.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is another test with (mismatched < parentheses in source.",
+            "Ceci est un (autre) test avec des parenthèses incorrectes en source.",
+            True,
+            (None, None),
+        ),
+        (
+            "This a yest another test with (mismatched parentheses in source.",
+            "Ceci est <encore un autre> test avec des (parenthèses) incorrectes en source.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is a (test (with nested) parentheses) in source.",
+            "Ceci est un test avec des parenthèses imbriquées en source.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is another <test (with nested) parentheses> in source.",
+            "Ceci est un <autre> test avec <des parenthèses imbriquées> en source.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is a test with (mismatched) parentheses in target.",
+            "Ceci est un test avec des (parenthèses (incorrectes en cible.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is another test with (mismatched) parentheses in target.",
+            "Ceci est un autre test avec des <parenthèses <incorrectes en cible.",
+            True,
+            (None, None),
+        ),
+        (
+            "This a yest another test with <mismatched> parentheses in target.",
+            "Ceci est encore un autre test avec des <parenthèses incorrectes) en cible.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is a (test) (with nested) (parentheses) in target.",
+            "Ceci est un <test avec <des parenthèses imbriquées> en cible>.",
+            True,
+            (None, None),
+        ),
+        (
+            "This is another <test (with nested) parentheses> in target.",
+            "Ceci est un autre <test avec (des parenthèses imbriquées) en cible>.",
+            True,
+            (None, None),
+        ),
+        (
+            "<This is> a more complicated (test) not to filter (and not to) modify.",
+            "(Ceci est) un test plus compliqué à ne pas <filter> ni (modifier)",
+            False,
+            (None, None),
+        ),
+        (
+            "(This is) a more complicated (test) <to modify>.",
+            "(Ceci) est (un test) plus compliqué à modifier.",
+            False,
+            ("(This is) a more complicated (test).", None),
+        ),
+        (
+            "(And) yet another test to modify.",
+            "Et encore un test <à modifier>",
+            False,
+            ("yet another test to modify.", "Et encore un test"),
+        ),
+        (
+            "Test for(joiner)replacement.",
+            "Teste pour remplacer le joiner.",
+            False,
+            ("Test forreplacement.", None),
+        ),
+        (
+            "Test for joiner replacement.",
+            "Teste pour remplacer(le)joiner.",
+            False,
+            (None, "Teste pour remplacerjoiner."),
+        ),
+    ],
+)
+def test_parentheses_filter(src, tgt, filtered, expected):
+    config = [
+        {
+            "op": "tokenization",
+            "source": {"mode": "conservative", "joiner_annotate": True},
+            "target": {"mode": "conservative", "joiner_annotate": True},
+        },
+        {"op": "parentheses", "side": "both", "type": [["(", ")"], ["<", ">"]]},
+    ]
+
+    TU = tu.TranslationUnit(src, tgt)
+    assert filtered == _is_filtered(config, TU)
+    if not filtered:
+        result_src = TU.src_detok
+        result_tgt = TU.tgt_detok
+        if expected[0] is None:
+            assert src == result_src
+        else:
+            assert expected[0] == result_src
+        if expected[1] is None:
+            assert tgt == result_tgt
+        else:
+            assert expected[1] == result_tgt
