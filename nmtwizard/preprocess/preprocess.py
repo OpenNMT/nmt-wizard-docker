@@ -427,7 +427,7 @@ class TrainingProcessor(Processor):
 
 
 class InferenceProcessor(Processor):
-    def __init__(self, config, postprocess=False):
+    def __init__(self, config, inference_config=None, postprocess=False):
         pipeline_type = (
             prepoperator.ProcessType.POSTPROCESS
             if postprocess
@@ -435,6 +435,7 @@ class InferenceProcessor(Processor):
         )
         super().__init__(config, pipeline_type, num_workers=0)
         self._postprocess = postprocess
+        self._inference_config = inference_config
         # Build a generic pipeline that will be used in process_input.
         self._pipeline = self.build_pipeline(self._config)
 
@@ -442,6 +443,7 @@ class InferenceProcessor(Processor):
         return prepoperator.Pipeline(
             config,
             self._pipeline_type,
+            inference_config=self._inference_config,
             shared_state=self._global_shared_state.get(),
         )
 

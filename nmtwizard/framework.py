@@ -196,6 +196,14 @@ class Framework(utility.Utility):
             "-o", "--output", required=True, nargs="+", help="Output files"
         )
         parser_trans.add_argument(
+            "-ic",
+            "--inference_config",
+            default=None,
+            help=(
+                "Additional inference configuration as a file or a JSON string."
+            )
+        )
+        parser_trans.add_argument(
             "--copy_source",
             default=False,
             action="store_true",
@@ -358,12 +366,14 @@ class Framework(utility.Utility):
                 parent_model is None or config["modelType"] != "checkpoint"
             ):
                 raise ValueError("translation requires a training checkpoint")
+            inference_config =  utility.load_config(args.inference_config) if args.inference_config is not None else None
             return self.trans_wrapper(
                 config,
                 model_path,
                 self._storage,
                 args.input,
                 args.output,
+                inference_config=inference_config,
                 as_release=args.as_release,
                 release_optimization_level=args.release_optimization_level,
                 gpuid=self._gpuid,
@@ -582,6 +592,7 @@ class Framework(utility.Utility):
         storage,
         inputs,
         outputs,
+        inference_config=None,
         as_release=False,
         release_optimization_level=None,
         gpuid=0,
@@ -604,8 +615,8 @@ class Framework(utility.Utility):
                 return self.trans(*args, **kwargs)
 
         local_config = self._finalize_config(config, training=False)
-        preprocessor = self._get_preprocessor(local_config, train=False)
-        postprocessor = self._get_postprocessor(local_config)
+        preprocessor = self._get_preprocessor(local_config, inference_config=inference_config, train=False)
+        postprocessor = self._get_postprocessor(local_config, inference_config=inference_config)
 
         failed_translation = 0
         translated_lines = 0
@@ -1088,15 +1099,15 @@ class Framework(utility.Utility):
         data_util.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
-    def _get_preprocessor(self, config, train=True):
+    def _get_preprocessor(self, config, inference_config=None, train=True):
         if train:
             return preprocess.TrainingProcessor(
                 config, self._corpus_dir, self._data_dir
             )
-        return preprocess.InferenceProcessor(config)
+        return preprocess.InferenceProcessor(config, inference_config)
 
-    def _get_postprocessor(self, config):
-        return preprocess.InferenceProcessor(config, postprocess=True)
+    def _get_postprocessor(self, config, inference_config=None):
+        return preprocess.InferenceProcessor(config, inference_config=None, postprocess=True)
 
     def _generate_training_data(self, config):
         preprocessor = self._get_preprocessor(config)

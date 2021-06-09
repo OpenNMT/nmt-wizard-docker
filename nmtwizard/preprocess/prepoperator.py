@@ -118,6 +118,7 @@ def build_operator(
     build_state,
     index,
     shared_state=None,
+    inference_config=None
 ):
     """Creates an operator instance from its configuration."""
 
@@ -129,6 +130,10 @@ def build_operator(
     if shared_state:
         args.append(shared_state)
     name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    if inference_config:
+        op_inference_config = inference_config.get(name)
+        if op_inference_config:
+            operator_params = merge_config(operator_params, op_inference_config)
     if process_type == ProcessType.TRAINING:
         operator_cls.validate_parameters(operator_params, name)
     logger.debug("Building operator %s", name)
@@ -162,6 +167,7 @@ class Pipeline(object):
         self,
         config,
         process_type,
+        inference_config=None,
         preprocess_exit_step=None,
         override_label=None,
         shared_state=None,
@@ -192,7 +198,7 @@ class Pipeline(object):
         # Passed to and modified by operator initializers if necessary.
         self.build_state = dict(self.start_state)
 
-        self._build_pipeline(config, preprocess_exit_step, shared_state)
+        self._build_pipeline(config, inference_config, preprocess_exit_step, shared_state)
 
     @property
     def process_type(self):
@@ -220,13 +226,15 @@ class Pipeline(object):
                 self.build_state,
                 i,
                 shared_state=shared_state.get(i) if shared_state else None,
+                inference_config=self._inference_config
             )
             if operator is not None:
                 self._ops.append(operator)
 
-    def _build_pipeline(self, config, preprocess_exit_step=None, shared_state=None):
+    def _build_pipeline(self, config, inference_config=None, preprocess_exit_step=None, shared_state=None):
         self._ops = []
         self._config = config
+        self._inference_config = inference_config
         preprocess_config = config.get("preprocess")
         if preprocess_config:
             self._add_op_list(
