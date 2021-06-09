@@ -96,6 +96,7 @@ class SummaryLogger(Consumer):
             "filtered": collections.defaultdict(lambda: collections.defaultdict(int)),
             "added": collections.defaultdict(lambda: collections.defaultdict(int)),
             "unknown": collections.defaultdict(lambda: collections.defaultdict(int)),
+            "fuzzy": collections.defaultdict(lambda: collections.defaultdict(int)),
         }
 
     def _consume(self, outputs):
@@ -113,6 +114,7 @@ class SummaryLogger(Consumer):
         _add_summary("filter_summary", "filtered")
         _add_summary("add_summary", "added")
         _add_summary("unk_summary", "unknown")
+        _add_summary("fuzzy_summary", "fuzzy")
 
     def finalize(self):
         def _log_info(file_info, file_summary, proc, units):
@@ -130,6 +132,7 @@ class SummaryLogger(Consumer):
             "filtered": "sentences",
             "added": "sentences",
             "unknown": "tokens",
+            "fuzzy": "sentences",
         }.items():
             summary = self._summary[proc]
             if summary:
