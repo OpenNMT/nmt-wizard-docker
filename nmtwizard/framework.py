@@ -199,9 +199,7 @@ class Framework(utility.Utility):
             "-ic",
             "--inference_config",
             default=None,
-            help=(
-                "Additional inference configuration as a file or a JSON string."
-            )
+            help=("Additional inference configuration as a file or a JSON string."),
         )
         parser_trans.add_argument(
             "--copy_source",
@@ -366,7 +364,11 @@ class Framework(utility.Utility):
                 parent_model is None or config["modelType"] != "checkpoint"
             ):
                 raise ValueError("translation requires a training checkpoint")
-            inference_config =  utility.load_config(args.inference_config) if args.inference_config is not None else None
+            inference_config = (
+                utility.load_config(args.inference_config)
+                if args.inference_config is not None
+                else None
+            )
             return self.trans_wrapper(
                 config,
                 model_path,
@@ -615,8 +617,12 @@ class Framework(utility.Utility):
                 return self.trans(*args, **kwargs)
 
         local_config = self._finalize_config(config, training=False)
-        preprocessor = self._get_preprocessor(local_config, inference_config=inference_config, train=False)
-        postprocessor = self._get_postprocessor(local_config, inference_config=inference_config)
+        preprocessor = self._get_preprocessor(
+            local_config, inference_config=inference_config, train=False
+        )
+        postprocessor = self._get_postprocessor(
+            local_config, inference_config=inference_config
+        )
 
         failed_translation = 0
         translated_lines = 0
@@ -1107,7 +1113,9 @@ class Framework(utility.Utility):
         return preprocess.InferenceProcessor(config, inference_config)
 
     def _get_postprocessor(self, config, inference_config=None):
-        return preprocess.InferenceProcessor(config, inference_config=None, postprocess=True)
+        return preprocess.InferenceProcessor(
+            config, inference_config=None, postprocess=True
+        )
 
     def _generate_training_data(self, config):
         preprocessor = self._get_preprocessor(config)

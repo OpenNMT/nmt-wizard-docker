@@ -125,23 +125,20 @@ def test_tokenization_with_inference_config(tmpdir):
 
     tu_list, _ = pipeline(([example], {}))
 
-    assert tu_list[0].src_tok.tokens[0] == ['2', ',', '000']
-    assert tu_list[0].tgt_tok.tokens[0] == ['2', ',', '000']
+    assert tu_list[0].src_tok.tokens[0] == ["2", ",", "000"]
+    assert tu_list[0].tgt_tok.tokens[0] == ["2", ",", "000"]
 
-    inference_config = {
-        "tokenization_0": {
-            "source": {
-                "mode": "none"
-            }
-        }
-    }
-    pipeline = prepoperator.Pipeline(config, process_type, inference_config=inference_config)
+    inference_config = {"tokenization_0": {"source": {"mode": "none"}}}
+    pipeline = prepoperator.Pipeline(
+        config, process_type, inference_config=inference_config
+    )
 
     example = tu.TranslationUnit("2,000", "2,000")
     tu_list, _ = pipeline(([example], {}))
 
-    assert tu_list[0].src_tok.tokens[0] == ['2,000']
-    assert tu_list[0].tgt_tok.tokens[0] == ['2', ',', '000']
+    assert tu_list[0].src_tok.tokens[0] == ["2,000"]
+    assert tu_list[0].tgt_tok.tokens[0] == ["2", ",", "000"]
+
 
 @pytest.mark.parametrize(
     "config,training,text,expected",

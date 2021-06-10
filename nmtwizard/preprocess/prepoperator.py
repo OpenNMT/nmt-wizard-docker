@@ -118,7 +118,7 @@ def build_operator(
     build_state,
     index,
     shared_state=None,
-    inference_config=None
+    inference_config=None,
 ):
     """Creates an operator instance from its configuration."""
 
@@ -198,7 +198,9 @@ class Pipeline(object):
         # Passed to and modified by operator initializers if necessary.
         self.build_state = dict(self.start_state)
 
-        self._build_pipeline(config, inference_config, preprocess_exit_step, shared_state)
+        self._build_pipeline(
+            config, inference_config, preprocess_exit_step, shared_state
+        )
 
     @property
     def process_type(self):
@@ -226,12 +228,18 @@ class Pipeline(object):
                 self.build_state,
                 i,
                 shared_state=shared_state.get(i) if shared_state else None,
-                inference_config=self._inference_config
+                inference_config=self._inference_config,
             )
             if operator is not None:
                 self._ops.append(operator)
 
-    def _build_pipeline(self, config, inference_config=None, preprocess_exit_step=None, shared_state=None):
+    def _build_pipeline(
+        self,
+        config,
+        inference_config=None,
+        preprocess_exit_step=None,
+        shared_state=None,
+    ):
         self._ops = []
         self._config = config
         self._inference_config = inference_config
