@@ -17,8 +17,8 @@ def _run_pipeline(config, process_type, tu_list):
         tu_list = [tu_list]
     if isinstance(config, list):
         config = {
-            "source": "xx",
-            "target": "yy",
+            "source": "en",
+            "target": "fr",
             "preprocess": config,
         }
     pipeline = prepoperator.Pipeline(config, process_type)
@@ -99,6 +99,36 @@ def test_tokenization_with_vocabulary_restriction(tmpdir):
 
     assert tu_list[0].src_tok.tokens[0] == ["▁Wor", "l", "d"]
     assert tu_list[0].tgt_tok.tokens[0] == ["▁World"]
+
+
+def test_tokenization_with_lang():
+    tokenization_config = {
+        "mode": "aggressive",
+        "case_markup": True,
+        "soft_case_regions": True,
+    }
+    config = {
+        "source": "el",
+        "target": "en",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": tokenization_config,
+                "target": tokenization_config,
+            }
+        ],
+    }
+
+    example = tu.TranslationUnit("ΣΙΓΜΑ ΤΕΛΙΚΟΣ")
+    pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
+    tu_list, _ = pipeline(([example], {}))
+
+    assert tu_list[0].src_tok.tokens[0] == [
+        "｟mrk_begin_case_region_U｠",
+        "σιγμα",
+        "τελικος",
+        "｟mrk_end_case_region_U｠",
+    ]
 
 
 def test_tokenization_with_inference_config(tmpdir):
