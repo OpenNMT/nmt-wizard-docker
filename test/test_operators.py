@@ -128,7 +128,7 @@ def test_tokenization_with_inference_config(tmpdir):
     assert tu_list[0].src_tok.tokens[0] == ["2", ",", "000"]
     assert tu_list[0].tgt_tok.tokens[0] == ["2", ",", "000"]
 
-    config["inference"] = {"tokenization_0": {"source": {"mode": "none"}}}
+    config["inference"] = {"overrides": {"tokenization_0": {"source": {"mode": "none"} } } }
     pipeline = prepoperator.Pipeline(config, process_type)
 
     example = tu.TranslationUnit("2,000", "2,000")

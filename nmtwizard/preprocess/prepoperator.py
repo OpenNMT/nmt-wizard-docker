@@ -9,6 +9,7 @@ from itertools import chain
 
 from nmtwizard.logger import get_logger
 from nmtwizard.config import merge_config
+from nmtwizard.config import read_options
 
 logger = get_logger(__name__)
 
@@ -238,12 +239,14 @@ class Pipeline(object):
     ):
         self._ops = []
         self._config = config
-        self._inference_config = config.get("inference")
-        if (
-            self._inference_config is not None
-            and self._process_type == ProcessType.TRAINING
-        ):
+        inference = config.get("inference", {})
+        if inference and self._process_type == ProcessType.TRAINING:
             raise RuntimeError("'inference' field can only be specified in translation")
+        self._inference_config = config.get("inference", {}).get("overrides")
+        self._inference_options = config.get("inference", {}).get("options")
+        if self._inference_options:
+            self._inference_options = read_options(config, self._inference_options)
+
         preprocess_config = config.get("preprocess")
         if preprocess_config:
             self._add_op_list(
@@ -273,6 +276,9 @@ class Pipeline(object):
             ops_profile = collections.defaultdict(float)
         else:
             ops_profile = None
+
+        if options is None:
+            options = self._inference_options
 
         for op in self._ops:
             if ops_profile is not None:
