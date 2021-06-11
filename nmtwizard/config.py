@@ -142,9 +142,12 @@ def validate_mapping(schema, options, config):
         config_path = mapping.get("config_path")
         if config_path is None:
             raise ValueError('Missing "config_path" in option mapping %d' % i)
-        dst_config, _ = index_config(config, config_path, index_structure=False)
-        if not isinstance(dst_config, dict):
-            raise ValueError("Paths in config can only index object structures")
+        if isinstance(config_path, str):
+            config_path = [config_path]
+        for cp in config_path:
+            dst_config, _ = index_config(config, cp, index_structure=False)
+            if not isinstance(dst_config, dict):
+                raise ValueError("Paths in config can only index object structures")
         option_path = mapping.get("option_path")
         if option_path is None:
             raise ValueError('Missing "option_path" in option mapping %d' % i)
@@ -175,16 +178,19 @@ def read_options(config, options):
             option_value = index_config(options, mapping["option_path"])
         except ValueError:
             continue  # Option not passed for this request.
+        config_path = mapping["config_path"]
+        if isinstance(config_path, str):
+            config_path = [config_path]
         if v2_config:
-            dst_config, dst_key = index_config(
-                config, mapping["config_path"], index_structure=False
-            )
-            operators_options[dst_config["name"]].update({dst_key: option_value})
+            for cp in config_path:
+                dst_config, dst_key = index_config(config, cp, index_structure=False)
+                operators_options[dst_config["name"]].update({dst_key: option_value})
         else:
-            merge_config(
-                config_override,
-                build_override(config, mapping["config_path"], option_value),
-            )
+            for cp in config_path:
+                merge_config(
+                    config_override,
+                    build_override(config, cp, option_value),
+                )
     if v2_config:
         return operators_options
     return config_override

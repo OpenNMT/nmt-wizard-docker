@@ -265,6 +265,7 @@ class TranslationSide(object):
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
 
         # check/initialize tokenization if not done already
+        self.tok
         cur_tokens = self.__tok
         if cur_tokens is not None:
             cur_tokens = cur_tokens[part]

@@ -9,6 +9,7 @@ from itertools import chain
 
 from nmtwizard.logger import get_logger
 from nmtwizard.config import merge_config
+from nmtwizard.config import read_options
 
 logger = get_logger(__name__)
 
@@ -118,6 +119,7 @@ def build_operator(
     build_state,
     index,
     shared_state=None,
+    inference_config=None,
 ):
     """Creates an operator instance from its configuration."""
 
@@ -129,6 +131,10 @@ def build_operator(
     if shared_state:
         args.append(shared_state)
     name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    if inference_config:
+        op_inference_config = inference_config.get(name)
+        if op_inference_config:
+            operator_params = merge_config(operator_params, op_inference_config)
     if process_type == ProcessType.TRAINING:
         operator_cls.validate_parameters(operator_params, name)
     logger.debug("Building operator %s", name)
@@ -220,13 +226,27 @@ class Pipeline(object):
                 self.build_state,
                 i,
                 shared_state=shared_state.get(i) if shared_state else None,
+                inference_config=self._inference_config,
             )
             if operator is not None:
                 self._ops.append(operator)
 
-    def _build_pipeline(self, config, preprocess_exit_step=None, shared_state=None):
+    def _build_pipeline(
+        self,
+        config,
+        preprocess_exit_step=None,
+        shared_state=None,
+    ):
         self._ops = []
         self._config = config
+        inference = config.get("inference", {})
+        if inference and self._process_type == ProcessType.TRAINING:
+            raise RuntimeError("'inference' field can only be specified in translation")
+        self._inference_config = inference.get("overrides")
+        self._inference_options = inference.get("options")
+        if self._inference_options:
+            self._inference_options = read_options(config, self._inference_options)
+
         preprocess_config = config.get("preprocess")
         if preprocess_config:
             self._add_op_list(
@@ -256,6 +276,9 @@ class Pipeline(object):
             ops_profile = collections.defaultdict(float)
         else:
             ops_profile = None
+
+        if options is None:
+            options = self._inference_options
 
         for op in self._ops:
             if ops_profile is not None:

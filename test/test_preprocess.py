@@ -1020,3 +1020,64 @@ def test_shared_state_with_overrides(num_workers):
     consumer = CustomConsumer()
 
     processor.process(loader, consumer)
+
+
+def test_preprocess_inference_config_with_options():
+    @prepoperator.register_operator("politeness")
+    class DummyPoliteness(prepoperator.TUOperator):
+        def __init__(self, params, process_type, build_state):
+            self._default_value = params["default_value"]
+
+        @staticmethod
+        def accept_options():
+            return True
+
+        def _preprocess_tu(self, tu, meta_batch, options=None):
+            value = options.get("value") if options else self._default_value
+            politeness_marker = f"｟{value}｠"
+            tu.replace_tokens_side("source", (0, 0, [politeness_marker]))
+            return [tu]
+
+    config = {
+        "source": "en",
+        "target": "fr",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "aggressive"},
+                "target": {"mode": "aggressive"},
+            },
+            {
+                "op": "politeness",
+                "name": "politeness-op",
+                "default_value": "neutral",
+            },
+        ],
+        "inference_options": {
+            "json_schema": {
+                "type": "object",
+                "properties": {
+                    "politeness": {
+                        "type": "string",
+                        "default": "neutral",
+                        "enum": ["formal", "informal", "neutral"],
+                    }
+                },
+            },
+            "options": [
+                {
+                    "option_path": "politeness",
+                    "config_path": "preprocess/politeness-op/value",
+                },
+            ],
+        },
+    }
+
+    processor = InferenceProcessor(config)
+    source, target, _ = processor.process_input("This is a test.")
+    assert source == [["｟neutral｠", "This", "is", "a", "test", "."]]
+
+    config["inference"] = {"options": {"politeness": "informal"}}
+    processor = InferenceProcessor(config)
+    source, target, _ = processor.process_input("This is a test.")
+    assert source == [["｟informal｠", "This", "is", "a", "test", "."]]
