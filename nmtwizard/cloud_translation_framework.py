@@ -81,8 +81,8 @@ class CloudTranslationFramework(Framework):
             )
         ]
 
-    def _get_preprocessor(self, config, inference_config=None, train=True):
+    def _get_preprocessor(self, config, train=True):
         return None
 
-    def _get_postprocessor(self, config, inference_config=None):
+    def _get_postprocessor(self, config):
         return None
