@@ -118,9 +118,7 @@ def test_preprocess_example_with_v1_options():
             "politeness": {
                 "default_value": "neutral",
             },
-            "emotion": {
-                "default_mood": "neutral"
-            }
+            "emotion": {"default_mood": "neutral"},
         },
         "inference_options": {
             "json_schema": {
@@ -136,7 +134,10 @@ def test_preprocess_example_with_v1_options():
             "options": [
                 {
                     "option_path": "politeness",
-                    "config_path": ["preprocess/politeness/value","preprocess/emotion/mood"]
+                    "config_path": [
+                        "preprocess/politeness/value",
+                        "preprocess/emotion/mood",
+                    ],
                 },
             ],
         },
@@ -168,7 +169,7 @@ def test_preprocess_example_with_v2_options():
                 "op": "_add_emotion",
                 "name": "emotion-op",
                 "default_mood": "neutral",
-            }
+            },
         ],
         "inference_options": {
             "json_schema": {
@@ -184,7 +185,10 @@ def test_preprocess_example_with_v2_options():
             "options": [
                 {
                     "option_path": "politeness",
-                    "config_path": [ "preprocess/politeness-op/value", "preprocess/emotion-op/mood" ]
+                    "config_path": [
+                        "preprocess/politeness-op/value",
+                        "preprocess/emotion-op/mood",
+                    ],
                 },
             ],
         },
@@ -195,7 +199,10 @@ def test_preprocess_example_with_v2_options():
             self, source, target=None, config=None, options=None, **kwargs
         ):
             assert config is None
-            assert options == {"politeness-op": {"value": "informal"}, 'emotion-op': {'mood': 'informal'} }
+            assert options == {
+                "politeness-op": {"value": "informal"},
+                "emotion-op": {"mood": "informal"},
+            }
             return source.split(), None, None
 
     example = {"text": "a b c d", "options": {"politeness": "informal"}}

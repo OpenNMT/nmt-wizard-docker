@@ -142,7 +142,7 @@ def validate_mapping(schema, options, config):
         config_path = mapping.get("config_path")
         if config_path is None:
             raise ValueError('Missing "config_path" in option mapping %d' % i)
-        if (isinstance(config_path, str)):
+        if isinstance(config_path, str):
             config_path = [config_path]
         for cp in config_path:
             dst_config, _ = index_config(config, cp, index_structure=False)
@@ -179,13 +179,11 @@ def read_options(config, options):
         except ValueError:
             continue  # Option not passed for this request.
         config_path = mapping["config_path"]
-        if (isinstance(config_path, str)):
+        if isinstance(config_path, str):
             config_path = [config_path]
         if v2_config:
             for cp in config_path:
-                dst_config, dst_key = index_config(
-                    config, cp, index_structure=False
-                )
+                dst_config, dst_key = index_config(config, cp, index_structure=False)
                 operators_options[dst_config["name"]].update({dst_key: option_value})
         else:
             for cp in config_path:

@@ -1023,10 +1023,8 @@ def test_shared_state_with_overrides(num_workers):
 
 
 def test_preprocess_inference_config_with_options():
-
     @prepoperator.register_operator("politeness")
     class DummyPoliteness(prepoperator.TUOperator):
-
         def __init__(self, params, process_type, build_state):
             self._default_value = params["default_value"]
 
@@ -1037,7 +1035,7 @@ def test_preprocess_inference_config_with_options():
         def _preprocess_tu(self, tu, meta_batch, options=None):
             value = options.get("value") if options else self._default_value
             politeness_marker = f"｟{value}｠"
-            tu.replace_tokens_side("source", (0,0,[politeness_marker]))
+            tu.replace_tokens_side("source", (0, 0, [politeness_marker]))
             return [tu]
 
     config = {
@@ -1047,7 +1045,7 @@ def test_preprocess_inference_config_with_options():
             {
                 "op": "tokenization",
                 "source": {"mode": "aggressive"},
-                "target": {"mode": "aggressive"}
+                "target": {"mode": "aggressive"},
             },
             {
                 "op": "politeness",
@@ -1077,9 +1075,9 @@ def test_preprocess_inference_config_with_options():
 
     processor = InferenceProcessor(config)
     source, target, _ = processor.process_input("This is a test.")
-    assert source == [['｟neutral｠', 'This', 'is', 'a', 'test', '.']]
+    assert source == [["｟neutral｠", "This", "is", "a", "test", "."]]
 
-    config["inference"] = { "options": {"politeness": "informal"} }
+    config["inference"] = {"options": {"politeness": "informal"}}
     processor = InferenceProcessor(config)
     source, target, _ = processor.process_input("This is a test.")
-    assert source == [['｟informal｠', 'This', 'is', 'a', 'test', '.']]
+    assert source == [["｟informal｠", "This", "is", "a", "test", "."]]
