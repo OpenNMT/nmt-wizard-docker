@@ -242,8 +242,8 @@ class Pipeline(object):
         inference = config.get("inference", {})
         if inference and self._process_type == ProcessType.TRAINING:
             raise RuntimeError("'inference' field can only be specified in translation")
-        self._inference_config = config.get("inference", {}).get("overrides")
-        self._inference_options = config.get("inference", {}).get("options")
+        self._inference_config = inference.get("overrides")
+        self._inference_options = inference.get("options")
         if self._inference_options:
             self._inference_options = read_options(config, self._inference_options)
 
