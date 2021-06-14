@@ -287,7 +287,9 @@ class Framework(utility.Utility):
             action="store_true",
             help="Preprocess data into a model.",
         )
-        parser_preprocess.add_argument("-o", "--output", help="Output files")
+        parser_preprocess.add_argument(
+            "-o", "--output", help="Prefix of output file(s)"
+        )
 
         parser.build_vocab = subparsers.add_parser(
             "buildvocab", help="Build vocabularies."
@@ -781,7 +783,15 @@ class Framework(utility.Utility):
         data_dir = outputs[0]
 
         if output:
-            storage.push(os.path.join(data_dir, "train." + config["source"]), output)
+            storage.push(
+                os.path.join(data_dir, "train." + config["source"]),
+                output + "." + config["source"],
+            )
+            if config.get("target", None):
+                storage.push(
+                    os.path.join(data_dir, "train." + config["target"]),
+                    output + "." + config["target"],
+                )
 
         end_time = time.time()
         logger.info(
