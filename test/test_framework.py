@@ -672,7 +672,13 @@ def test_preprocess_as_model(tmpdir):
     )
 
 
-def test_preprocess_sample_mono(tmpdir):
+def test_preprocess_sample_with_output(tmpdir):
+    def verify_output_file(filename):
+        outputfile = os.path.join(_test_dir(), "corpus", filename)
+        with open(outputfile) as file:
+            assert len(file.readlines()) == 1000
+        os.remove(outputfile)
+
     storage_config = {
         "corpus": {"type": "local", "basedir": os.path.join(_test_dir(), "corpus")}
     }
@@ -689,14 +695,23 @@ def test_preprocess_sample_mono(tmpdir):
     _run_framework(
         tmpdir,
         "preprocess0",
-        "preprocess -o corpus:sample.en",
+        "preprocess -o corpus:sample",
         config=config,
         storage_config=storage_config,
     )
-    outputfile = os.path.join(_test_dir(), "corpus", "sample.en")
-    with open(outputfile) as file:
-        assert len(file.readlines()) == 1000
-    os.remove(outputfile)
+    verify_output_file("sample.en")
+
+    # sample bitext
+    config["target"] = "de"
+    _run_framework(
+        tmpdir,
+        "preprocess0",
+        "preprocess -o corpus:sample",
+        config=config,
+        storage_config=storage_config,
+    )
+    verify_output_file("sample.en")
+    verify_output_file("sample.de")
 
 
 def test_description(tmpdir):
