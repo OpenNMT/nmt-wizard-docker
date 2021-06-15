@@ -5,6 +5,7 @@ import shutil
 import os
 from copy import deepcopy
 import random
+import glob
 
 from nmtwizard import utils
 from nmtwizard.preprocess.consumer import Consumer
@@ -186,6 +187,14 @@ def test_sampler(tmpdir, batch_size, num_threads):
         rf = f.readlines()
         assert len(rf) == 3000
         assert all(el == "2.0\n" for el in rf)
+    en_file_list = glob.glob(str(tmpdir.join("preprocess/*.en")))
+    for ef in en_file_list:
+        wf = os.path.splitext(ef)[0] + ".weights"
+        assert os.path.isfile(wf)
+        if not wf.endswith("news_pattern.weights"):
+            with open(wf, "r") as f:
+                rf = f.readlines()
+                assert all(el == "1.0\n" for el in rf)
 
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["oversample_with_sentence_weighting"] = True

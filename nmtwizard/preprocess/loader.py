@@ -94,10 +94,11 @@ class FileLoader(Loader):
 class SamplerFileLoader(Loader):
     """SamplerFileLoader class creates TUs from a SamplerFile object."""
 
-    def __init__(self, f, batch_size):
+    def __init__(self, f, batch_size, add_example_weights):
         # TODO V2: multiple src
         super().__init__(batch_size)
         self._file = f
+        self._add_example_weights = add_example_weights
 
     def __call__(self):
         src_file = utils.open_file(self._file.files["src"])
@@ -141,7 +142,7 @@ class SamplerFileLoader(Loader):
                 "weight": self._file.weight,
             }
 
-            if self._file.oversample_as_weights:
+            if self._add_example_weights:
                 batch_meta["example_weights"] = self._file.oversample
 
             tu_list = []
@@ -165,14 +166,15 @@ class SamplerFileLoader(Loader):
 class SamplerFilesLoader(Loader):
     """Load TUs from a sequence of SamplerFile objects."""
 
-    def __init__(self, files, batch_size):
+    def __init__(self, files, batch_size, add_example_weights):
         super().__init__(batch_size)
         self._files = files
+        self._add_example_weights = add_example_weights
 
     def __call__(self):
         for f in self._files:
             if f.lines_kept == 0:
                 continue
-            loader = SamplerFileLoader(f, self._batch_size)
+            loader = SamplerFileLoader(f, self._batch_size, self._add_example_weights)
             for tu_batch in loader():
                 yield tu_batch

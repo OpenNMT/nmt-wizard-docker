@@ -347,6 +347,7 @@ def sample(config, source_dir, oversample_as_weights):
     # Calculate the number of lines to keep using weights and lines_counts, select lines randomly.
     distribute = max(0, gsample - reserved_sample)
     summary = {}
+    add_example_weights = False
     leftover = 0.0
     logger.info("Summary of sampled lines:")
     for f in all_files.values():
@@ -354,6 +355,8 @@ def sample(config, source_dir, oversample_as_weights):
             lines_kept = f.lines_count
             if not f.oversample_as_weights:
                 lines_kept *= f.oversample
+            else:
+                add_example_weights = True
             if gsample and not isinstance(f.weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (f.weight / weights_sum)
@@ -381,4 +384,4 @@ def sample(config, source_dir, oversample_as_weights):
 
         _select_lines(f)
 
-    return all_files.values(), summary
+    return all_files.values(), summary, add_example_weights
