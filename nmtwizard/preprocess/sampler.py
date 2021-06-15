@@ -32,6 +32,7 @@ class SamplerFile(object):
         self.lines_count = lines_count
         self.lines_kept = 0
         self.oversample = 1
+        self.oversample_as_weights = False
         self.files = files
         self.no_preprocess = no_preprocess
         self.src_suffix = src_suffix
@@ -314,16 +315,23 @@ def sample(config, source_dir, oversample_as_weights):
     for f in all_files.values():
         if isinstance(f.weight, six.string_types):
             # Oversampling with "*N"
-            m = re.match(r"\*([0-9]*)$", f.weight)
+            m = re.match(r"\*([0-9]*)([ws]?)$", f.weight)
             if not m:
                 raise RuntimeError(
                     "Wrong weight format %s for sample pattern %s."
                     % (f.weight, f.pattern)
                 )
-            if m.groups()[0]:
-                f.oversample = int(m.groups()[0])
+            match_groups = m.groups()
+            if match_groups[0]:
+                f.oversample = int(match_groups[0])
             added_sample = f.lines_count
-            if not oversample_as_weights:
+            f.oversample_as_weights = oversample_as_weights
+            if match_groups[1]:
+                if match_groups[1] == "w":
+                    f.oversample_as_weights = True
+                elif match_groups[1] == "s":
+                    f.oversample_as_weights = False
+            if not f.oversample_as_weights:
                 added_sample *= f.oversample
             reserved_sample += added_sample
         else:
@@ -344,7 +352,7 @@ def sample(config, source_dir, oversample_as_weights):
     for f in all_files.values():
         if isinstance(f.weight, six.string_types) or f.weight != 0.0:
             lines_kept = f.lines_count
-            if not oversample_as_weights:
+            if not f.oversample_as_weights:
                 lines_kept *= f.oversample
             if gsample and not isinstance(f.weight, six.string_types):
                 weights_size -= 1
