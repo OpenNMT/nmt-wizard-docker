@@ -357,6 +357,7 @@ def sample(config, source_dir, oversample_as_weights):
             lines_kept = f.lines_count
             if not f.oversample_as_weights:
                 lines_kept *= f.oversample
+                f.oversample = 1
             if add_example_weights:
                 f.oversample_as_weights = True
             if gsample and not isinstance(f.weight, six.string_types):
