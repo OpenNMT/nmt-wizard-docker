@@ -275,9 +275,7 @@ class TrainingProcessor(Processor):
                 self._config, data_path, oversample_as_weights
             )
             batch_size = self._config.get("data", {}).get("batch_size", 100000)
-            sampler_loader = loader.SamplerFilesLoader(
-                all_files, batch_size
-            )
+            sampler_loader = loader.SamplerFilesLoader(all_files, batch_size)
             sampler_consumer = consumer.MultiConsumer(
                 [
                     consumer.OpsProfileLogger(),
