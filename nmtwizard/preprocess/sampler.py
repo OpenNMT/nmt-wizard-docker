@@ -312,6 +312,7 @@ def sample(config, source_dir, oversample_as_weights):
     weights_sum = 0
     weights_size = 0
     reserved_sample = 0
+    add_example_weights = False
     for f in all_files.values():
         if isinstance(f.weight, six.string_types):
             # Oversampling with "*N"
@@ -333,6 +334,8 @@ def sample(config, source_dir, oversample_as_weights):
                     f.oversample_as_weights = False
             if not f.oversample_as_weights:
                 added_sample *= f.oversample
+            else:
+                add_example_weights = True
             reserved_sample += added_sample
         else:
             file_weight = f.lines_count / pattern_sizes[f.pattern]
@@ -347,7 +350,6 @@ def sample(config, source_dir, oversample_as_weights):
     # Calculate the number of lines to keep using weights and lines_counts, select lines randomly.
     distribute = max(0, gsample - reserved_sample)
     summary = {}
-    add_example_weights = False
     leftover = 0.0
     logger.info("Summary of sampled lines:")
     for f in all_files.values():
@@ -355,8 +357,8 @@ def sample(config, source_dir, oversample_as_weights):
             lines_kept = f.lines_count
             if not f.oversample_as_weights:
                 lines_kept *= f.oversample
-            else:
-                add_example_weights = True
+            if add_example_weights:
+                f.oversample_as_weights = True
             if gsample and not isinstance(f.weight, six.string_types):
                 weights_size -= 1
                 res = distribute * (f.weight / weights_sum)
@@ -384,4 +386,4 @@ def sample(config, source_dir, oversample_as_weights):
 
         _select_lines(f)
 
-    return all_files.values(), summary, add_example_weights
+    return all_files.values(), summary
