@@ -5,6 +5,7 @@ import shutil
 import os
 from copy import deepcopy
 import random
+import glob
 
 from nmtwizard import utils
 from nmtwizard.preprocess.consumer import Consumer
@@ -163,6 +164,42 @@ def test_sampler(tmpdir, batch_size, num_threads):
     assert "IT" not in summary
 
     # Test oversampling as example weights
+
+    shutil.rmtree(str(tmpdir.join("preprocess")))
+    config["data"]["sample_dist"][0]["distribution"] = [
+        ["generic", "*3s"],
+        ["specific", 5.2],
+        ["news.*pattern", "*2w"],
+        [".*something", 1],
+    ]
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    (
+        data_path,
+        train_dir,
+        num_samples,
+        summary,
+        _,
+    ) = preprocessor.generate_preprocessed_data()
+
+    assert summary["news_pattern"]["linesampled"] == 3000
+    with open(str(tmpdir.join("preprocess/news_pattern.weights")), "r") as f:
+        rf = f.readlines()
+        assert len(rf) == 3000
+        assert all(el == "2.0\n" for el in rf)
+    en_file_list = glob.glob(str(tmpdir.join("preprocess/*.en")))
+    for ef in en_file_list:
+        wf = os.path.splitext(ef)[0] + ".weights"
+        assert os.path.isfile(wf)
+        if not wf.endswith("news_pattern.weights"):
+            with open(wf, "r") as f:
+                rf = f.readlines()
+                assert all(el == "1.0\n" for el in rf)
+                if wf.endswith("generic_corpus.weights"):
+                    assert len(rf) == 300
+                if wf.endswith("generic_added.weights"):
+                    assert len(rf) == 150
+
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["oversample_with_sentence_weighting"] = True
 
@@ -180,6 +217,18 @@ def test_sampler(tmpdir, batch_size, num_threads):
         rf = f.readlines()
         assert len(rf) == 3000
         assert all(el == "2.0\n" for el in rf)
+    en_file_list = glob.glob(str(tmpdir.join("preprocess/*.en")))
+    for ef in en_file_list:
+        wf = os.path.splitext(ef)[0] + ".weights"
+        assert os.path.isfile(wf)
+        if not wf.endswith("news_pattern.weights"):
+            with open(wf, "r") as f:
+                rf = f.readlines()
+                assert all(el == "1.0\n" for el in rf)
+                if wf.endswith("generic_corpus.weights"):
+                    assert len(rf) == 300
+                if wf.endswith("generic_added.weights"):
+                    assert len(rf) == 150
 
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["sample_dist"] = [
