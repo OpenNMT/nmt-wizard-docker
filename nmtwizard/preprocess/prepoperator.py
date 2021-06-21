@@ -81,7 +81,7 @@ def get_operator_class(op):
     return operator_cls
 
 
-def get_operator_params(config, operator_type, index,override_label=None):
+def get_operator_params(config, operator_type, index, override_label=None):
     """Returns the operator parameters from the configuration."""
     config.setdefault("name", "%s_%d" % (operator_type, index))
     config = copy.deepcopy(config)
@@ -326,7 +326,7 @@ class Operator(object):
                 "comment": {"type": "string"},
                 "overrides": {"type": "object"},
                 "disabled": {"type": "boolean"},
-                "name": {"type": "string"}
+                "name": {"type": "string"},
             },
             "additionalProperties": False,
         }

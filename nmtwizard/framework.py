@@ -1157,11 +1157,12 @@ class Framework(utility.Utility):
                 dist["path"] = os.path.join(basedir, dist["path"])
         return config
 
+
 def add_config_fields(config, local_config):
     if isinstance(config, dict) and isinstance(local_config, dict):
         name = local_config.get("name")
         op = local_config.get("op")
-        if name and op and (op == config.get("op")) :
+        if name and op and (op == config.get("op")):
             config.setdefault("name", name)
 
 
