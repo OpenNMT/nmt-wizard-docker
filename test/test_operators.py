@@ -159,7 +159,7 @@ def test_tokenization_with_inference_config(tmpdir):
     assert tu_list[0].tgt_tok.tokens[0] == ["2", ",", "000"]
 
     config["inference"] = {
-        "overrides": {"tokenization_0": {"source": {"mode": "none"}}}
+        "overrides": {"tokenization_1": {"source": {"mode": "none"}}}
     }
     pipeline = prepoperator.Pipeline(config, process_type)
 

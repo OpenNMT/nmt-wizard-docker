@@ -130,7 +130,7 @@ def build_operator(
     args = []
     if shared_state:
         args.append(shared_state)
-    name = operator_params.pop("name", "%s_%d" % (operator_type, index))
+    name = operator_params.get("name", "%s_%d" % (operator_type, index + 1))
     if inference_config:
         op_inference_config = inference_config.get(name)
         if op_inference_config:
@@ -325,6 +325,7 @@ class Operator(object):
                 "comment": {"type": "string"},
                 "overrides": {"type": "object"},
                 "disabled": {"type": "boolean"},
+                "name": {"type": "string"},
             },
             "additionalProperties": False,
         }
