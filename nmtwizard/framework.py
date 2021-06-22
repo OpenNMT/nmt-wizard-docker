@@ -1134,6 +1134,7 @@ class Framework(utility.Utility):
         return build_info
 
     def _finalize_config(self, config, training=True):
+        config_util.ensure_operators_name(config)
         config = config_util.old_to_new_config(config)
         config = utility.resolve_environment_variables(config, training=training)
         config = self._upgrade_data_config(config, training=training)
@@ -1158,14 +1159,6 @@ class Framework(utility.Utility):
         return config
 
 
-def add_config_fields(config, local_config):
-    if isinstance(config, dict) and isinstance(local_config, dict):
-        name = local_config.get("name")
-        op = local_config.get("op")
-        if name and op and (op == config.get("op")):
-            config.setdefault("name", name)
-
-
 def bundle_dependencies(objects, config, local_config):
     """Bundles additional resources in the model package."""
     if local_config is None:
@@ -1179,7 +1172,6 @@ def bundle_dependencies(objects, config, local_config):
             if k in ("sample_dist", "build"):
                 continue
             config[k] = bundle_dependencies(objects, v, local_config.get(k))
-        add_config_fields(config, local_config)
         return config
     else:
         if isinstance(config, six.string_types):

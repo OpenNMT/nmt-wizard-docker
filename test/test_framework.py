@@ -477,7 +477,7 @@ def test_train_with_sampling_v2(tmpdir):
         tmpdir, "model0", "train", config=config, corpus_env=False
     )
     config = _read_config(model_dir)
-    assert config["preprocess"][0]["name"] == "tokenization_0"
+    assert config["preprocess"][0]["name"] == "tokenization_1"
     assert config["build"]["sentenceCount"] == 1000
     assert os.path.exists(os.path.join(model_dir, "en-vocab.txt"))
     assert not os.path.exists(os.path.join(model_dir, "de-vocab.txt"))

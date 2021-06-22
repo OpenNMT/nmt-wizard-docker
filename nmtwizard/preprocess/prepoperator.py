@@ -57,7 +57,7 @@ def operator_info_generator(
         ):
             ignore_disabled = False
         operator_params = get_operator_params(
-            operator_config, operator_type, i, override_label=override_label
+            operator_config, operator_type, override_label=override_label
         )
         if ignore_disabled and operator_params.get("disabled", False):
             continue
@@ -81,9 +81,8 @@ def get_operator_class(op):
     return operator_cls
 
 
-def get_operator_params(config, operator_type, index, override_label=None):
+def get_operator_params(config, operator_type, override_label=None):
     """Returns the operator parameters from the configuration."""
-    config.setdefault("name", "%s_%d" % (operator_type, index))
     config = copy.deepcopy(config)
     config.pop("op", None)
     override_config = config.pop("overrides", None)
@@ -131,7 +130,7 @@ def build_operator(
     args = []
     if shared_state:
         args.append(shared_state)
-    name = operator_params["name"]
+    name = operator_params.get("name", "%s_%d" % (operator_type, index + 1))
     if inference_config:
         op_inference_config = inference_config.get(name)
         if op_inference_config:

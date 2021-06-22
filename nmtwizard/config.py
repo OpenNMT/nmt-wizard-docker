@@ -216,6 +216,19 @@ def get_config_version(config):
     return 2 if is_v2_config(config) else 1
 
 
+def ensure_operators_name(config):
+    """Make sure all operators in model configuration have a unique name."""
+    i = 1
+    for process in ["preprocess", "postprocess"]:
+        process_config = config.get(process)
+        if process_config:
+            for op_config in process_config:
+                op_type = op_config.get("op")
+                if op_type:
+                    op_config.setdefault("name", "%s_%d" % (op_type, i))
+        i += 1
+
+
 def old_to_new_config(config):
     """Locally update old configuration with 'tokenization' field to include new 'vocabulary' and 'preprocess" fields."""
     if not config:
