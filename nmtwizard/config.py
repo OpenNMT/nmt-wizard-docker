@@ -226,7 +226,7 @@ def ensure_operators_name(config):
                 op_type = op_config.get("op")
                 if op_type:
                     op_config.setdefault("name", "%s_%d" % (op_type, i))
-        i += 1
+                i += 1
 
 
 def old_to_new_config(config):
