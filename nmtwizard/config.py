@@ -218,6 +218,8 @@ def get_config_version(config):
 
 def ensure_operators_name(config):
     """Make sure all operators in model configuration have a unique name."""
+    if is_v1_config(config):
+        return
     i = 1
     for process in ["preprocess", "postprocess"]:
         process_config = config.get(process)
