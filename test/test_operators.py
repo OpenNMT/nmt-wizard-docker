@@ -131,6 +131,23 @@ def test_tokenization_with_lang():
     ]
 
 
+def test_tokenization_with_non_iso_639_lang():
+    config = {
+        "source": "en-GB",
+        "target": "en-US",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "none"},
+                "target": {"mode": "none"},
+            }
+        ],
+    }
+
+    # Should not throw an exception.
+    prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
+
+
 def test_tokenization_with_inference_config(tmpdir):
     config = {
         "source": "en",

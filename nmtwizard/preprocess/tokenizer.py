@@ -34,6 +34,11 @@ _ALLOWED_TOKENIZER_ARGS = set(
 )
 
 
+def _is_valid_language_code(lang):
+    # TODO: consider exposing this function in pyonmttok.
+    return len(lang) == 2 and lang not in ("xx", "yy")
+
+
 def build_tokenizer(args):
     """Builds a tokenizer based on user arguments."""
     args = {
@@ -41,6 +46,9 @@ def build_tokenizer(args):
     }
     if not args:
         return None
+    lang = args.get("lang")
+    if lang is not None and not _is_valid_language_code(lang):
+        args.pop("lang")
     return pyonmttok.Tokenizer(**args)
 
 
