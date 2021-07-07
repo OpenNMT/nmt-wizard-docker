@@ -58,7 +58,10 @@ class Noise(prepoperator.TUOperator):
             if not token.is_placeholder():
                 if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
                     continue
-                elif self._drop_space_prob > 0 and random.random() <= self._drop_space_prob:
+                elif (
+                    self._drop_space_prob > 0
+                    and random.random() <= self._drop_space_prob
+                ):
                     token.join_left = True
 
                 if (
