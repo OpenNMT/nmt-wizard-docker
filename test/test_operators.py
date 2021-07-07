@@ -199,6 +199,7 @@ def test_tokenization_with_inference_config(tmpdir):
         (dict(drop_char_prob=1), True, "a｟a｠.", "｟a｠"),
         (dict(duplicate_char_prob=1), True, "hello.", "hheelllloo.."),
         (dict(swap_char_prob=1), True, "hello.", "ehllo."),
+        (dict(drop_word_prob=1, drop_space_prob=1), True, "a｟a｠.", "｟a｠"),
     ],
 )
 def test_noise(config, training, text, expected):
