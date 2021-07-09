@@ -293,7 +293,11 @@ class Pipeline(object):
                     )
                 kwargs["options"] = op_options
 
-            process_type = "postprocess" if self._process_type == ProcessType.POSTPROCESS else "preprocess"
+            process_type = (
+                "postprocess"
+                if self._process_type == ProcessType.POSTPROCESS
+                else "preprocess"
+            )
             logger.debug("Applying operator %s in %s", op.name, process_type)
             tu_batch = op(tu_batch, **kwargs)
 

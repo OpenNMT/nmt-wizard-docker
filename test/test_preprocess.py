@@ -627,6 +627,36 @@ def test_preprocess_pipeline(tmpdir):
         # tokenization is enabled for other corpora (only generic label, no news label)
         assert f.readline().startswith("extra ￭_￭ generic")
 
+    # Test in inference with postprocess
+    @prepoperator.register_operator("dummy_op_add_token")
+    class DummyOpAddToken(prepoperator.MonolingualOperator):
+        def _build_process(self, config, side, build_state):
+            return "Not None"
+
+        @property
+        def _detok(self):
+            return False
+
+        def _apply_process(self, processor, tok):
+            tokens = tok.tokens[0]
+            tokens[0] = "W"
+            return (tok.tokenizer, [tokens])
+
+    config["postprocess"] = [
+        {
+            "op": "dummy_op_add_token",
+        }
+    ]
+
+    config["preprocess"].insert(
+        0,
+        {
+            "op": "tokenization",
+            "source": {"mode": "char", "joiner_annotate": True},
+            "target": {"mode": "char", "joiner_annotate": True},
+        },
+    )
+
     prep = InferenceProcessor(config)
     source, target, _ = prep.process_input("This is a test.")
     assert source[0] == ["This", "is", "a", "test", "￭."]  # First and only part.
@@ -637,7 +667,7 @@ def test_preprocess_pipeline(tmpdir):
     assert target[0] == ["Das", "ist", "￭.", "￭.", "￭."]
 
     post = InferenceProcessor(config, postprocess=True)
-    assert post.process_input(source, target) == "Das ist..."
+    assert post.process_input(source, target) == "Was ist..."
 
 
 config_base = {
