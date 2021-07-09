@@ -59,6 +59,10 @@ class Tokenizer(prepoperator.MonolingualOperator):
     def _detok(self):
         return False
 
+    @property
+    def _apply_in_postprocess(self):
+        return True
+
     def _build_process(self, config, side, build_state):
         # Disable subword regularization in inference.
         if self.process_type != prepoperator.ProcessType.TRAINING:
@@ -102,5 +106,5 @@ class Tokenizer(prepoperator.MonolingualOperator):
             return previous_tokenizer
         return current_tokenizer
 
-    def _apply_process(self, tokenizer, src_tok):
+    def _apply_process(self, tokenizer, tok):
         return (tokenizer, None)
