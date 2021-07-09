@@ -293,7 +293,8 @@ class Pipeline(object):
                     )
                 kwargs["options"] = op_options
 
-            logger.debug("Applying operator %s", op.name)
+            process_type = "postprocess" if self._process_type == ProcessType.POSTPROCESS else "preprocess"
+            logger.debug("Applying operator %s in %s", op.name, process_type)
             tu_batch = op(tu_batch, **kwargs)
 
             if ops_profile is not None:
@@ -475,6 +476,10 @@ class MonolingualOperator(TUOperator):
     def _detok(self):
         raise NotImplementedError()
 
+    @property
+    def _apply_in_postprocess(self):
+        return False
+
     def _preprocess_tu(self, tu, meta_batch, **kwargs):
 
         options = kwargs.get(
@@ -507,7 +512,7 @@ class MonolingualOperator(TUOperator):
         return [tu]
 
     def _postprocess_tu(self, tu, **kwargs):
-        if self._postprocess_only:
+        if self._postprocess_only or self._apply_in_postprocess:
             options = kwargs.get("options")
             if self._target_process is not None or options:
                 if self._detok:
