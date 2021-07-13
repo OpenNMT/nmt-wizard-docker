@@ -91,8 +91,8 @@ class SummaryLogger(Consumer):
     """A consumer that reduces operators filter information and logs the result."""
 
     def __init__(self, sampler_summary):
-        self._sampler_summary = sampler_summary
         super().__init__()
+        self._sampler_summary = sampler_summary
         self._summary = {
             "filtered": collections.defaultdict(lambda: collections.defaultdict(int)),
             "added": collections.defaultdict(lambda: collections.defaultdict(int)),
