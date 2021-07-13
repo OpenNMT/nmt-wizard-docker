@@ -120,7 +120,9 @@ class SummaryLogger(Consumer):
     def finalize(self):
         def _log_info(file_info, file_summary, proc, units, sentences):
             sum_value = sum(file_summary.values())
-            percentage = f" ({100 * sum_value/sentences:.2f}%)" if units == "sentences" else ""
+            percentage = (
+                f" ({100 * sum_value/sentences:.2f}%)" if units == "sentences" else ""
+            )
             logger.info(
                 f"Summary of {proc} {units} {file_info}({sum_value} {proc} {units} in total for {sentences} sentences{percentage}):"
             )
@@ -139,11 +141,25 @@ class SummaryLogger(Consumer):
             summary = self._summary[proc]
             if summary:
                 all_files_summary = summary.pop(None)
-                total_sentence_number = sum([v.get('linesampled') for v in self._sampler_summary.values()])
-                _log_info("for the whole sample ", all_files_summary, proc, units, total_sentence_number)
+                total_sentence_number = sum(
+                    [v.get("linesampled") for v in self._sampler_summary.values()]
+                )
+                _log_info(
+                    "for the whole sample ",
+                    all_files_summary,
+                    proc,
+                    units,
+                    total_sentence_number,
+                )
                 sorted_by_base_name = sorted(summary.items(), key=lambda item: item[0])
                 for base_name, file_summary in sorted_by_base_name:
-                    _log_info(f"for the file '{base_name}' ", file_summary, proc, units, self._sampler_summary.get(base_name, {}).get('linesampled'))
+                    _log_info(
+                        f"for the file '{base_name}' ",
+                        file_summary,
+                        proc,
+                        units,
+                        self._sampler_summary.get(base_name, {}).get("linesampled"),
+                    )
 
 
 class RegisterNewTokens(Consumer):
