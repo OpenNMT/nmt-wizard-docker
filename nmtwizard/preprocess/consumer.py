@@ -142,7 +142,7 @@ class SummaryLogger(Consumer):
             if summary:
                 all_files_summary = summary.pop(None)
                 total_sentence_number = sum(
-                    [v.get("linesampled") for v in self._sampler_summary.values()]
+                    v.get("linesampled") for v in self._sampler_summary.values()
                 )
                 _log_info(
                     "for the whole sample ",
