@@ -279,7 +279,7 @@ class TrainingProcessor(Processor):
             sampler_consumer = consumer.MultiConsumer(
                 [
                     consumer.OpsProfileLogger(),
-                    consumer.SummaryLogger(),
+                    consumer.SummaryLogger(summary),
                 ]
             )
 

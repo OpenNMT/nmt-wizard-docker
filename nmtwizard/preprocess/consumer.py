@@ -90,8 +90,9 @@ class OpsProfileLogger(Consumer):
 class SummaryLogger(Consumer):
     """A consumer that reduces operators filter information and logs the result."""
 
-    def __init__(self):
+    def __init__(self, sampler_summary):
         super().__init__()
+        self._sampler_summary = sampler_summary
         self._summary = {
             "filtered": collections.defaultdict(lambda: collections.defaultdict(int)),
             "added": collections.defaultdict(lambda: collections.defaultdict(int)),
@@ -117,10 +118,13 @@ class SummaryLogger(Consumer):
         _add_summary("fuzzy_summary", "fuzzy")
 
     def finalize(self):
-        def _log_info(file_info, file_summary, proc, units):
+        def _log_info(file_info, file_summary, proc, units, sentences):
             sum_value = sum(file_summary.values())
+            percentage = (
+                f" ({100 * sum_value/sentences:.2f}%)" if units == "sentences" else ""
+            )
             logger.info(
-                f"Summary of {proc} {units} {file_info}({sum_value} {proc} {units} in total):"
+                f"Summary of {proc} {units} {file_info}({sum_value} {proc} {units} in total for {sentences} sentences{percentage}):"
             )
             sorted_summary = sorted(
                 file_summary.items(), key=lambda item: item[1], reverse=True
@@ -137,10 +141,25 @@ class SummaryLogger(Consumer):
             summary = self._summary[proc]
             if summary:
                 all_files_summary = summary.pop(None)
-                _log_info("for the whole sample ", all_files_summary, proc, units)
+                total_sentence_number = sum(
+                    v["linesampled"] for v in self._sampler_summary.values()
+                )
+                _log_info(
+                    "for the whole sample ",
+                    all_files_summary,
+                    proc,
+                    units,
+                    total_sentence_number,
+                )
                 sorted_by_base_name = sorted(summary.items(), key=lambda item: item[0])
                 for base_name, file_summary in sorted_by_base_name:
-                    _log_info(f"for the file '{base_name}' ", file_summary, proc, units)
+                    _log_info(
+                        f"for the file '{base_name}' ",
+                        file_summary,
+                        proc,
+                        units,
+                        self._sampler_summary[base_name]["linesampled"],
+                    )
 
 
 class RegisterNewTokens(Consumer):
