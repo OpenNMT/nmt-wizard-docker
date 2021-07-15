@@ -94,7 +94,7 @@ class Alignment(object):
         return self.__log_probs
 
     def set_alignments(self, alignments, forward_log_prob, backward_log_prob):
-        self.__alignments = [alignments]
+        self.__alignments = [set(alignments)]
         self.__log_probs = [(forward_log_prob, backward_log_prob)]
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part=0):
