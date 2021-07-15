@@ -334,7 +334,9 @@ def test_align_perplexity_hard_threshold(
         source_tokenizer=tokenizer,
         target_tokenizer=tokenizer,
     )
-    single_tu.set_alignment([], forward_log_prob=fwd_log_prob, backward_log_prob=bwd_log_prob)
+    single_tu.set_alignment(
+        [], forward_log_prob=fwd_log_prob, backward_log_prob=bwd_log_prob
+    )
     assert filtered == _is_filtered(config, single_tu)
 
 
@@ -362,7 +364,9 @@ def test_align_perplexity_percent_threshold(
         single_tu = tu.TranslationUnit(
             "a b c", "a b c", source_tokenizer=tokenizer, target_tokenizer=tokenizer
         )
-        single_tu.set_alignment([], forward_log_prob=log_prob, backward_log_prob=log_prob)
+        single_tu.set_alignment(
+            [], forward_log_prob=log_prob, backward_log_prob=log_prob
+        )
         tu_list.append(single_tu)
 
     config = {
