@@ -93,17 +93,9 @@ class Alignment(object):
     def log_probs(self):
         return self.__log_probs
 
-    def set_alignments(self, aligner, src_tok, tgt_tok):
-        alignments = []
-        log_probs = []
-        for src_tok_part, tgt_tok_part in zip(src_tok, tgt_tok):
-            align_result = aligner.align(src_tok_part, tgt_tok_part)
-            alignments.append(set(align_result["alignments"]))
-            log_probs.append(
-                (align_result["forward_log_prob"], align_result["backward_log_prob"])
-            )
-        self.__alignments = alignments
-        self.__log_probs = log_probs
+    def set_alignments(self, alignments, forward_log_prob, backward_log_prob):
+        self.__alignments = [alignments]
+        self.__log_probs = [(forward_log_prob, backward_log_prob)]
 
     def adjust_alignment(self, side_idx, start_idx, tok_num, new_tokens=None, part=0):
         # Shift alignments behind insertion/deletion.
@@ -454,13 +446,9 @@ class TranslationUnit(object):
             return None
         return list(log_probs)
 
-    def set_alignment(self, aligner):
-        if self.src_tok.tokenizer is None or self.tgt_tok.tokenizer is None:
-            raise RuntimeError("Cannot set alignment if not tokenization is set.")
+    def set_alignment(self, alignments, forward_log_prob=0, backward_log_prob=0):
         self.__alignment = Alignment()
-        self.__alignment.set_alignments(
-            aligner, self.src_tok.tokens, self.tgt_tok.tokens
-        )
+        self.__alignment.set_alignments(alignments, forward_log_prob, backward_log_prob)
 
     @property
     def src_detok(self):

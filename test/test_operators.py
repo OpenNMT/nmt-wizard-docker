@@ -32,18 +32,6 @@ def _is_filtered(config, tu_list):
     return len(tu_list) == 0
 
 
-class _MockAligner:
-    def __init__(self, alignments=None, forward_log_prob=0, backward_log_prob=0):
-        self._result = {
-            "forward_log_prob": forward_log_prob,
-            "backward_log_prob": backward_log_prob,
-            "alignments": alignments or [],
-        }
-
-    def align(self, *args):
-        return self._result
-
-
 def test_tokenization_with_vocabulary_restriction(tmpdir):
     sp_model_path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
@@ -346,9 +334,7 @@ def test_align_perplexity_hard_threshold(
         source_tokenizer=tokenizer,
         target_tokenizer=tokenizer,
     )
-    single_tu.set_alignment(
-        _MockAligner(forward_log_prob=fwd_log_prob, backward_log_prob=bwd_log_prob)
-    )
+    single_tu.set_alignment([], forward_log_prob=fwd_log_prob, backward_log_prob=bwd_log_prob)
     assert filtered == _is_filtered(config, single_tu)
 
 
@@ -376,9 +362,7 @@ def test_align_perplexity_percent_threshold(
         single_tu = tu.TranslationUnit(
             "a b c", "a b c", source_tokenizer=tokenizer, target_tokenizer=tokenizer
         )
-        single_tu.set_alignment(
-            _MockAligner(forward_log_prob=log_prob, backward_log_prob=log_prob)
-        )
+        single_tu.set_alignment([], forward_log_prob=log_prob, backward_log_prob=log_prob)
         tu_list.append(single_tu)
 
     config = {
