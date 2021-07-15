@@ -177,12 +177,12 @@ class Processor(object):
 
             def _get_iterator(semaphore):
                 for tu_batch in loader():
-                    # If the semaphore value reaches 0, the iterator will block so that no more
-                    # batches are loaded.
-                    semaphore.acquire()
                     override_label = _get_corpus_label(tu_batch)
                     shared_state = self._global_shared_state.get(override_label)
                     yield tu_batch, shared_state
+                    # If the semaphore value reaches 0, the iterator will block so that no more
+                    # batches are loaded.
+                    semaphore.acquire()
 
             process_func = functools.partial(
                 _process_batch_on_worker,
