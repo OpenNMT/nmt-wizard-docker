@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import collections
 import pytest
 import os
 import tempfile
@@ -296,11 +297,11 @@ def _clear_workspace(tmpdir):
     shutil.rmtree(workspace_dir)
 
 
-def _read_config(model_dir):
+def _read_config(model_dir, **kwargs):
     config_path = os.path.join(model_dir, "config.json")
     assert os.path.isfile(config_path)
     with open(config_path) as config_file:
-        return json.load(config_file)
+        return json.load(config_file, **kwargs)
 
 
 def _test_dir():
@@ -724,6 +725,48 @@ def test_description(tmpdir):
     assert os.path.exists(readme)
     with open(readme) as readme_file:
         assert readme_file.read().strip() == description
+
+
+def test_operator_params_order(tmpdir):
+    @prepoperator.register_operator("test_params_order")
+    class _DummyOperator(prepoperator.Operator):
+        @classmethod
+        def _config_schema(cls):
+            schema = super(_DummyOperator, cls)._config_schema()
+            schema["properties"].update(
+                {
+                    "a": {"type": "number"},
+                    "b": {"type": "number"},
+                    "c": {"type": "number"},
+                }
+            )
+            return schema
+
+        def _preprocess(self, tu_batch):
+            return tu_batch
+
+    config = copy.deepcopy(config_base)
+    config["preprocess"].append(
+        {
+            "overrides": {},
+            "c": 2,
+            "op": "test_params_order",
+            "b": 1,
+            "name": "my-operator",
+            "a": 0,
+        }
+    )
+
+    model_dir = _run_framework(tmpdir, "train", "train", config=config)
+    config = _read_config(model_dir, object_pairs_hook=collections.OrderedDict)
+    assert list(config["preprocess"][-1].keys()) == [
+        "op",
+        "name",
+        "a",
+        "b",
+        "c",
+        "overrides",
+    ]
 
 
 def test_preprocess_train_chain(tmpdir):

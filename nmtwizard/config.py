@@ -283,3 +283,33 @@ def old_to_new_config(config):
             ]
 
     return new_config
+
+
+def _ensure_params_order(params):
+    params = collections.OrderedDict(sorted(params.items(), key=lambda x: x[0]))
+    preferred_first = ["op", "name"]
+    preferred_last = ["overrides"]
+
+    for field in reversed(preferred_first):
+        if field in params:
+            params.move_to_end(field, last=False)
+
+    for field in preferred_last:
+        if field in params:
+            params.move_to_end(field, last=True)
+
+    return params
+
+
+def prepare_config_for_save(config):
+    """Prepares the configuration before saving it in the model directory."""
+    if is_v2_config(config):
+        # In V2 operators, we prefer that some fields appear first (or last) for readability.
+        config = config.copy()
+        for section_name in ("preprocess", "postprocess"):
+            section = config.get(section_name)
+            if section is None:
+                continue
+            config[section_name] = [_ensure_params_order(params) for params in section]
+
+    return config

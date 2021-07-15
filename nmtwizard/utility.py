@@ -15,6 +15,7 @@ import io
 import tempfile
 import functools
 
+from nmtwizard import config as config_util
 from nmtwizard.beat_service import start_beat_service
 from nmtwizard.utils import md5files
 from nmtwizard.logger import get_logger
@@ -342,9 +343,10 @@ def _get_config_path(model_dir):
 
 def save_model_config(model_dir, config):
     """Saves the model configuration."""
+    config = config_util.prepare_config_for_save(config)
     config_path = _get_config_path(model_dir)
     with open(config_path, "w") as config_file:
-        json.dump(config, config_file)
+        json.dump(config, config_file, indent=4)
     return config_path
 
 
