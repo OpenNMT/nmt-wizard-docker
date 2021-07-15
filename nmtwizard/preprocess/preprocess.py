@@ -175,8 +175,11 @@ class Processor(object):
         else:
             logger.info("Start processing using %d worker(s)", self._num_workers)
 
-            def _get_iterator():
+            def _get_iterator(semaphore):
                 for tu_batch in loader():
+                    # If the semaphore value reaches 0, the iterator will block so that no more
+                    # batches are loaded.
+                    semaphore.acquire()
                     override_label = _get_corpus_label(tu_batch)
                     shared_state = self._global_shared_state.get(override_label)
                     yield tu_batch, shared_state
@@ -195,7 +198,14 @@ class Processor(object):
             # memory usage. This is mitigated by the better stream processing of
             # the loader/consumer which avoids loading the full corpus in memory.
             with multiprocessing.Pool(processes=self._num_workers) as pool:
-                for result in pool.imap_unordered(process_func, _get_iterator()):
+                # We use a semaphore to control how many batches can be loaded in advance.
+                buffer_size = 2 * self._num_workers
+                semaphore = multiprocessing.Semaphore(buffer_size)
+                iterable = _get_iterator(semaphore)
+
+                for result in pool.imap_unordered(process_func, iterable):
+                    # Increment the semaphore value to allow loading another batch.
+                    semaphore.release()
                     consumer(result)
 
 
