@@ -512,39 +512,50 @@ class InferenceProcessor(Processor):
 
         Args:
           source_file: Path to the source file.
-          target_file: Path to the target file (for postprocess).
+          target_file: Path to the target file.
           metadata: A list of metadata, one per example. (Note that in multipart translation,
             multiple lines can refer to the same example.)
 
         Returns:
-          - In preprocess: a tuple with the path to the preprocessed source file and the metadata.
+          - In preprocess: a tuple with the path to the preprocessed source file,
+            the preprocessed target file (if any), and the metadata.
           - In postprocess: the path to the postprocessed target file.
         """
+
+        def _build_output_path(path, suffix):
+            if utils.is_gzip_file(path):
+                path = path[:-3]
+            return "%s.%s" % (path, suffix)
+
+        batch_size = self._config.get("data", {}).get("batch_size", 100000)
+
         if self._postprocess:
-            output_prefix = target_file
-            output_suffix = "detok"
+            file_loader = loader.PostprocessFileLoader(
+                source_file,
+                target_file,
+                metadata,
+                start_state=self._pipeline.start_state,
+                batch_size=batch_size,
+            )
+            file_consumer = consumer.PostprocessFileWriter(
+                _build_output_path(target_file, "detok")
+            )
         else:
-            output_prefix = source_file
-            output_suffix = "tok"
+            file_loader = loader.PreprocessFileLoader(
+                source_file,
+                target_file,
+                batch_size=batch_size,
+            )
+            file_consumer = consumer.PreprocessFileWriter(
+                _build_output_path(source_file, "tok"),
+                _build_output_path(target_file, "tok")
+                if target_file is not None
+                else None,
+            )
 
-        output_file = "%s.%s" % (
-            output_prefix
-            if not utils.is_gzip_file(output_prefix)
-            else output_prefix[:-3],
-            output_suffix,
-        )
-
-        file_loader = loader.FileLoader(
-            source_file,
-            target_file=target_file,
-            metadata=metadata,
-            start_state=self._pipeline.start_state,
-        )
-        with consumer.FileWriter(output_file, self._postprocess) as file_consumer:
+        with file_consumer:
             self.process(file_loader, file_consumer, pipeline=self._pipeline)
-            if self._postprocess:
-                return output_file
-            return output_file, file_consumer.metadata
+            return file_consumer.outputs
 
 
 class SharedManager(multiprocessing.managers.BaseManager):

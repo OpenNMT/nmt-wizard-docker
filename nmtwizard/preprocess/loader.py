@@ -1,6 +1,7 @@
 # coding: utf-8
 import six
 import abc
+import itertools
 
 from nmtwizard import utils
 from nmtwizard.preprocess import tu
@@ -25,70 +26,82 @@ class Loader(object):
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
-    def __init__(
-        self,
-        source_file,
-        target_file=None,
-        metadata=None,
-        start_state=None,
-        batch_size=None,
-    ):
+    def __init__(self, batch_size, input_paths):
         super().__init__(batch_size)
-        if start_state is None:
-            start_state = {}
-        self._source_tokenizer = start_state.get("src_tokenizer")
-        self._target_tokenizer = start_state.get("tgt_tokenizer")
-        self._metadata = metadata
-        self._files = [source_file]
-        if target_file:
-            self._files.append(target_file)
+        self._input_paths = input_paths
+
+    @abc.abstractmethod
+    def _get_translation_units(self, files):
+        """Yields TUs from the input files."""
+        raise NotImplementedError()
 
     def __call__(self):
-        files = [utils.open_file(path) for path in self._files]
+        files = [utils.open_file(path) for path in self._input_paths]
 
         try:
             tu_list = []
 
-            # Postprocess.
-            if len(self._files) > 1:
-                for meta in self._metadata:
-
-                    # TODO : prefix, features
-                    num_parts = len(meta)
-                    src_lines = [
-                        next(files[0]).strip().split() for _ in range(num_parts)
-                    ]
-                    tgt_lines = [
-                        next(files[1]).strip().split() for _ in range(num_parts)
-                    ]
-
-                    tu_list.append(
-                        tu.TranslationUnit(
-                            source=src_lines,
-                            target=tgt_lines,
-                            metadata=meta,
-                            source_tokenizer=self._source_tokenizer,
-                            target_tokenizer=self._target_tokenizer,
-                        )
-                    )
-
-                    if len(tu_list) == self._batch_size:
-                        yield tu_list, {}
-                        tu_list = []
-
-            # Preprocess.
-            else:
-                for line in files[0]:
-                    tu_list.append(tu.TranslationUnit(source=line))
-                    if len(tu_list) == self._batch_size:
-                        yield tu_list, {}
-                        tu_list = []
+            for unit in self._get_translation_units(files):
+                tu_list.append(unit)
+                if len(tu_list) == self._batch_size:
+                    yield tu_list, {}
+                    tu_list = []
 
             if tu_list:
                 yield tu_list, {}
         finally:
             for f in files:
                 f.close()
+
+
+class PreprocessFileLoader(FileLoader):
+    """Loads TUs for preprocessing."""
+
+    def __init__(self, source_path, target_path=None, batch_size=None):
+        input_paths = [source_path]
+        if target_path is not None:
+            input_paths.append(target_path)
+        super().__init__(batch_size, input_paths)
+
+    def _get_translation_units(self, files):
+        source_file = files[0]
+        target_file = files[1] if len(files) > 1 else itertools.repeat(None)
+        for source, target in zip(source_file, target_file):
+            yield tu.TranslationUnit(source=source, target=target)
+
+
+class PostprocessFileLoader(FileLoader):
+    """Loads TUs for postprocessing."""
+
+    def __init__(
+        self,
+        source_path,
+        target_path,
+        metadata,
+        start_state=None,
+        batch_size=None,
+    ):
+        super().__init__(batch_size, [source_path, target_path])
+        if start_state is None:
+            start_state = {}
+        self._source_tokenizer = start_state.get("src_tokenizer")
+        self._target_tokenizer = start_state.get("tgt_tokenizer")
+        self._metadata = metadata
+
+    def _get_translation_units(self, files):
+        source_file, target_file = files
+        for meta in self._metadata:
+            # TODO : prefix, features
+            num_parts = len(meta)
+            src_lines = [next(source_file).strip().split(" ") for _ in range(num_parts)]
+            tgt_lines = [next(target_file).strip().split(" ") for _ in range(num_parts)]
+            yield tu.TranslationUnit(
+                source=src_lines,
+                target=tgt_lines,
+                metadata=meta,
+                source_tokenizer=self._source_tokenizer,
+                target_tokenizer=self._target_tokenizer,
+            )
 
 
 class SamplerFileLoader(Loader):
