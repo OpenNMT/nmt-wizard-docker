@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Shared logic and abstractions of frameworks."""
 
 import os
