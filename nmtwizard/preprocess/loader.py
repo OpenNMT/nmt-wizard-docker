@@ -26,9 +26,12 @@ class Loader(object):
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
-    def __init__(self, batch_size):
+    def __init__(self, batch_size, batch_meta=None):
         super().__init__(batch_size)
+        if batch_meta is None:
+            batch_meta = {}
         self._input_paths = {}
+        self._batch_meta = batch_meta
 
     def register_file(self, name, path):
         if name in self._input_paths:
@@ -53,11 +56,11 @@ class FileLoader(Loader):
             for unit in self._get_translation_units(files):
                 tu_list.append(unit)
                 if len(tu_list) == self._batch_size:
-                    yield tu_list, {}
+                    yield tu_list, self._batch_meta.copy()
                     tu_list = []
 
             if tu_list:
-                yield tu_list, {}
+                yield tu_list, self._batch_meta.copy()
         finally:
             for f in files.values():
                 f.close()
@@ -121,7 +124,18 @@ class SamplerFileLoader(FileLoader):
 
     def __init__(self, f, batch_size):
         # TODO V2: multiple src
-        super().__init__(batch_size)
+        batch_meta = {
+            "base_name": f.base_name,
+            "label": f.label,
+            "no_preprocess": f.no_preprocess,
+            "pattern": f.pattern,
+            "root": f.root,
+            "weight": f.weight,
+        }
+        if f.oversample_as_weights:
+            batch_meta["example_weights"] = f.oversample
+
+        super().__init__(batch_size, batch_meta=batch_meta)
         self._file = f
 
         src_path = f.files["src"]
@@ -134,17 +148,6 @@ class SamplerFileLoader(FileLoader):
         if annotations is not None:
             for key, path in annotations.items():
                 self.register_file(key, path)
-
-        self._batch_meta = {
-            "base_name": self._file.base_name,
-            "label": self._file.label,
-            "no_preprocess": self._file.no_preprocess,
-            "pattern": self._file.pattern,
-            "root": self._file.root,
-            "weight": self._file.weight,
-        }
-        if self._file.oversample_as_weights:
-            self._batch_meta["example_weights"] = self._file.oversample
 
     def _get_translation_units(self, files):
         src_file = files["source"]
@@ -174,10 +177,6 @@ class SamplerFileLoader(FileLoader):
                     source=src_line, target=tgt_line, annotations=annot_lines
                 )
                 num_samples -= 1
-
-    def __call__(self):
-        for tu_batch, _ in super().__call__():
-            yield tu_batch, self._batch_meta.copy()
 
 
 class SamplerFilesLoader(Loader):
