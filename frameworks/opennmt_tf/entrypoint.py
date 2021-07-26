@@ -77,7 +77,9 @@ class OpenNMTTFFramework(Framework):
     def trans(self, config, model_path, input, output, gpuid=0):
         runner = self._build_runner(config, model_path=model_path)
         runner.infer(input, predictions_file=output)
-        with_scores = config["options"].get("config", {}).get("infer", {}).get("with_scores")
+        with_scores = (
+            config["options"].get("config", {}).get("infer", {}).get("with_scores")
+        )
         return utils.ScoreType.CUMULATED_LL if with_scores else None
 
     def release(self, config, model_path, optimization_level=None, gpuid=0):
