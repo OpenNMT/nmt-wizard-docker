@@ -1158,3 +1158,32 @@ def test_preprocess_inference_config_with_options():
     processor = InferenceProcessor(config)
     source, target, _ = processor.process_input("This is a test.")
     assert source == [["｟informal｠", "This", "is", "a", "test", "."]]
+
+
+def test_inference_preprocess_file_with_target(tmpdir):
+    config = {
+        "source": "en",
+        "target": "de",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "aggressive", "joiner_annotate": True},
+                "target": {"mode": "aggressive", "joiner_annotate": True},
+            },
+        ],
+    }
+
+    src_path = str(tmpdir.join("src.txt"))
+    tgt_path = str(tmpdir.join("tgt.txt"))
+    with open(src_path, "w") as src_file:
+        src_file.write("Hello world!")
+    with open(tgt_path, "w") as tgt_file:
+        tgt_file.write("Hallo Welt!")
+
+    processor = InferenceProcessor(config)
+    pre_src_path, pre_tgt_path, metadata = processor.process_file(src_path, tgt_path)
+
+    with open(pre_src_path) as pre_src_file:
+        assert pre_src_file.read().strip() == "Hello world ￭!"
+    with open(pre_tgt_path) as pre_tgt_file:
+        assert pre_tgt_file.read().strip() == "Hallo Welt ￭!"

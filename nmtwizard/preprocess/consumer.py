@@ -480,37 +480,76 @@ class VocabularyBuilder(Consumer):
 class FileWriter(Consumer):
     """FileWriter writes pre/postprocessed TUs into files at inference."""
 
-    def __init__(self, output_file, postprocess):
-        # A basic file writer only opens one file.
-        # In preprocess, it is used to store preprocessed source.
-        # In postprocess, it is used to store postprocessed target.
-        # TODO V2 : multiple files
+    def __init__(self, output_paths):
         super().__init__()
-        self._output_file = output_file
-        self._postprocess = postprocess
-        self._file = None
-        self.metadata = []
+        self._output_paths = output_paths
+        self._files = []
 
     def __enter__(self):
-        self._file = open(self._output_file, "w")
+        self._files = [open(output_path, "w") for output_path in self._output_paths]
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._file.close()
-        self._file = None
+        for f in self._files:
+            f.close()
+        self._files = []
 
     def _consume(self, outputs):
-        # Write lines to files from TUs
         for output in outputs[0]:
-            # Postprocess.
-            if self._postprocess:
-                self._file.write("%s\n" % output)
-            # Preprocess.
-            else:
-                for part in output.src:
-                    part = " ".join(part)
-                    self._file.write("%s\n" % part)
-                self.metadata.append(output.metadata)
+            self._write_output(output, self._files)
+
+    @abc.abstractmethod
+    def _write_output(self, output, files):
+        """Writes to the output files."""
+        raise NotImplementedError()
+
+
+class PreprocessFileWriter(FileWriter):
+    """A consumer writing preprocessed TUs."""
+
+    def __init__(self, source_path, target_path=None):
+        output_paths = [source_path]
+        if target_path is not None:
+            output_paths.append(target_path)
+        super().__init__(output_paths)
+        self._metadata = []
+        self._source_path = source_path
+        self._target_path = target_path
+
+    @property
+    def outputs(self):
+        if self._target_path is not None:
+            return self._source_path, self._target_path, self._metadata
+        else:
+            return self._source_path, self._metadata
+
+    def _write_output(self, output, files):
+        def _write_parts(f, parts):
+            for part in parts:
+                f.write(" ".join(part))
+                f.write("\n")
+
+        _write_parts(files[0], output.src)
+        if len(files) > 1 and output.tgt is not None:
+            _write_parts(files[1], output.tgt)
+
+        self._metadata.append(output.metadata)
+
+
+class PostprocessFileWriter(FileWriter):
+    """A consumer writing postprocessed TUs."""
+
+    def __init__(self, output_path):
+        super().__init__([output_path])
+        self._output_path = output_path
+
+    @property
+    def outputs(self):
+        return self._output_path
+
+    def _write_output(self, output, files):
+        files[0].write(output)
+        files[0].write("\n")
 
 
 class SamplerFileWriter(Consumer):
