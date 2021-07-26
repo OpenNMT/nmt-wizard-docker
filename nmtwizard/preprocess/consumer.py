@@ -548,7 +548,10 @@ class PostprocessFileWriter(FileWriter):
         return self._output_path
 
     def _write_output(self, output, files):
-        files[0].write(output)
+        output_line = output.tgt
+        if output.metadata and "score" in output.metadata:
+            output_line = "%.6f ||| %s" % (output.metadata["score"], output_line)
+        files[0].write(output_line)
         files[0].write("\n")
 
 

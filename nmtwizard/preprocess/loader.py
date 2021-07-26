@@ -91,6 +91,7 @@ class PostprocessFileLoader(FileLoader):
         metadata,
         start_state=None,
         batch_size=None,
+        target_score_type=None,
     ):
         super().__init__(batch_size)
         if start_state is None:
@@ -98,6 +99,7 @@ class PostprocessFileLoader(FileLoader):
         self._source_tokenizer = start_state.get("src_tokenizer")
         self._target_tokenizer = start_state.get("tgt_tokenizer")
         self._metadata = metadata
+        self._target_score_type = target_score_type
         self.register_file("source", source_path)
         self.register_file("target", target_path)
 
@@ -105,10 +107,15 @@ class PostprocessFileLoader(FileLoader):
         source_file = files["source"]
         target_file = files["target"]
         for meta in self._metadata:
-            # TODO : prefix, features
+            # TODO : features
             num_parts = len(meta)
             src_lines = [next(source_file).strip().split(" ") for _ in range(num_parts)]
             tgt_lines = [next(target_file).strip().split(" ") for _ in range(num_parts)]
+
+            if self._target_score_type is not None:
+                score = _extract_score(tgt_lines, self._target_score_type)
+                meta = [{"score": score}]
+
             yield tu.TranslationUnit(
                 source=src_lines,
                 target=tgt_lines,
@@ -116,6 +123,43 @@ class PostprocessFileLoader(FileLoader):
                 source_tokenizer=self._source_tokenizer,
                 target_tokenizer=self._target_tokenizer,
             )
+
+
+def _extract_score(tokens, score_type, separator="|||"):
+    total_score = 0
+    total_length = 0
+
+    for tokens_part in tokens:
+        if len(tokens_part) < 2 or tokens_part[1] != separator:
+            raise RuntimeError(
+                "Cannot extract score from line: %s" % " ".join(tokens_part)
+            )
+
+        try:
+            score = float(tokens_part[0])
+        except ValueError as e:
+            raise RuntimeError(
+                "Cannot convert '%s' to a score in line: %s"
+                % (tokens_part[0], " ".join(tokens_part))
+            ) from e
+
+        # Remove score and separator
+        tokens_part.pop(0)
+        tokens_part.pop(0)
+
+        length = len(tokens_part)
+        total_length += length
+
+        # The returned score is the normalized log likelihood.
+        if score_type == utils.ScoreType.NORMALIZED_NLL:
+            score *= -length
+        elif score_type == utils.ScoreType.NORMALIZED_LL:
+            score *= length
+        elif score_type == utils.ScoreType.CUMULATED_NLL:
+            score = -score
+        total_score += score
+
+    return total_score / total_length
 
 
 class SamplerFileLoader(FileLoader):

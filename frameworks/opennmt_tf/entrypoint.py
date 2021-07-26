@@ -69,9 +69,16 @@ class OpenNMTTFFramework(Framework):
         )
         return _list_checkpoint_files(output_dir), summary
 
+    def score(self, config, model_path, source, target, output, gpuid=0):
+        runner = self._build_runner(config, model_path=model_path)
+        runner.score(source, target, output_file=output)
+        return utils.ScoreType.CUMULATED_NLL
+
     def trans(self, config, model_path, input, output, gpuid=0):
         runner = self._build_runner(config, model_path=model_path)
         runner.infer(input, predictions_file=output)
+        with_scores = config["options"].get("config", {}).get("infer", {}).get("with_scores")
+        return utils.ScoreType.CUMULATED_LL if with_scores else None
 
     def release(self, config, model_path, optimization_level=None, gpuid=0):
         export_dir = os.path.join(self._output_dir, _SAVED_MODEL_DIR)

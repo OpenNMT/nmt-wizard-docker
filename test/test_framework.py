@@ -9,6 +9,7 @@ import filecmp
 import six
 import functools
 
+from nmtwizard import utils
 from nmtwizard.framework import Framework
 from nmtwizard.preprocess import preprocess
 from nmtwizard.preprocess import prepoperator
@@ -116,6 +117,16 @@ class DummyFramework(_TestFramework):
                 index = parent_ckpt.index() + 1
         model_dir = os.path.join(self._output_dir, "model")
         return DummyCheckpoint(model_dir).build(index)
+
+    def score(self, config, model_path, source_path, target_path, output_path, gpuid=0):
+        # Score is the source length.
+        with open(source_path) as source_file, open(target_path) as target_file, open(
+            output_path, "w"
+        ) as output_file:
+            for source, target in zip(source_file, target_file):
+                source_length = len(source.strip().split())
+                output_file.write("%.6f ||| %s" % (source_length, target))
+        return utils.ScoreType.CUMULATED_LL
 
     def trans(self, config, model_path, input_path, output_path, gpuid=None):
         # Reverse the input.
@@ -1402,6 +1413,56 @@ def test_translation_add_bt_tag(tmpdir):
     source, target = _test_translation(tmpdir, "Hello world!", args=["--add_bt_tag"])
     assert source == "Hello world!"
     assert target == "｟mrk_bt｠ ! world Hello"
+
+
+def test_score(tmpdir):
+    vocab_path = str(tmpdir.join("vocab.txt"))
+    with open(vocab_path, "w") as vocab_file:
+        for i in range(1, 10):
+            vocab_file.write("%d\n" % i)
+
+    src_path = str(tmpdir.join("src.txt"))
+    tgt_path = str(tmpdir.join("tgt.txt"))
+    out_path = str(tmpdir.join("out.txt"))
+
+    with open(src_path, "w") as src_file:
+        src_file.write("123456\n")
+        src_file.write("123\n")
+        src_file.write("1234\n")
+    with open(tgt_path, "w") as tgt_file:
+        tgt_file.write("8456\n")
+        tgt_file.write("27964\n")
+        tgt_file.write("112\n")
+
+    config = {
+        "source": "en",
+        "target": "de",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "aggressive", "segment_numbers": True},
+                "target": {"mode": "aggressive", "segment_numbers": True},
+            }
+        ],
+        "vocabulary": {
+            "source": {"path": vocab_path},
+            "target": {"path": vocab_path},
+        },
+        "options": {},
+    }
+
+    _run_framework(tmpdir, "model", "train", config=config)
+
+    score_cmd = "score -s %s -t %s -o %s" % (src_path, tgt_path, out_path)
+    _run_framework(tmpdir, "score", score_cmd, parent="model")
+
+    # In this dummy test the score is the source length divided by the target length.
+    with open(out_path) as out_file:
+        assert out_file.readlines() == [
+            "1.500000 ||| 8 4 5 6\n",
+            "0.600000 ||| 2 7 9 6 4\n",
+            "1.333333 ||| 1 1 2\n",
+        ]
 
 
 def test_serve(tmpdir):

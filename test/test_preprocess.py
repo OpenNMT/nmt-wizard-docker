@@ -803,6 +803,32 @@ def test_postprocess_multipart_file_loader(tmpdir):
     assert utils.count_lines(output_path)[1] == 4
 
 
+def test_postprocess_multipart_file_loader_with_scores(tmpdir):
+    src_path = str(tmpdir.join("src.txt"))
+    tgt_path = str(tmpdir.join("tgt.txt"))
+
+    with open(src_path, "w") as src_file:
+        src_file.write("1 2 3\n")
+        src_file.write("4 5\n")
+        src_file.write("6\n")
+    with open(tgt_path, "w") as tgt_file:
+        tgt_file.write("-0.1 ||| a b c\n")
+        tgt_file.write("-0.6 ||| d e\n")
+        tgt_file.write("-0.2 ||| f\n")
+
+    meta = [[None, None, None]]
+    processor = InferenceProcessor(config_base, postprocess=True)
+    output_path = processor.process_file(
+        src_path,
+        tgt_path,
+        meta,
+        target_score_type=utils.ScoreType.CUMULATED_LL,
+    )
+
+    with open(output_path) as output_file:
+        assert output_file.read().strip() == "-0.150000 ||| a b c d e f"
+
+
 def test_postprocess_multipart_batch_loader(tmpdir):
     processor = InferenceProcessor(config_base, postprocess=True)
 
