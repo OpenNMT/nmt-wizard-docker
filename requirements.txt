@@ -3,4 +3,4 @@ jsonschema==3.*
 pyonmttok==1.26.4
 requests==2.*
 six>=1.13,<2
-systran-align>=3.2,<4
+systran-align>=3.3,<4
