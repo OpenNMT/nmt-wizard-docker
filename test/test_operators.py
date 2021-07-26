@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import os
 import pytest
 import pyonmttok
@@ -30,18 +28,6 @@ def _run_pipeline(config, process_type, tu_list):
 def _is_filtered(config, tu_list):
     tu_list = _run_pipeline(config, prepoperator.ProcessType.TRAINING, tu_list)
     return len(tu_list) == 0
-
-
-class _MockAligner:
-    def __init__(self, alignments=None, forward_log_prob=0, backward_log_prob=0):
-        self._result = {
-            "forward_log_prob": forward_log_prob,
-            "backward_log_prob": backward_log_prob,
-            "alignments": alignments or [],
-        }
-
-    def align(self, *args):
-        return self._result
 
 
 def test_tokenization_with_vocabulary_restriction(tmpdir):
@@ -347,7 +333,7 @@ def test_align_perplexity_hard_threshold(
         target_tokenizer=tokenizer,
     )
     single_tu.set_alignment(
-        _MockAligner(forward_log_prob=fwd_log_prob, backward_log_prob=bwd_log_prob)
+        [], forward_log_prob=fwd_log_prob, backward_log_prob=bwd_log_prob
     )
     assert filtered == _is_filtered(config, single_tu)
 
@@ -377,7 +363,7 @@ def test_align_perplexity_percent_threshold(
             "a b c", "a b c", source_tokenizer=tokenizer, target_tokenizer=tokenizer
         )
         single_tu.set_alignment(
-            _MockAligner(forward_log_prob=log_prob, backward_log_prob=log_prob)
+            [], forward_log_prob=log_prob, backward_log_prob=log_prob
         )
         tu_list.append(single_tu)
 

@@ -2,6 +2,7 @@
 
 import copy
 import collections
+import functools
 import multiprocessing
 import multiprocessing.managers
 import os
@@ -60,10 +61,10 @@ def _process_batch(
     config=None,
     process_type=None,
     exit_step=None,
-    override_label=None,
     shared_state=None,
 ):
     """Rebuilds the pipeline if required and processes a batch of TUs."""
+    override_label = _get_corpus_label(tu_batch)
     if pipeline is None or override_label != pipeline.override_label:
         if override_label is None:
             logger.info("Building default processing pipeline")
@@ -97,18 +98,16 @@ worker_pipeline = None
 
 
 def _process_batch_on_worker(
-    tu_batch,
+    inputs,
     options=None,
-    # Arguments below are used to rebuild the pipeline, if required.
     config=None,
     process_type=None,
     exit_step=None,
-    override_label=None,
-    shared_state=None,
 ):
     """Processes a batch of TUs using the pipeline cached on the worker process."""
     global worker_pipeline
     try:
+        tu_batch, shared_state = inputs
         outputs, worker_pipeline = _process_batch(
             worker_pipeline,
             tu_batch,
@@ -116,7 +115,6 @@ def _process_batch_on_worker(
             config=config,
             process_type=process_type,
             exit_step=exit_step,
-            override_label=override_label,
             shared_state=shared_state,
         )
     except Exception as e:
@@ -170,7 +168,6 @@ class Processor(object):
                     config=self._config,
                     process_type=self._pipeline_type,
                     exit_step=preprocess_exit_step,
-                    override_label=override_label,
                     shared_state=shared_state,
                 )
                 consumer(outputs)
@@ -178,45 +175,38 @@ class Processor(object):
         else:
             logger.info("Start processing using %d worker(s)", self._num_workers)
 
+            def _get_iterator(semaphore):
+                for tu_batch in loader():
+                    override_label = _get_corpus_label(tu_batch)
+                    shared_state = self._global_shared_state.get(override_label)
+                    yield tu_batch, shared_state
+                    # If the semaphore value reaches 0, the iterator will block so that no more
+                    # batches are loaded.
+                    semaphore.acquire()
+
+            process_func = functools.partial(
+                _process_batch_on_worker,
+                options=options,
+                config=self._config,
+                process_type=self._pipeline_type,
+                exit_step=preprocess_exit_step,
+            )
+
             # Because of the Python GIL (Global Interpreter Lock), we need to use
             # process-based workers to enable true parallelism. The downside is
             # that it duplicates resources for each worker, increasing the
             # memory usage. This is mitigated by the better stream processing of
             # the loader/consumer which avoids loading the full corpus in memory.
             with multiprocessing.Pool(processes=self._num_workers) as pool:
-                results = collections.deque()
+                # We use a semaphore to control how many batches can be loaded in advance.
+                buffer_size = 2 * self._num_workers
+                semaphore = multiprocessing.Semaphore(buffer_size)
+                iterable = _get_iterator(semaphore)
 
-                for tu_batch in loader():
-                    override_label = _get_corpus_label(tu_batch)
-                    shared_state = self._global_shared_state.get(override_label)
-
-                    # Push the batch in the process queue and get a handle on the result.
-                    results.append(
-                        pool.apply_async(
-                            _process_batch_on_worker,
-                            args=(tu_batch,),
-                            kwds=dict(
-                                options=options,
-                                config=self._config,
-                                process_type=self._pipeline_type,
-                                exit_step=preprocess_exit_step,
-                                override_label=override_label,
-                                shared_state=shared_state,
-                            ),
-                        )
-                    )
-
-                    # Limit the queue max size to avoid loading too many batches in advance.
-                    if len(results) == 2 * self._num_workers:
-                        results[0].wait()
-
-                    # Consume batches that are ready.
-                    while len(results) > 0 and results[0].ready():
-                        consumer(results.popleft().get())
-
-                # Wait and consume all remaining batches.
-                while len(results) > 0:
-                    consumer(results.popleft().get())
+                for result in pool.imap_unordered(process_func, iterable):
+                    # Increment the semaphore value to allow loading another batch.
+                    semaphore.release()
+                    consumer(result)
 
 
 class TrainingProcessor(Processor):
@@ -279,7 +269,7 @@ class TrainingProcessor(Processor):
             sampler_consumer = consumer.MultiConsumer(
                 [
                     consumer.OpsProfileLogger(),
-                    consumer.SummaryLogger(),
+                    consumer.SummaryLogger(summary),
                 ]
             )
 

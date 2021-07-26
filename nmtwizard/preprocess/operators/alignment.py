@@ -70,6 +70,25 @@ class Aligner(prepoperator.Operator):
         tu_list, meta_batch = tu_batch
         if self.process_type == prepoperator.ProcessType.TRAINING:
             meta_batch["write_alignment"] = self._write_alignment
+
+        src_tokens = []
+        tgt_tokens = []
         for tu in tu_list:
-            tu.set_alignment(self._aligner)
+            src_tok = tu.src_tok
+            tgt_tok = tu.tgt_tok
+            if src_tok.tokenizer is None or tgt_tok.tokenizer is None:
+                raise RuntimeError("Cannot set alignment if no tokenization is set")
+            if len(src_tok.tokens) != 1 or len(tgt_tok.tokens) != 1:
+                raise RuntimeError("Alignment operator only supports single-part TUs")
+            src_tokens.append(src_tok.tokens[0])
+            tgt_tokens.append(tgt_tok.tokens[0])
+
+        results = self._aligner.align_batch(src_tokens, tgt_tokens)
+        for tu, result in zip(tu_list, results):
+            tu.set_alignment(
+                result["alignments"],
+                result["forward_log_prob"],
+                result["backward_log_prob"],
+            )
+
         return tu_list, meta_batch
