@@ -5,10 +5,18 @@ import subprocess
 import six
 import os
 import gzip
+import enum
 
 from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class ScoreType(enum.Enum):
+    CUMULATED_LL = 0
+    CUMULATED_NLL = 1
+    NORMALIZED_LL = 2
+    NORMALIZED_NLL = 3
 
 
 def md5file(path):

@@ -497,7 +497,14 @@ class InferenceProcessor(Processor):
         )
         return src_tokens, tgt_tokens, tu.metadata
 
-    def process_file(self, source_file, target_file=None, metadata=None):
+    def process_file(
+        self,
+        source_file,
+        target_file=None,
+        metadata=None,
+        target_score_type=None,
+        delete_input_files=False,
+    ):
         """Process translation file at inference.
 
         Args:
@@ -505,6 +512,8 @@ class InferenceProcessor(Processor):
           target_file: Path to the target file.
           metadata: A list of metadata, one per example. (Note that in multipart translation,
             multiple lines can refer to the same example.)
+          target_score_type: The type of scores that are included in the target file, if any.
+          delete_input_files: Delete the input files once the processing is done.
 
         Returns:
           - In preprocess: a tuple with the path to the preprocessed source file,
@@ -526,6 +535,7 @@ class InferenceProcessor(Processor):
                 metadata,
                 start_state=self._pipeline.start_state,
                 batch_size=batch_size,
+                target_score_type=target_score_type,
             )
             file_consumer = consumer.PostprocessFileWriter(
                 _build_output_path(target_file, "detok")
@@ -545,6 +555,12 @@ class InferenceProcessor(Processor):
 
         with file_consumer:
             self.process(file_loader, file_consumer, pipeline=self._pipeline)
+
+            if delete_input_files:
+                os.remove(source_file)
+                if target_file is not None:
+                    os.remove(target_file)
+
             return file_consumer.outputs
 
 

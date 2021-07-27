@@ -16,6 +16,7 @@ import traceback
 from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
+from nmtwizard import utils
 from nmtwizard import serving
 from nmtwizard.preprocess import preprocess
 from nmtwizard.preprocess import tokenizer
@@ -85,6 +86,22 @@ class Framework(utility.Utility):
         """
         raise NotImplementedError()
 
+    def score(self, config, model_path, source, target, output, gpuid=0):
+        """Scores a corpus.
+
+        Args:
+          config: The run configuration.
+          model_path: The path to the model to use.
+          source: The path to the preprocessed source file.
+          target: The path to the preprocessed target file.
+          output: The path to the file that should contain the scores.
+          gpuid: The GPU identifier.
+
+        Returns:
+          A nmtwizard.utils.ScoreType value.
+        """
+        raise NotImplementedError("This framework does not support scoring")
+
     @abc.abstractmethod
     def trans(self, config, model_path, input, output, gpuid=0):
         """Translates a file.
@@ -95,6 +112,10 @@ class Framework(utility.Utility):
           input: The local path to the preprocessed (if any) source file.
           output: The local path to the file that should contain the translation.
           gpuid: The GPU identifier.
+
+        Returns:
+          A nmtwizard.utils.ScoreType value if the translation output contains scores,
+          None otherwise.
         """
         raise NotImplementedError()
 
@@ -118,6 +139,10 @@ class Framework(utility.Utility):
           optimization_level: An integer defining the level of optimization to
             apply to the released model. 0 = no optimization, 1 = quantization.
           gpuid: The GPU identifier.
+
+        Returns:
+          A nmtwizard.utils.ScoreType value if the translation output contains scores,
+          None otherwise.
         """
         return self.trans(config, model_path, input, output, gpuid=gpuid)
 
@@ -236,6 +261,17 @@ class Framework(utility.Utility):
             default=False,
             action="store_true",
             help="Do not apply postprocessing on the target files.",
+        )
+
+        parser_score = subparsers.add_parser("score", help="Score a corpus.")
+        parser_score.add_argument(
+            "-s", "--source", required=True, nargs="+", help="Source files"
+        )
+        parser_score.add_argument(
+            "-t", "--target", required=True, nargs="+", help="Target files"
+        )
+        parser_score.add_argument(
+            "-o", "--output", required=True, nargs="+", help="Output files"
         )
 
         parser_release = subparsers.add_parser(
@@ -371,6 +407,20 @@ class Framework(utility.Utility):
                 copy_source=args.copy_source,
                 add_bt_tag=args.add_bt_tag,
                 no_postprocess=args.no_postprocess,
+            )
+        elif args.cmd == "score":
+            if not self._stateless and (
+                parent_model is None or config["modelType"] != "checkpoint"
+            ):
+                raise ValueError("scoring requires a training checkpoint")
+            return self.score_wrapper(
+                config,
+                model_path,
+                self._storage,
+                args.source,
+                args.target,
+                args.output,
+                gpuid=self._gpuid,
             )
         elif args.cmd == "release":
             if not self._stateless and (
@@ -643,7 +693,7 @@ class Framework(utility.Utility):
                 else:
                     path_input_preprocessed = path_input_unzipped
                     metadata = None
-                translate_fn(
+                score_type = translate_fn(
                     local_config,
                     model_path,
                     path_input_preprocessed,
@@ -655,7 +705,10 @@ class Framework(utility.Utility):
                 generated_tokens += num_tokens
                 if not no_postprocess and postprocessor is not None:
                     path_output = postprocessor.process_file(
-                        path_input_preprocessed, path_output, metadata
+                        path_input_preprocessed,
+                        path_output,
+                        metadata,
+                        target_score_type=score_type,
                     )
 
                 if copy_source:
@@ -702,6 +755,74 @@ class Framework(utility.Utility):
         if failed_translation == len(inputs):
             raise RuntimeError("All translation failed, see error logs")
         return {"num_sentences": translated_lines, "num_tokens": generated_tokens}
+
+    def score_wrapper(
+        self,
+        config,
+        model_path,
+        storage,
+        sources,
+        targets,
+        outputs,
+        gpuid=0,
+    ):
+        if len(sources) != len(targets):
+            raise ValueError("There should be as many source files as target files")
+        if len(outputs) != len(sources):
+            raise ValueError("There should be as many output files as input files")
+
+        local_config = self._finalize_config(config, training=False)
+        preprocessor = self._get_preprocessor(local_config, train=False)
+        postprocessor = self._get_postprocessor(local_config)
+
+        for source, target, output in zip(sources, targets, outputs):
+            logger.info(
+                "Scoring input files %s and %s and write results to %s",
+                source,
+                target,
+                output,
+            )
+
+            source_path = os.path.join(self._data_dir, storage.split(source)[-1])
+            target_path = os.path.join(self._data_dir, storage.split(target)[-1])
+            output_path = os.path.join(self._output_dir, storage.split(output)[-1])
+            storage.get_file(source, source_path)
+            storage.get_file(target, target_path)
+            source_path = decompress_file(source_path, remove=True)
+            target_path = decompress_file(target_path, remove=True)
+
+            compress_output = utils.is_gzip_file(output_path)
+            if compress_output:
+                output_path = output_path[:-3]
+
+            metadata = None
+            if preprocessor is not None:
+                source_path, target_path, metadata = preprocessor.process_file(
+                    source_path, target_path, delete_input_files=True
+                )
+
+            score_type = self.score(
+                local_config,
+                model_path,
+                source_path,
+                target_path,
+                output_path,
+                gpuid=gpuid,
+            )
+
+            os.remove(target_path)
+            if postprocessor is not None:
+                output_path = postprocessor.process_file(
+                    source_path,
+                    output_path,
+                    metadata,
+                    target_score_type=score_type,
+                    delete_input_files=True,
+                )
+
+            if compress_output:
+                output_path = compress_file(output_path, remove=True)
+            storage.push(output_path, output)
 
     def release_wrapper(
         self,
@@ -1212,23 +1333,27 @@ def file_stats(path):
     return num_lines, num_tokens
 
 
-def compress_file(path_input):
+def compress_file(path_input, remove=False):
     path_input_new = path_input
     if not path_input.endswith(".gz"):
         logger.info("Starting gzip %s", path_input)
         path_input_new += ".gz"
         with open(path_input, "rb") as f_in, gzip.open(path_input_new, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
+        if remove:
+            os.remove(path_input)
     return path_input_new
 
 
-def decompress_file(path_input):
+def decompress_file(path_input, remove=False):
     path_input_new = path_input
     if path_input.endswith(".gz"):
         logger.info("Starting unzip %s", path_input)
         path_input_new = path_input[:-3]
         with gzip.open(path_input, "rb") as f_in, open(path_input_new, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
+        if remove:
+            os.remove(path_input)
     return path_input_new
 
 

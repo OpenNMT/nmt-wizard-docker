@@ -532,7 +532,13 @@ class TranslationUnit(object):
 
     def export(self, process_type):
         if process_type == prepoperator.ProcessType.POSTPROCESS:
-            return self.tgt_detok
+            return PreprocessOutput(
+                src=self.src_detok,
+                tgt=self.tgt_detok,
+                metadata=self.metadata[0],
+                alignment=None,
+            )
+
         src = self.src_tok.tokens
         if src is None:
             src = self.src_detok
