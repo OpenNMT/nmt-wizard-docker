@@ -5,6 +5,7 @@ import collections
 import functools
 import multiprocessing
 import multiprocessing.managers
+import threading
 import os
 
 from nmtwizard import config as config_util
@@ -478,11 +479,22 @@ class InferenceProcessor(Processor):
             source_tokenizer=pipeline.start_state.get("src_tokenizer"),
         )
 
+        proc = "Postprocess" if self._postprocess else "Preprocess"
+        logger.debug(
+            "[%d] %s source input:  %s", threading.current_thread().ident, proc, source
+        )
+
         if target is not None:
             tu.add_target(
                 target,
                 name=target_name,
                 tokenizer=pipeline.start_state.get("tgt_tokenizer"),
+            )
+            logger.debug(
+                "[%d] %s target input:  %s",
+                threading.current_thread().ident,
+                proc,
+                target,
             )
 
         tu_batch = ([tu], {})
@@ -490,11 +502,30 @@ class InferenceProcessor(Processor):
         tu = tu_batch[0][0]
 
         if self._postprocess:
+            logger.debug(
+                "[%d] %s target output:  %s",
+                threading.current_thread().ident,
+                proc,
+                tu.tgt_detok,
+            )
             return tu.tgt_detok
         src_tokens = tu.src_tok.tokens
         tgt_tokens = (
             tu.tgt_tok.tokens if tu.tgt_tok is not None else [None for _ in src_tokens]
         )
+        logger.debug(
+            "[%d] %s source output:  %s",
+            threading.current_thread().ident,
+            proc,
+            src_tokens,
+        )
+        if tu.tgt_tok is not None:
+            logger.debug(
+                "[%d] %s target output:  %s",
+                threading.current_thread().ident,
+                proc,
+                tgt_tokens,
+            )
         return src_tokens, tgt_tokens, tu.metadata
 
     def process_file(
