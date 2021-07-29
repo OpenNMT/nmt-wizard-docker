@@ -187,7 +187,8 @@ def test_tokenization_with_inference_config(tmpdir):
         (dict(swap_char_prob=1), True, "hello.", ["ehllo."]),
         (dict(drop_word_prob=1, drop_space_prob=1), True, "a｟a｠.", ["｟a｠"]),
         (dict(insert_space_prob=1), True, "hello.", ["h ello.", "he llo.", "hel lo.", "hell o."]),
-        (dict(insert_space_prob=1, drop_space_prob=1), True, "hello.", ["hello."])
+        (dict(insert_space_prob=1, drop_space_prob=1), True, "hello.", ["hello."]),
+        (dict(substitute_char_prob=1), True, "pp", ['oo', 'ol', 'lo', 'll']),
     ],
 )
 def test_noise(config, training, text, expected):

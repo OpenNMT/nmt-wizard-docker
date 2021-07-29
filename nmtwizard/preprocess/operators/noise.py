@@ -3,7 +3,6 @@ import random
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
 
-
 @prepoperator.register_operator("noise")
 class Noise(prepoperator.TUOperator):
     @classmethod
@@ -17,7 +16,8 @@ class Noise(prepoperator.TUOperator):
             "insert_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "drop_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "duplicate_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
-            "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1}
+            "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "substitute_char_prob": {"type": "number", "minimum": 0, "maximum": 1}
         }
         schema["properties"].update(
             {
@@ -46,6 +46,7 @@ class Noise(prepoperator.TUOperator):
         self._drop_char_prob = config.get("drop_char_prob", 0)
         self._duplicate_char_prob = config.get("duplicate_char_prob", 0)
         self._swap_char_prob = config.get("swap_char_prob", 0)
+        self._substitute_char_prob = config.get("substitute_char_prob", 0)
 
     def _preprocess_tu(self, tu, *args):
         tu = self._apply_space_insertion_noise(tu)
@@ -89,11 +90,21 @@ class Noise(prepoperator.TUOperator):
                     self._drop_char_prob > 0
                     or self._duplicate_char_prob > 0
                     or self._swap_char_prob > 0
+                    or self._substitute_char_prob > 0
                 ):
                     token.surface = self._apply_character_noise(token.surface)
             if len(token.surface) != 0:  # Delete token if empty.
                 new_tokens.append(token)
         return new_tokens
+
+    @staticmethod
+    def get_neighbor_keys_on_qwerty(key):
+        lines = 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'
+        line_index, index = [(i, l.find(key)) for i, l in enumerate(lines) if key in l][0]
+        lines = lines[line_index-1: line_index+2] if line_index else lines[0: 2]
+        return [
+            line[index + i] for line in lines for i in [-1, 0, 1]
+            if len(line) > index + i and line[index + i] != key and index + i >= 0]
 
     def _apply_character_noise(self, cur_surface):
         new_surface = ""
@@ -114,6 +125,13 @@ class Noise(prepoperator.TUOperator):
                 new_surface += cur_surface[i + 1]
                 new_surface += cur_surface[i]
                 i += 1
+            elif (
+                self._substitute_char_prob > 0
+                and random.random() <= self._substitute_char_prob
+                and cur_surface[i].isalpha()
+            ):
+                neighbors = self.get_neighbor_keys_on_qwerty(cur_surface[i])
+                new_surface += random.choice(neighbors)
             else:
                 new_surface += cur_surface[i]
             i += 1
