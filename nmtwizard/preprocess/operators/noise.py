@@ -1,4 +1,5 @@
 import random
+import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
@@ -17,7 +18,8 @@ class Noise(prepoperator.TUOperator):
             "drop_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "duplicate_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
-            "substitute_char_prob": {"type": "number", "minimum": 0, "maximum": 1}
+            "substitute_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "add_marker": {"type": "boolean"}
         }
         schema["properties"].update(
             {
@@ -47,13 +49,19 @@ class Noise(prepoperator.TUOperator):
         self._duplicate_char_prob = config.get("duplicate_char_prob", 0)
         self._swap_char_prob = config.get("swap_char_prob", 0)
         self._substitute_char_prob = config.get("substitute_char_prob", 0)
+        self._add_marker = config.get("add_marker", 0)
 
     def _preprocess_tu(self, tu, *args):
         tu = self._apply_space_insertion_noise(tu)
         src_tok = tu.src_tok
         tokens = src_tok.token_objects
+        original_tokens = copy.deepcopy(tokens)
+
         new_tokens = [self._apply_word_noise(tokens[0])]
         tu.src_tok = (src_tok.tokenizer, new_tokens)
+        
+        if self._add_marker and new_tokens != original_tokens:
+            tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
         return [tu]
 
     def _apply_space_insertion_noise(self, tu):
