@@ -14,9 +14,10 @@ class Noise(prepoperator.TUOperator):
             "lang": {"type": "string"},
             "drop_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "drop_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "insert_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "drop_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "duplicate_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
-            "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1}
         }
         schema["properties"].update(
             {
@@ -41,16 +42,36 @@ class Noise(prepoperator.TUOperator):
             config = source_config
         self._drop_word_prob = config.get("drop_word_prob", 0)
         self._drop_space_prob = config.get("drop_space_prob", 0)
+        self._insert_space_prob = config.get("insert_space_prob", 0)
         self._drop_char_prob = config.get("drop_char_prob", 0)
         self._duplicate_char_prob = config.get("duplicate_char_prob", 0)
         self._swap_char_prob = config.get("swap_char_prob", 0)
 
     def _preprocess_tu(self, tu, *args):
+        tu = self._apply_space_insertion_noise(tu)
         src_tok = tu.src_tok
         tokens = src_tok.token_objects
         new_tokens = [self._apply_word_noise(tokens[0])]
         tu.src_tok = (src_tok.tokenizer, new_tokens)
         return [tu]
+
+    def _apply_space_insertion_noise(self, tu):
+        src_tok = tu.src_tok
+        tokens = src_tok.token_objects[0]
+        added_spaces = 0
+        for pos,token in enumerate(tokens):
+            if not token.is_placeholder():
+                if (
+                    self._insert_space_prob > 0
+                    and random.random() <= self._insert_space_prob
+                    and len(token) > 1
+                ):
+                    new_space_index = random.randint(1,len(token)-1)
+                    first_part_surface = token.surface[0:new_space_index]
+                    second_part_surface = token.surface[new_space_index:]
+                    tu.replace_tokens_side("source", (pos+added_spaces, 1, [first_part_surface, second_part_surface]))
+                    added_spaces += 1
+        return tu
 
     def _apply_word_noise(self, tokens):
         new_tokens = []
