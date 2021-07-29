@@ -4,6 +4,7 @@ import copy
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
 
+
 @prepoperator.register_operator("noise")
 class Noise(prepoperator.TUOperator):
     @classmethod
@@ -19,7 +20,7 @@ class Noise(prepoperator.TUOperator):
             "duplicate_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "substitute_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
-            "add_marker": {"type": "boolean"}
+            "add_marker": {"type": "boolean"},
         }
         schema["properties"].update(
             {
@@ -56,10 +57,8 @@ class Noise(prepoperator.TUOperator):
         src_tok = tu.src_tok
         tokens = src_tok.token_objects
         original_tokens = copy.deepcopy(tokens)
-
         new_tokens = [self._apply_word_noise(tokens[0])]
         tu.src_tok = (src_tok.tokenizer, new_tokens)
-        
         if self._add_marker and new_tokens != original_tokens:
             tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
         return [tu]
@@ -68,17 +67,24 @@ class Noise(prepoperator.TUOperator):
         src_tok = tu.src_tok
         tokens = src_tok.token_objects[0]
         added_spaces = 0
-        for pos,token in enumerate(tokens):
+        for pos, token in enumerate(tokens):
             if not token.is_placeholder():
                 if (
                     self._insert_space_prob > 0
                     and random.random() <= self._insert_space_prob
                     and len(token) > 1
                 ):
-                    new_space_index = random.randint(1,len(token)-1)
+                    new_space_index = random.randint(1, len(token) - 1)
                     first_part_surface = token.surface[0:new_space_index]
                     second_part_surface = token.surface[new_space_index:]
-                    tu.replace_tokens_side("source", (pos+added_spaces, 1, [first_part_surface, second_part_surface]))
+                    tu.replace_tokens_side(
+                        "source",
+                        (
+                            pos + added_spaces,
+                            1,
+                            [first_part_surface, second_part_surface],
+                        ),
+                    )
                     added_spaces += 1
         return tu
 
@@ -107,12 +113,17 @@ class Noise(prepoperator.TUOperator):
 
     @staticmethod
     def get_neighbor_keys_on_qwerty(key):
-        lines = 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'
-        line_index, index = [(i, l.find(key)) for i, l in enumerate(lines) if key in l][0]
-        lines = lines[line_index-1: line_index+2] if line_index else lines[0: 2]
+        lines = "qwertyuiop", "asdfghjkl", "zxcvbnm"
+        line_index, index = [(i, l.find(key)) for i, l in enumerate(lines) if key in l][
+            0
+        ]
+        lines = lines[line_index - 1 : line_index + 2] if line_index else lines[0:2]
         return [
-            line[index + i] for line in lines for i in [-1, 0, 1]
-            if len(line) > index + i and line[index + i] != key and index + i >= 0]
+            line[index + i]
+            for line in lines
+            for i in [-1, 0, 1]
+            if len(line) > index + i and line[index + i] != key and index + i >= 0
+        ]
 
     def _apply_character_noise(self, cur_surface):
         new_surface = ""
