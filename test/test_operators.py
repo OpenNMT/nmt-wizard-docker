@@ -176,16 +176,41 @@ def test_tokenization_with_inference_config(tmpdir):
 @pytest.mark.parametrize(
     "config,training,text,expected",
     [
-        (dict(), True, "hello world.", "hello world."),
-        (dict(drop_word_prob=1), True, "hello world.", ""),
-        (dict({"source": {"drop_word_prob": 1}}), True, "hello world.", ""),
-        (dict(drop_word_prob=1), False, "hello world.", "hello world."),
-        (dict(drop_space_prob=1), True, "hello world.", "helloworld."),
-        (dict(drop_char_prob=1), True, "hello world.", ""),
-        (dict(drop_char_prob=1), True, "a｟a｠.", "｟a｠"),
-        (dict(duplicate_char_prob=1), True, "hello.", "hheelllloo.."),
-        (dict(swap_char_prob=1), True, "hello.", "ehllo."),
-        (dict(drop_word_prob=1, drop_space_prob=1), True, "a｟a｠.", "｟a｠"),
+        (dict(), True, "hello world.", ["hello world."]),
+        (dict(drop_word_prob=1), True, "hello world.", [""]),
+        (dict({"source": {"drop_word_prob": 1}}), True, "hello world.", [""]),
+        (dict(drop_word_prob=1), False, "hello world.", ["hello world."]),
+        (dict(drop_space_prob=1), True, "hello world.", ["helloworld."]),
+        (dict(drop_char_prob=1), True, "hello world.", [""]),
+        (dict(drop_char_prob=1), True, "a｟a｠.", ["｟a｠"]),
+        (dict(duplicate_char_prob=1), True, "hello.", ["hheelllloo.."]),
+        (dict(swap_char_prob=1), True, "hello.", ["ehllo."]),
+        (dict(drop_word_prob=1, drop_space_prob=1), True, "a｟a｠.", ["｟a｠"]),
+        (
+            dict(insert_space_prob=1),
+            True,
+            "hello.",
+            ["h ello.", "he llo.", "hel lo.", "hell o."],
+        ),
+        (dict(insert_space_prob=1, drop_space_prob=1), True, "hello.", ["hello."]),
+        (dict(substitute_char_prob=1), True, "pp", ["oo", "ol", "lo", "ll"]),
+        (
+            dict(drop_space_prob=1, add_marker=True),
+            True,
+            "hello world.",
+            ["｟mrk_noisy｠ helloworld."],
+        ),
+        (
+            dict(insert_space_prob=1, add_marker=True),
+            True,
+            "hello.",
+            [
+                "｟mrk_noisy｠ h ello.",
+                "｟mrk_noisy｠ he llo.",
+                "｟mrk_noisy｠ hel lo.",
+                "｟mrk_noisy｠ hell o.",
+            ],
+        ),
     ],
 )
 def test_noise(config, training, text, expected):
@@ -207,7 +232,7 @@ def test_noise(config, training, text, expected):
         else prepoperator.ProcessType.INFERENCE
     )
     tu_list = _run_pipeline(config_base, process_type, text)
-    assert tu_list[0].src_detok == expected
+    assert tu_list[0].src_detok in expected
 
 
 def test_identity_filter():
