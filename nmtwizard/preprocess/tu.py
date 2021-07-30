@@ -263,11 +263,11 @@ class TranslationSide(object):
             cur_tokens = cur_tokens[part]
             cur_length = len(cur_tokens)
             if start_idx > cur_length:
-                raise IndexError("Start index is too big for replacement.")
+                raise IndexError("Start index is too big for replacement.\tTOKENS: {}\tSTART IDX: {}\tNEW TOKENS: {}".format(cur_tokens, start_idx, new_tokens))
 
             end_idx = start_idx + tok_num
             if end_idx > cur_length:
-                raise IndexError("Too many tokens to delete.")
+                raise IndexError("Too many tokens to delete.\tTOKENS: {}\tSTART IDX: {}\tNEW TOKENS: {}".format(cur_tokens, start_idx, new_tokens))
 
             if not new_tokens:  # Deletion.
                 if start_idx < cur_length:
