@@ -200,6 +200,17 @@ def test_tokenization_with_inference_config(tmpdir):
             "hello world.",
             ["｟mrk_noisy｠ helloworld."],
         ),
+        (
+            dict(insert_space_prob=1, add_marker=True),
+            True,
+            "hello.",
+            [
+                "｟mrk_noisy｠ h ello.",
+                "｟mrk_noisy｠ he llo.",
+                "｟mrk_noisy｠ hel lo.",
+                "｟mrk_noisy｠ hell o.",
+            ],
+        ),
     ],
 )
 def test_noise(config, training, text, expected):

@@ -53,10 +53,10 @@ class Noise(prepoperator.TUOperator):
         self._add_marker = config.get("add_marker", 0)
 
     def _preprocess_tu(self, tu, *args):
+        original_tokens = copy.deepcopy(tu.src_tok.token_objects)
         tu = self._apply_space_insertion_noise(tu)
         src_tok = tu.src_tok
         tokens = src_tok.token_objects
-        original_tokens = copy.deepcopy(tokens)
         new_tokens = [self._apply_word_noise(tokens[0])]
         tu.src_tok = (src_tok.tokenizer, new_tokens)
         if self._add_marker and new_tokens != original_tokens:
