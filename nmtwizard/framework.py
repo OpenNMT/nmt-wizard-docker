@@ -343,31 +343,32 @@ class Framework(utility.Utility):
             remote_model_path = self._storage.join(
                 self._model_storage_read, parent_model
             )
-            model_path = os.path.join(self._models_dir, parent_model)
-            model_config = utility.fetch_model(
-                self._storage, remote_model_path, model_path, should_check_integrity
+            self._model_path = os.path.join(self._models_dir, parent_model)
+            self._model_config = utility.fetch_model(
+                self._storage, remote_model_path, self._model_path, should_check_integrity
             )
-            if "modelType" not in model_config:
+            if "modelType" not in self._model_config:
                 if parent_model.endswith("_release"):
-                    model_config["modelType"] = "release"
+                    self._model_config["modelType"] = "release"
                 else:
-                    model_config["modelType"] = "checkpoint"
+                    self._model_config["modelType"] = "checkpoint"
             config = config_util.update_config(
-                copy.deepcopy(model_config), config, mode=args.config_update_mode
+                copy.deepcopy(self._model_config), config, mode=args.config_update_mode
             )
         else:
-            model_path = None
-            model_config = None
+            self._model_path = None
+            self._model_config = None
 
         if args.cmd == "train":
             if parent_model is not None and config["modelType"] not in (
                 "checkpoint",
                 "base",
                 "preprocess",
+                "stem"
             ):
                 raise ValueError(
                     "cannot train from a model that is not a training checkpoint, "
-                    "a base model, or a preprocess model"
+                    "a base model, a stem model or a preprocess model"
                 )
             return self.train_wrapper(
                 self._task_id,
@@ -376,8 +377,8 @@ class Framework(utility.Utility):
                 self._model_storage_write,
                 self._image,
                 parent_model=parent_model,
-                model_path=model_path,
-                model_config=model_config,
+                model_path=self._model_path,
+                model_config=self._model_config,
                 gpuid=self._gpuid,
                 push_model=not self._no_push,
             )
@@ -392,12 +393,12 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "trans":
             if not self._stateless and (
-                parent_model is None or config["modelType"] != "checkpoint"
+                parent_model is None or config["modelType"] not in ("checkpoint", "stem")
             ):
                 raise ValueError("translation requires a training checkpoint")
             return self.trans_wrapper(
                 config,
-                model_path,
+                self._model_path,
                 self._storage,
                 args.input,
                 args.output,
@@ -410,12 +411,12 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "score":
             if not self._stateless and (
-                parent_model is None or config["modelType"] != "checkpoint"
+                parent_model is None or config["modelType"] not in ("checkpoint", "stem")
             ):
                 raise ValueError("scoring requires a training checkpoint")
             return self.score_wrapper(
                 config,
-                model_path,
+                self._model_path,
                 self._storage,
                 args.source,
                 args.target,
@@ -424,14 +425,14 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "release":
             if not self._stateless and (
-                parent_model is None or config["modelType"] != "checkpoint"
+                parent_model is None or config["modelType"] not in ("checkpoint", "stem")
             ):
                 raise ValueError("releasing requires a training checkpoint")
             if args.destination is None:
                 args.destination = self._model_storage_write
             self.release_wrapper(
                 config,
-                model_path,
+                self._model_path,
                 self._image,
                 storage=self._storage,
                 destination=args.destination,
@@ -442,24 +443,24 @@ class Framework(utility.Utility):
         elif args.cmd == "serve":
             if not self._stateless and (
                 parent_model is None
-                or config["modelType"] not in ("checkpoint", "release")
+                or config["modelType"] not in ("checkpoint", "release", "stem")
             ):
                 raise ValueError(
                     "serving requires a training checkpoint or a released model"
                 )
-            if config["modelType"] == "checkpoint":
-                model_path = self.release_wrapper(
+            if config["modelType"] in ("checkpoint", "stem"):
+                self._model_path = self.release_wrapper(
                     config,
-                    model_path,
+                    self._model_path,
                     self._image,
                     local_destination=self._output_dir,
                     optimization_level=args.release_optimization_level,
                     gpuid=self._gpuid,
                     push_model=False,
                 )
-                config = utility.load_model_config(model_path)
+                config = utility.load_model_config(self._model_path)
             self.serve_wrapper(
-                config, model_path, args.host, args.port, gpuid=self._gpuid
+                config, self._model_path, args.host, args.port, gpuid=self._gpuid
             )
         elif args.cmd == "preprocess":
             if not args.build_model:
@@ -471,14 +472,17 @@ class Framework(utility.Utility):
                         args.output,
                     )
 
-                if parent_model is not None and config["modelType"] not in (
+                parent_model_type = config.get("modelType")
+                if parent_model is not None and parent_model_type not in (
                     "checkpoint",
                     "base",
+                    "stem"
                 ):
                     raise ValueError(
                         "cannot preprocess from a model that is not a training "
                         "checkpoint or a base model"
                     )
+
                 return self.preprocess_into_model(
                     self._task_id,
                     config,
@@ -486,8 +490,9 @@ class Framework(utility.Utility):
                     self._model_storage_write,
                     self._image,
                     parent_model=parent_model,
-                    model_path=model_path,
-                    model_config=model_config,
+                    parent_model_type=parent_model_type,
+                    model_path=self._model_path,
+                    model_config=self._model_config,
                     push_model=not self._no_push,
                 )
 
@@ -509,13 +514,14 @@ class Framework(utility.Utility):
 
         parent_model_type = config.get("modelType") if model_path is not None else None
         local_config = self._finalize_config(config)
+
         if parent_model_type == "preprocess":
             data_dir = os.path.join(model_path, "data")
             tokens_to_add = {}
             del config["sampling"]
             logger.info("Using preprocessed data from %s" % data_dir)
         else:
-            data_dir, _, distribution_summary, tokens_to_add = self._build_data(
+            data_dir, num_samples, distribution_summary, tokens_to_add = self._build_data(
                 local_config
             )
 
@@ -550,7 +556,14 @@ class Framework(utility.Utility):
 
         # Fill training details.
         config["model"] = model_id
-        config["modelType"] = "checkpoint"
+        if parent_model_type == "stem":
+            config["modelType"] = "stem"
+            del config["data"]
+            config["sampling"] = {
+                "numSamples": num_samples,
+            }
+        else:
+            config["modelType"] = "checkpoint"
         config["imageTag"] = image
         build_info = {
             "containerId": os.uname()[1],
@@ -569,6 +582,9 @@ class Framework(utility.Utility):
                 build_info, distribution_summary, parent_build_info=parent_build_info
             )
             config["build"] = build_info
+
+        if parent_model_type == "stem":
+            objects["data"] = data_dir
 
         # Build and push the model package.
         bundle_dependencies(objects, config, local_config)
@@ -928,6 +944,7 @@ class Framework(utility.Utility):
         model_storage,
         image,
         parent_model=None,
+        parent_model_type=None,
         model_path=None,
         model_config=None,
         push_model=True,
@@ -960,7 +977,11 @@ class Framework(utility.Utility):
         if parent_model:
             config["parent_model"] = parent_model
         config["model"] = model_id
-        config["modelType"] = "preprocess"
+        if parent_model_type == "stem":
+            config["modelType"] = "stem"
+            del config["data"]
+        else:
+            config["modelType"] = "preprocess"
         config["imageTag"] = image
         config["sampling"] = {
             "numSamples": num_samples,
@@ -1229,6 +1250,23 @@ class Framework(utility.Utility):
         return preprocess.InferenceProcessor(config, postprocess=True)
 
     def _generate_training_data(self, config):
+        model_type = config.get("modelType")
+        if model_type == "stem":
+            config.setdefault("data", {})
+            config["data"].setdefault("sample_dist", [])
+            config["data"].setdefault("sample", config["sampling"]["numSamples"])
+            config["data"]["sample_dist"].append(
+                {
+                    "distribution": [
+                        [
+                            "train",
+                            1
+                        ]
+                    ],
+                    "path": os.path.join(self._model_path, "data"),
+                    "no_preprocess": True
+                }
+            )
         preprocessor = self._get_preprocessor(config)
         return preprocessor.generate_preprocessed_data()
 
