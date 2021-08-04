@@ -345,7 +345,10 @@ class Framework(utility.Utility):
             )
             self._model_path = os.path.join(self._models_dir, parent_model)
             self._model_config = utility.fetch_model(
-                self._storage, remote_model_path, self._model_path, should_check_integrity
+                self._storage,
+                remote_model_path,
+                self._model_path,
+                should_check_integrity,
             )
             if "modelType" not in self._model_config:
                 if parent_model.endswith("_release"):
@@ -364,7 +367,7 @@ class Framework(utility.Utility):
                 "checkpoint",
                 "base",
                 "preprocess",
-                "stem"
+                "stem",
             ):
                 raise ValueError(
                     "cannot train from a model that is not a training checkpoint, "
@@ -393,7 +396,8 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "trans":
             if not self._stateless and (
-                parent_model is None or config["modelType"] not in ("checkpoint", "stem")
+                parent_model is None
+                or config["modelType"] not in ("checkpoint", "stem")
             ):
                 raise ValueError("translation requires a training checkpoint")
             return self.trans_wrapper(
@@ -411,7 +415,8 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "score":
             if not self._stateless and (
-                parent_model is None or config["modelType"] not in ("checkpoint", "stem")
+                parent_model is None
+                or config["modelType"] not in ("checkpoint", "stem")
             ):
                 raise ValueError("scoring requires a training checkpoint")
             return self.score_wrapper(
@@ -425,7 +430,8 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "release":
             if not self._stateless and (
-                parent_model is None or config["modelType"] not in ("checkpoint", "stem")
+                parent_model is None
+                or config["modelType"] not in ("checkpoint", "stem")
             ):
                 raise ValueError("releasing requires a training checkpoint")
             if args.destination is None:
@@ -476,7 +482,7 @@ class Framework(utility.Utility):
                 if parent_model is not None and parent_model_type not in (
                     "checkpoint",
                     "base",
-                    "stem"
+                    "stem",
                 ):
                     raise ValueError(
                         "cannot preprocess from a model that is not a training "
@@ -521,9 +527,12 @@ class Framework(utility.Utility):
             del config["sampling"]
             logger.info("Using preprocessed data from %s" % data_dir)
         else:
-            data_dir, num_samples, distribution_summary, tokens_to_add = self._build_data(
-                local_config
-            )
+            (
+                data_dir,
+                num_samples,
+                distribution_summary,
+                tokens_to_add,
+            ) = self._build_data(local_config)
 
         src_vocab_info, tgt_vocab_info, _ = self._get_vocabs_info(
             config, local_config, model_config=model_config, tokens_to_add=tokens_to_add
@@ -1257,14 +1266,9 @@ class Framework(utility.Utility):
             config["data"].setdefault("sample", config["sampling"]["numSamples"])
             config["data"]["sample_dist"].append(
                 {
-                    "distribution": [
-                        [
-                            "train",
-                            1
-                        ]
-                    ],
+                    "distribution": [["train", 1]],
                     "path": os.path.join(self._model_path, "data"),
-                    "no_preprocess": True
+                    "no_preprocess": True,
                 }
             )
         preprocessor = self._get_preprocessor(config)
