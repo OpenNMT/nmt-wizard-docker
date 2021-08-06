@@ -80,14 +80,16 @@ def _process_batch(
         )
 
     tu_list, batch_meta = tu_batch
-    base_name = _get_corpus_name(tu_batch)
-    logger.info(
-        "Processing %d samples%s",
-        len(tu_list),
-        " from %s" % base_name if base_name is not None else "",
-    )
 
-    tu_list, batch_meta = pipeline(tu_batch, options=options)
+    if not batch_meta.get("no_preprocess"):
+        base_name = _get_corpus_name(tu_batch)
+        logger.info(
+            "Processing %d samples%s",
+            len(tu_list),
+            " from %s" % base_name if base_name is not None else "",
+        )
+
+        tu_list, batch_meta = pipeline(tu_batch, options=options)
     outputs = [tu.export(pipeline.process_type) for tu in tu_list]
     return (outputs, batch_meta), pipeline
 
