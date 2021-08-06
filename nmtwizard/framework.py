@@ -1273,7 +1273,7 @@ class Framework(utility.Utility):
         if model_type == "stem":
             config.setdefault("data", {})
             config["data"].setdefault("sample_dist", [])
-            config["data"].setdefault("sample", config["build"]["sentenceCount"])
+            config["data"].setdefault("sample", config.get("build", {}).get("sentenceCount") or config.get("sampling", {}).get("numSamples"))
             config["data"]["sample_dist"].append(
                 {
                     "distribution": [["train", 1]],
