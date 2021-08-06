@@ -318,8 +318,8 @@ class Framework(utility.Utility):
         )
         parser_preprocess.add_argument(
             "--build_model",
-            default=False,
-            action="store_true",
+            const=True,
+            nargs="?",
             help="Preprocess data into a model.",
         )
         parser_preprocess.add_argument(
@@ -486,8 +486,15 @@ class Framework(utility.Utility):
                 ):
                     raise ValueError(
                         "cannot preprocess from a model that is not a training "
-                        "checkpoint or a base model"
+                        "checkpoint, a stem model or a base model"
                     )
+
+                if args.build_model == "stem":
+                    if parent_model is None or parent_model_type != "checkpoint":
+                        raise ValueError(
+                            "Stem model can only be built from a trained checkpoint."
+                        )
+                    config["modelType"] = "stem"
 
                 return self.preprocess_into_model(
                     self._task_id,
@@ -496,7 +503,7 @@ class Framework(utility.Utility):
                     self._model_storage_write,
                     self._image,
                     parent_model=parent_model,
-                    parent_model_type=parent_model_type,
+                    model_type=config.get("modelType"),
                     model_path=self._model_path,
                     model_config=self._model_config,
                     push_model=not self._no_push,
@@ -953,7 +960,7 @@ class Framework(utility.Utility):
         model_storage,
         image,
         parent_model=None,
-        parent_model_type=None,
+        model_type=None,
         model_path=None,
         model_config=None,
         push_model=True,
@@ -986,7 +993,7 @@ class Framework(utility.Utility):
         if parent_model:
             config["parent_model"] = parent_model
         config["model"] = model_id
-        if parent_model_type == "stem":
+        if model_type == "stem":
             config["modelType"] = "stem"
             del config["data"]
         else:
@@ -1009,7 +1016,8 @@ class Framework(utility.Utility):
 
         # Build and push the model package.
         objects = {"data": data_dir}
-        bundle_dependencies(objects, config, local_config)
+        keep_all_objects = True if config["modelType"] == "stem" else False
+        bundle_dependencies(objects, config, local_config, keep_all_objects)
         # Forward other files from the parent model that are not tracked by the config.
         if model_path is not None:
             for f in os.listdir(model_path):
@@ -1263,7 +1271,7 @@ class Framework(utility.Utility):
         if model_type == "stem":
             config.setdefault("data", {})
             config["data"].setdefault("sample_dist", [])
-            config["data"].setdefault("sample", config["sampling"]["numSamples"])
+            config["data"].setdefault("sample", config["build"]["sentenceCount"])
             config["data"]["sample_dist"].append(
                 {
                     "distribution": [["train", 1]],
@@ -1321,19 +1329,21 @@ class Framework(utility.Utility):
         return config
 
 
-def bundle_dependencies(objects, config, local_config):
+def bundle_dependencies(objects, config, local_config, keep_all=False):
     """Bundles additional resources in the model package."""
     if local_config is None:
         return config
     if isinstance(config, list):
         for i, _ in enumerate(config):
-            config[i] = bundle_dependencies(objects, config[i], local_config[i])
+            config[i] = bundle_dependencies(
+                objects, config[i], local_config[i], keep_all
+            )
         return config
     elif isinstance(config, dict):
         for k, v in six.iteritems(config):
             if k in ("sample_dist", "build"):
                 continue
-            config[k] = bundle_dependencies(objects, v, local_config.get(k))
+            config[k] = bundle_dependencies(objects, v, local_config.get(k), keep_all)
         return config
     else:
         if isinstance(config, six.string_types):
@@ -1341,7 +1351,7 @@ def bundle_dependencies(objects, config, local_config):
                 filename = os.path.basename(config)
             else:
                 match = utility.ENVVAR_ABS_RE.match(config)
-                if match and "TRAIN" not in match.group(1):
+                if match and ("TRAIN" not in match.group(1) or keep_all):
                     filename = match.group(2)
                 else:
                     filename = None
