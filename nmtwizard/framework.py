@@ -574,6 +574,7 @@ class Framework(utility.Utility):
         config["model"] = model_id
         if parent_model_type == "stem":
             config["modelType"] = "stem"
+            config["used_data"] = config["data"]
             del config["data"]
             config["sampling"] = {
                 "numSamples": num_samples,
@@ -995,6 +996,7 @@ class Framework(utility.Utility):
         config["model"] = model_id
         if model_type == "stem":
             config["modelType"] = "stem"
+            config["used_data"] = config["data"]
             del config["data"]
         else:
             config["modelType"] = "preprocess"
