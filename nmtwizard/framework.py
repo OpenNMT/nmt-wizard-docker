@@ -367,11 +367,11 @@ class Framework(utility.Utility):
                 "checkpoint",
                 "base",
                 "preprocess",
-                "stem",
+                "standalone",
             ):
                 raise ValueError(
                     "cannot train from a model that is not a training checkpoint, "
-                    "a base model, a stem model or a preprocess model"
+                    "a base model, a standalone model or a preprocess model"
                 )
             return self.train_wrapper(
                 self._task_id,
@@ -397,7 +397,7 @@ class Framework(utility.Utility):
         elif args.cmd == "trans":
             if not self._stateless and (
                 parent_model is None
-                or config["modelType"] not in ("checkpoint", "stem")
+                or config["modelType"] not in ("checkpoint", "standalone")
             ):
                 raise ValueError("translation requires a training checkpoint")
             return self.trans_wrapper(
@@ -416,7 +416,7 @@ class Framework(utility.Utility):
         elif args.cmd == "score":
             if not self._stateless and (
                 parent_model is None
-                or config["modelType"] not in ("checkpoint", "stem")
+                or config["modelType"] not in ("checkpoint", "standalone")
             ):
                 raise ValueError("scoring requires a training checkpoint")
             return self.score_wrapper(
@@ -431,7 +431,7 @@ class Framework(utility.Utility):
         elif args.cmd == "release":
             if not self._stateless and (
                 parent_model is None
-                or config["modelType"] not in ("checkpoint", "stem")
+                or config["modelType"] not in ("checkpoint", "standalone")
             ):
                 raise ValueError("releasing requires a training checkpoint")
             if args.destination is None:
@@ -449,12 +449,12 @@ class Framework(utility.Utility):
         elif args.cmd == "serve":
             if not self._stateless and (
                 parent_model is None
-                or config["modelType"] not in ("checkpoint", "release", "stem")
+                or config["modelType"] not in ("checkpoint", "release", "standalone")
             ):
                 raise ValueError(
                     "serving requires a training checkpoint or a released model"
                 )
-            if config["modelType"] in ("checkpoint", "stem"):
+            if config["modelType"] in ("checkpoint", "standalone"):
                 self._model_path = self.release_wrapper(
                     config,
                     self._model_path,
@@ -482,19 +482,19 @@ class Framework(utility.Utility):
                 if parent_model is not None and parent_model_type not in (
                     "checkpoint",
                     "base",
-                    "stem",
+                    "standalone",
                 ):
                     raise ValueError(
                         "cannot preprocess from a model that is not a training "
-                        "checkpoint, a stem model or a base model"
+                        "checkpoint, a standalone model or a base model"
                     )
 
-                if args.build_model == "stem":
+                if args.build_model == "standalone":
                     if parent_model is None or parent_model_type != "checkpoint":
                         raise ValueError(
-                            "Stem model can only be built from a trained checkpoint."
+                            "Standalone model can only be built from a trained checkpoint."
                         )
-                    config["modelType"] = "stem"
+                    config["modelType"] = "standalone"
 
                 return self.preprocess_into_model(
                     self._task_id,
@@ -572,8 +572,8 @@ class Framework(utility.Utility):
 
         # Fill training details.
         config["model"] = model_id
-        if parent_model_type == "stem":
-            config["modelType"] = "stem"
+        if parent_model_type == "standalone":
+            config["modelType"] = "standalone"
             config["used_data"] = config["data"]
             del config["data"]
             config["sampling"] = {
@@ -600,7 +600,7 @@ class Framework(utility.Utility):
             )
             config["build"] = build_info
 
-        if parent_model_type == "stem":
+        if parent_model_type == "standalone":
             objects["data"] = data_dir
 
         # Build and push the model package.
@@ -994,8 +994,8 @@ class Framework(utility.Utility):
         if parent_model:
             config["parent_model"] = parent_model
         config["model"] = model_id
-        if model_type == "stem":
-            config["modelType"] = "stem"
+        if model_type == "standalone":
+            config["modelType"] = "standalone"
             config["used_data"] = config["data"]
             del config["data"]
         else:
@@ -1018,7 +1018,7 @@ class Framework(utility.Utility):
 
         # Build and push the model package.
         objects = {"data": data_dir}
-        keep_all_objects = True if config["modelType"] == "stem" else False
+        keep_all_objects = True if config["modelType"] == "standalone" else False
         bundle_dependencies(objects, config, local_config, keep_all_objects)
         # Forward other files from the parent model that are not tracked by the config.
         if model_path is not None:
@@ -1270,7 +1270,7 @@ class Framework(utility.Utility):
 
     def _generate_training_data(self, config):
         model_type = config.get("modelType")
-        if model_type == "stem":
+        if model_type == "standalone":
             config.setdefault("data", {})
             config["data"].setdefault("sample_dist", [])
             config["data"].setdefault(
