@@ -503,6 +503,7 @@ class Framework(utility.Utility):
                     self._model_storage_write,
                     self._image,
                     parent_model=parent_model,
+                    parent_model_type=parent_model_type,
                     model_type=config.get("modelType"),
                     model_path=self._model_path,
                     model_config=self._model_config,
@@ -574,8 +575,9 @@ class Framework(utility.Utility):
         config["model"] = model_id
         if parent_model_type == "standalone":
             config["modelType"] = "standalone"
-            config["used_data"] = config["data"]
-            del config["data"]
+            data = config.pop("data", None)
+            if data:
+                config["used_data"] = data
             config["sampling"] = {
                 "numSamples": num_samples,
             }
@@ -961,6 +963,7 @@ class Framework(utility.Utility):
         model_storage,
         image,
         parent_model=None,
+        parent_model_type=None,
         model_type=None,
         model_path=None,
         model_config=None,
@@ -996,8 +999,12 @@ class Framework(utility.Utility):
         config["model"] = model_id
         if model_type == "standalone":
             config["modelType"] = "standalone"
-            config["used_data"] = config["data"]
-            del config["data"]
+            data = config.pop("data", None)
+            if data:
+                if parent_model_type=="checkpoint":
+                    config["standalone_data"] = data
+                else:
+                    config["used_data"] = data
         else:
             config["modelType"] = "preprocess"
         config["imageTag"] = image
@@ -1017,7 +1024,10 @@ class Framework(utility.Utility):
         config["build"] = build_info
 
         # Build and push the model package.
-        objects = {"data": data_dir}
+        if parent_model_type=="checkpoint":
+            objects = {"standalone_data": data_dir}
+        else:
+            objects = {"data": data_dir}
         keep_all_objects = True if config["modelType"] == "standalone" else False
         bundle_dependencies(objects, config, local_config, keep_all_objects)
         # Forward other files from the parent model that are not tracked by the config.
@@ -1281,7 +1291,7 @@ class Framework(utility.Utility):
             config["data"]["sample_dist"].append(
                 {
                     "distribution": [["train", 1]],
-                    "path": os.path.join(self._model_path, "data"),
+                    "path": os.path.join(self._model_path, "standalone_data"),
                     "no_preprocess": True,
                 }
             )
