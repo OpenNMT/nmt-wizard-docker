@@ -1001,7 +1001,7 @@ class Framework(utility.Utility):
             config["modelType"] = "standalone"
             data = config.pop("data", None)
             if data:
-                if parent_model_type=="checkpoint":
+                if parent_model_type == "checkpoint":
                     config["standalone_data"] = data
                 else:
                     config["used_data"] = data
@@ -1024,7 +1024,7 @@ class Framework(utility.Utility):
         config["build"] = build_info
 
         # Build and push the model package.
-        if parent_model_type=="checkpoint":
+        if parent_model_type == "checkpoint":
             objects = {"standalone_data": data_dir}
         else:
             objects = {"data": data_dir}
