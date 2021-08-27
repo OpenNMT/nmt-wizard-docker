@@ -1024,7 +1024,7 @@ class Framework(utility.Utility):
         config["build"] = build_info
 
         # Build and push the model package.
-        if parent_model_type == "checkpoint":
+        if parent_model_type == "checkpoint" and model_type == "standalone":
             objects = {"standalone_data": data_dir}
         else:
             objects = {"data": data_dir}
