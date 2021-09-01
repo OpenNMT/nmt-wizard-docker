@@ -1,10 +1,11 @@
 import pytest
 
 from nmtwizard import serving
+from nmtwizard import utils
 
 
-def _make_output(tokens, score=None, attention=None):
-    return serving.TranslationOutput(tokens, score=score, attention=attention)
+def _make_output(*args, **kwargs):
+    return serving.TranslationOutput(*args, **kwargs)
 
 
 def _make_example(tokens, index=0, metadata=None, mode="default"):
@@ -19,6 +20,16 @@ def _make_example(tokens, index=0, metadata=None, mode="default"):
         mode=mode,
         metadata=metadata,
     )
+
+
+def test_score_normalization():
+    output = serving.TranslationOutput(
+        [["a", "b", "c"], ["d", "e"]],
+        score=[0.2, 0.6],
+        score_type=utils.ScoreType.NORMALIZED_LL,
+    )
+    assert output.total_score == 0.2 * 3 + 0.6 * 2
+    assert output.normalized_score == output.total_score / 5
 
 
 def test_batch_iterator():
@@ -252,6 +263,7 @@ def test_postprocess_output():
     result = serving.postprocess_output(output, example, Processor())
     assert result["text"] == "x y a b c"
     assert result["score"] == 2
+    assert result["normalized_score"] == 2 / 3
 
 
 def test_postprocess_output_with_metadata():
@@ -267,6 +279,7 @@ def test_postprocess_output_with_metadata():
 
     result = serving.postprocess_output(output, example, Processor())
     assert result["score"] == 2
+    assert result["normalized_score"] == 2 / 3
 
 
 def test_postprocess_output_multiparts():
@@ -284,6 +297,7 @@ def test_postprocess_output_multiparts():
     )
     result = serving.postprocess_output(output, example, Processor())
     assert result["score"] == 8
+    assert result["normalized_score"] == 8 / 5
 
 
 def test_postprocess_outputs():
@@ -309,11 +323,11 @@ def test_postprocess_outputs():
     results = serving.postprocess_outputs(outputs, examples, Processor())
     assert len(results) == 2
     assert len(results[0]) == 2
-    assert results[0][0] == {"text": "a b c", "score": 1}
-    assert results[0][1] == {"text": "a c b", "score": 2}
+    assert results[0][0] == {"text": "a b c", "score": 1, "normalized_score": 1 / 3}
+    assert results[0][1] == {"text": "a c b", "score": 2, "normalized_score": 2 / 3}
     assert len(results[1]) == 2
-    assert results[1][0] == {"text": "d e", "score": 3}
-    assert results[1][1] == {"text": "e e", "score": 4}
+    assert results[1][0] == {"text": "d e", "score": 3, "normalized_score": 3 / 2}
+    assert results[1][1] == {"text": "e e", "score": 4, "normalized_score": 4 / 2}
 
 
 def test_postprocess_outputs_multiparts():
@@ -343,8 +357,8 @@ def test_postprocess_outputs_multiparts():
     results = serving.postprocess_outputs(outputs, examples, Processor())
     assert len(results) == 1
     assert len(results[0]) == 2
-    assert results[0][0] == {"text": "a b c d e", "score": 1 + 3}
-    assert results[0][1] == {"text": "a c b e e", "score": 2 + 4}
+    assert results[0][0] == {"text": "a b c d e", "score": 4, "normalized_score": 4 / 5}
+    assert results[0][1] == {"text": "a c b e e", "score": 6, "normalized_score": 6 / 5}
 
 
 def test_align_tokens():
@@ -372,7 +386,16 @@ def test_align_tokens():
 
 def test_translate_examples():
     def func(source_tokens, target_tokens, options=None):
-        return [[_make_output(list(reversed(element)))] for element in source_tokens]
+        return [
+            [
+                _make_output(
+                    list(reversed(element)),
+                    score=-len(element),
+                    score_type=utils.ScoreType.CUMULATED_NLL,
+                )
+            ]
+            for element in source_tokens
+        ]
 
     examples = [
         _make_example([["a", "b"], ["c", "d"]], index=0, metadata=[3, 2]),
@@ -383,11 +406,15 @@ def test_translate_examples():
     assert len(outputs) == 2
     assert len(outputs[0]) == 1
     assert outputs[0][0].output == [["b", "a"], ["d", "c"]]
-    assert outputs[0][0].score == [None, None]
+    assert outputs[0][0].score == [-2, -2]
+    assert outputs[0][0].total_score == 4
+    assert outputs[0][0].normalized_score == 4 / 4
     assert outputs[0][0].attention == [None, None]
     assert len(outputs[1]) == 1
     assert outputs[1][0].output == [["g", "f", "e"]]
-    assert outputs[1][0].score == [None]
+    assert outputs[1][0].score == [-3]
+    assert outputs[1][0].total_score == 3
+    assert outputs[1][0].normalized_score == 3 / 3
     assert outputs[1][0].attention == [None]
 
 

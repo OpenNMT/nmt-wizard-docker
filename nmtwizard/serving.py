@@ -12,6 +12,7 @@ import six
 from six.moves import SimpleHTTPServer
 from six.moves import socketserver
 
+from nmtwizard import utils
 from nmtwizard import config as config_util
 from nmtwizard.logger import get_logger
 
@@ -21,10 +22,32 @@ logger = get_logger(__name__)
 class TranslationOutput(object):
     """Simple structure holding translation outputs."""
 
-    def __init__(self, output, score=None, attention=None):
+    def __init__(self, output, score=None, attention=None, score_type=None):
+        if score is not None and score_type is None:
+            score_type = utils.ScoreType.CUMULATED_LL
         self.output = output
         self.score = score
+        self.score_type = score_type
         self.attention = attention
+
+    def has_score(self):
+        return self.score and all(score is not None for score in self.score)
+
+    @property
+    def total_score(self):
+        if not self.has_score():
+            return None
+        return sum(
+            utils.ScoreType.to_cumulated_ll(score, self.score_type, len(tokens))
+            for score, tokens in zip(self.score, self.output)
+        )
+
+    @property
+    def normalized_score(self):
+        score = self.total_score
+        if score is not None:
+            score /= sum(map(len, self.output))
+        return score
 
 
 class TranslationExample(
@@ -395,6 +418,7 @@ def postprocess_output(output, example, postprocessor):
     if postprocessor is None:
         text = output.output[0]
         score = None
+        normalized_score = None
         align = None
     else:
         tgt_tokens = output.output
@@ -406,7 +430,8 @@ def postprocess_output(output, example, postprocessor):
             config=example.config,
             options=example.options,
         )
-        score = sum(output.score) if all(s is not None for s in output.score) else None
+        score = output.total_score
+        normalized_score = output.normalized_score
         attention = output.attention
         if attention and len(attention) == 1:
             attention = attention[0]
@@ -419,6 +444,8 @@ def postprocess_output(output, example, postprocessor):
     result = {"text": text}
     if score is not None:
         result["score"] = score
+    if normalized_score is not None:
+        result["normalized_score"] = normalized_score
     if align is not None:
         result["align"] = align
     return result
@@ -532,11 +559,21 @@ def merge_translation_outputs(parts):
     output = []
     score = []
     attention = []
+    score_type = None
     for part in parts:
         output.append(part.output)
         score.append(part.score)
         attention.append(part.attention)
-    return TranslationOutput(output, score=score, attention=attention)
+        if score_type is None:
+            score_type = part.score_type
+        elif part.score_type != score_type:
+            raise RuntimeError("Unexpected score type mismatch in multi-part output")
+    return TranslationOutput(
+        output,
+        score=score,
+        attention=attention,
+        score_type=score_type,
+    )
 
 
 def _process_is_running(process):
