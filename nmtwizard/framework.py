@@ -494,6 +494,10 @@ class Framework(utility.Utility):
                         raise ValueError(
                             "Standalone model can only be built from a trained checkpoint."
                         )
+                    if args.config is not None:
+                        raise ValueError(
+                            "Cannot modify configuration when building a standalone model. Do not use '-c' option."
+                        )
                     config["modelType"] = "standalone"
 
                 return self.preprocess_into_model(
@@ -575,12 +579,6 @@ class Framework(utility.Utility):
         config["model"] = model_id
         if parent_model_type == "standalone":
             config["modelType"] = "standalone"
-            data = config.pop("data", None)
-            if data:
-                config["used_data"] = data
-            config["sampling"] = {
-                "numSamples": num_samples,
-            }
         else:
             config["modelType"] = "checkpoint"
         config["imageTag"] = image
@@ -999,12 +997,6 @@ class Framework(utility.Utility):
         config["model"] = model_id
         if model_type == "standalone":
             config["modelType"] = "standalone"
-            data = config.pop("data", None)
-            if data:
-                if parent_model_type == "checkpoint":
-                    config["standalone_data"] = data
-                else:
-                    config["used_data"] = data
         else:
             config["modelType"] = "preprocess"
         config["imageTag"] = image
@@ -1279,22 +1271,6 @@ class Framework(utility.Utility):
         return preprocess.InferenceProcessor(config, postprocess=True)
 
     def _generate_training_data(self, config):
-        model_type = config.get("modelType")
-        if model_type == "standalone":
-            config.setdefault("data", {})
-            config["data"].setdefault("sample_dist", [])
-            config["data"].setdefault(
-                "sample",
-                config.get("build", {}).get("sentenceCount")
-                or config.get("sampling", {}).get("numSamples"),
-            )
-            config["data"]["sample_dist"].append(
-                {
-                    "distribution": [["train", 1]],
-                    "path": os.path.join(self._model_path, "standalone_data"),
-                    "no_preprocess": True,
-                }
-            )
         preprocessor = self._get_preprocessor(config)
         return preprocessor.generate_preprocessed_data()
 
