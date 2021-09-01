@@ -1028,7 +1028,7 @@ class Framework(utility.Utility):
             objects = {"standalone_data": data_dir}
         else:
             objects = {"data": data_dir}
-        keep_all_objects = True if config["modelType"] == "standalone" else False
+        keep_all_objects = (config["modelType"] == "standalone")
         bundle_dependencies(objects, config, local_config, keep_all_objects)
         # Forward other files from the parent model that are not tracked by the config.
         if model_path is not None:
