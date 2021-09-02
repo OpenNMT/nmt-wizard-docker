@@ -806,21 +806,31 @@ def test_preprocess_train_chain(tmpdir):
 
 
 def test_preprocess_as_standalone_model(tmpdir):
-    model_dir = _run_framework(
-        tmpdir, "checkpoint0", "train", config=config_base
-    )
+    model_dir = _run_framework(tmpdir, "checkpoint0", "train", config=config_base)
     config = _read_config(model_dir)
     assert config["model"] == "checkpoint0"
     assert config["modelType"] == "checkpoint"
     assert not os.path.isdir(os.path.join(model_dir, "data"))
 
     model_dir = _run_framework(
-        tmpdir, "standalone0", "preprocess --build_model standalone", parent="checkpoint0"
+        tmpdir,
+        "standalone0",
+        "preprocess --build_model standalone",
+        parent="checkpoint0",
     )
     config = _read_config(model_dir)
     assert config["model"] == "standalone0"
     assert config["modelType"] == "standalone"
-    assert config["data"] == {'sample': 251, 'sample_dist': [{'distribution': [['train', 1]], 'path': '${MODEL_DIR}/standalone_data', 'no_preprocess': True}]}
+    assert config["data"] == {
+        "sample": 251,
+        "sample_dist": [
+            {
+                "distribution": [["train", 1]],
+                "path": "${MODEL_DIR}/standalone_data",
+                "no_preprocess": True,
+            }
+        ],
+    }
     assert os.path.isfile(
         os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
     )
@@ -830,12 +840,25 @@ def test_preprocess_as_standalone_model(tmpdir):
     assert not os.path.isdir(os.path.join(model_dir, "data"))
 
     model_dir = _run_framework(
-        tmpdir, "standalone1", "preprocess --build_model", parent="standalone0", config = {"data": {"sample": 100}}
+        tmpdir,
+        "standalone1",
+        "preprocess --build_model",
+        parent="standalone0",
+        config={"data": {"sample": 100}},
     )
     config = _read_config(model_dir)
     assert config["model"] == "standalone1"
     assert config["modelType"] == "standalone"
-    assert config["data"] == {'sample': 100, 'sample_dist': [{'distribution': [['train', 1]], 'path': '${MODEL_DIR}/standalone_data', 'no_preprocess': True}]}
+    assert config["data"] == {
+        "sample": 100,
+        "sample_dist": [
+            {
+                "distribution": [["train", 1]],
+                "path": "${MODEL_DIR}/standalone_data",
+                "no_preprocess": True,
+            }
+        ],
+    }
     assert os.path.isfile(
         os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
     )
@@ -849,13 +872,20 @@ def test_preprocess_as_standalone_model(tmpdir):
         os.path.join(model_dir, "data", "train.%s" % config["target"])
     )
 
-    model_dir = _run_framework(
-        tmpdir, "standalone2", "train", parent="standalone1"
-    )
+    model_dir = _run_framework(tmpdir, "standalone2", "train", parent="standalone1")
     config = _read_config(model_dir)
     assert config["model"] == "standalone2"
     assert config["modelType"] == "standalone"
-    assert config["data"] == {'sample': 100, 'sample_dist': [{'distribution': [['train', 1]], 'path': '${MODEL_DIR}/standalone_data', 'no_preprocess': True}]}
+    assert config["data"] == {
+        "sample": 100,
+        "sample_dist": [
+            {
+                "distribution": [["train", 1]],
+                "path": "${MODEL_DIR}/standalone_data",
+                "no_preprocess": True,
+            }
+        ],
+    }
     assert os.path.isfile(
         os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
     )

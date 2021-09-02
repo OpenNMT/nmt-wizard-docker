@@ -1020,18 +1020,19 @@ class Framework(utility.Utility):
         if parent_model_type == "checkpoint" and model_type == "standalone":
             objects = {"standalone_data": data_dir}
             config["data"] = {
-                "sample": config.get("build", {}).get("sentenceCount") or config.get("sampling", {}).get("numSamples"),
+                "sample": config.get("build", {}).get("sentenceCount")
+                or config.get("sampling", {}).get("numSamples"),
                 "sample_dist": [
                     {
                         "distribution": [["train", 1]],
                         "path": os.path.join("${MODEL_DIR}", "standalone_data"),
                         "no_preprocess": True,
                     }
-                ]
+                ],
             }
         else:
             objects = {"data": data_dir}
-        keep_all_objects = (config["modelType"] == "standalone")
+        keep_all_objects = config["modelType"] == "standalone"
         bundle_dependencies(objects, config, local_config, keep_all_objects)
         # Forward other files from the parent model that are not tracked by the config.
         if model_path is not None:
