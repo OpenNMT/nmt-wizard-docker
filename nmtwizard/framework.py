@@ -602,6 +602,7 @@ class Framework(utility.Utility):
 
         if parent_model_type == "standalone":
             objects["data"] = data_dir
+            objects["standalone_data"] = os.path.join(model_path, "standalone_data")
 
         # Build and push the model package.
         bundle_dependencies(objects, config, local_config)
@@ -1018,6 +1019,16 @@ class Framework(utility.Utility):
         # Build and push the model package.
         if parent_model_type == "checkpoint" and model_type == "standalone":
             objects = {"standalone_data": data_dir}
+            config["data"] = {
+                "sample": config.get("build", {}).get("sentenceCount") or config.get("sampling", {}).get("numSamples"),
+                "sample_dist": [
+                    {
+                        "distribution": [["train", 1]],
+                        "path": os.path.join("${MODEL_DIR}", "standalone_data"),
+                        "no_preprocess": True,
+                    }
+                ]
+            }
         else:
             objects = {"data": data_dir}
         keep_all_objects = (config["modelType"] == "standalone")
