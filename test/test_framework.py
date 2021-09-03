@@ -8,12 +8,15 @@ import copy
 import filecmp
 import six
 import functools
+import multiprocessing
+import requests
+import time
 
 from nmtwizard import utils
 from nmtwizard.framework import Framework
 from nmtwizard.preprocess import preprocess
 from nmtwizard.preprocess import prepoperator
-from nmtwizard.serving import TranslationOutput, run_request
+from nmtwizard.serving import TranslationOutput, pick_free_port
 
 
 class DummyCheckpoint(object):
@@ -1561,24 +1564,54 @@ def test_score(tmpdir):
 
 
 def test_serve(tmpdir):
-    framework = DummyFramework(stateless=True)
-    _, model_info = framework.serve(config_base, None)
+    host = "127.0.0.1"
+    port = pick_free_port()
 
-    request = {
-        "src": [
-            {"text": "Hello world!", "target_prefix": "Bonjour"},
-            {"text": "How are you?", "target_prefix": "Comment"},
-        ]
-    }
+    def _run_server():
+        config = config_base.copy()
+        config["modelType"] = "release"
+        _run_framework(
+            tmpdir,
+            "task_1",
+            "serve --host %s --port %d" % (host, port),
+            config=config,
+            framework_fn=lambda: DummyFramework(stateless=True),
+        )
 
-    result = run_request(
-        request,
-        functools.partial(framework.forward_request, model_info),
-        preprocessor=framework._get_preprocessor(config_base, train=False),
-        postprocessor=framework._get_postprocessor(config_base),
-        config=config_base,
-    )
+    server_process = multiprocessing.Process(target=_run_server)
+    server_process.start()
 
-    # Dummy translation does "target + reversed(source)".
-    assert result["tgt"][0][0]["text"] == "Bonjour! world Hello"
-    assert result["tgt"][1][0]["text"] == "Comment? you are How"
+    try:
+        url = "http://%s:%d" % (host, port)
+
+        max_retries = 10
+        while True:
+            try:
+                response = requests.get(url + "/health")
+                if response.status_code == 200:
+                    break
+            except Exception as e:
+                if max_retries == 0:
+                    raise e
+                max_retries -= 1
+                time.sleep(0.5)
+
+        assert requests.get(url + "/status").json()["status"] == "ready"
+        assert requests.post(url + "/unload_model").json()["status"] == "unloaded"
+        assert requests.get(url + "/health").status_code == 503
+        assert requests.post(url + "/reload_model").json()["status"] == "ready"
+
+        request = {
+            "src": [
+                {"text": "Hello world!", "target_prefix": "Bonjour"},
+                {"text": "How are you?", "target_prefix": "Comment"},
+            ]
+        }
+        result = requests.post(url + "/translate", json=request).json()
+
+        # Dummy translation does "target + reversed(source)".
+        assert result["tgt"][0][0]["text"] == "Bonjour! world Hello"
+        assert result["tgt"][1][0]["text"] == "Comment? you are How"
+
+    finally:
+        server_process.terminate()

@@ -7,10 +7,8 @@ import threading
 import copy
 import socket
 import time
-import six
-
-from six.moves import SimpleHTTPServer
-from six.moves import socketserver
+import socketserver
+import http.server
 
 from nmtwizard import config as config_util
 from nmtwizard.logger import get_logger
@@ -119,12 +117,12 @@ def start_server(
             or _process_is_running(backend_process)
         )
 
-    class ServerHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+    class ServerHandler(http.server.SimpleHTTPRequestHandler):
         def _send_response(self, data, status=200):
             self.send_response(status)
             self.send_header("Content-type", "application/json")
             self.end_headers()
-            self.wfile.write(six.ensure_binary(json.dumps(data)))
+            self.wfile.write(json.dumps(data).encode("utf-8"))
 
         def _send_error(self, status, message, from_request=None):
             if from_request is not None:
@@ -157,19 +155,14 @@ def start_server(
             if not _backend_is_reachable():
                 self._send_error(503, "backend service is unavailable")
                 return
-            header_fn = (
-                self.headers.getheader
-                if hasattr(self.headers, "getheader")
-                else self.headers.get
-            )
-            content_len = int(header_fn("content-length", 0))
+            content_len = int(self.headers.get("content-length", 0))
             if content_len == 0:
                 self._send_error(400, "missing request data")
                 return
             post_body = self.rfile.read(content_len)
             request = None
             try:
-                request = json.loads(six.ensure_str(post_body))
+                request = json.loads(post_body.decode("utf-8"))
                 result = run_request(
                     request,
                     functools.partial(translate_fn, backend_info),
@@ -479,7 +472,7 @@ def translate_examples(examples, func, max_batch_size=None, options=None):
 
     # Merge multi-part hypotheses.
     outputs = []
-    for index, hypotheses in six.iteritems(hypotheses_per_example):
+    for index, hypotheses in hypotheses_per_example.items():
         num_hypotheses = len(hypotheses[0])
         outputs.insert(
             index,
@@ -497,7 +490,7 @@ def batch_iterator(examples, max_batch_size=None):
     examples_per_mode = collections.defaultdict(list)
     for example in examples:
         examples_per_mode[example.mode].append(example)
-    for mode, examples in six.iteritems(examples_per_mode):
+    for mode, examples in examples_per_mode.items():
         indices = []
         source_tokens = []
         target_tokens = []
