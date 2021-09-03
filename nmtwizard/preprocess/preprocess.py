@@ -90,6 +90,13 @@ def _process_batch(
         )
 
         tu_list, batch_meta = pipeline(tu_batch, options=options)
+
+        logger.info(
+            "Exporting %d samples%s",
+            len(tu_list),
+            " from %s" % base_name if base_name is not None else "",
+        )
+
     outputs = [tu.export(pipeline.process_type) for tu in tu_list]
     return (outputs, batch_meta), pipeline
 
