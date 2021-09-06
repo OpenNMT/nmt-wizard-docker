@@ -534,7 +534,9 @@ class Framework(utility.Utility):
         local_config = self._finalize_config(config)
 
         data_dir = os.path.join(model_path, "data") if parent_model_type else None
-        from_standalone_preprocess = (parent_model_type == "standalone" and os.path.isdir(data_dir))
+        from_standalone_preprocess = (
+            parent_model_type == "standalone" and os.path.isdir(data_dir)
+        )
         if parent_model_type == "preprocess" or from_standalone_preprocess:
             tokens_to_add = {}
             del config["sampling"]
