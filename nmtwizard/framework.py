@@ -533,8 +533,11 @@ class Framework(utility.Utility):
         parent_model_type = config.get("modelType") if model_path is not None else None
         local_config = self._finalize_config(config)
 
-        if parent_model_type == "preprocess":
-            data_dir = os.path.join(model_path, "data")
+        data_dir = os.path.join(model_path, "data") if parent_model_type else None
+        from_standalone_preprocess = (
+            parent_model_type == "standalone" and os.path.isdir(data_dir)
+        )
+        if parent_model_type == "preprocess" or from_standalone_preprocess:
             tokens_to_add = {}
             del config["sampling"]
             logger.info("Using preprocessed data from %s" % data_dir)
@@ -588,7 +591,7 @@ class Framework(utility.Utility):
             "startDate": start_time,
         }
 
-        if parent_model_type == "preprocess":
+        if parent_model_type == "preprocess" or from_standalone_preprocess:
             # Inherit distribution summary and the parent from the preprocess run.
             config["build"].update(build_info)
         else:
@@ -601,7 +604,6 @@ class Framework(utility.Utility):
             config["build"] = build_info
 
         if parent_model_type == "standalone":
-            objects["data"] = data_dir
             objects["standalone_data"] = os.path.join(model_path, "standalone_data")
 
         # Build and push the model package.
@@ -978,6 +980,10 @@ class Framework(utility.Utility):
         data_dir, num_samples, distribution_summary, tokens_to_add = self._build_data(
             local_config
         )
+
+        # Avoid updating vocabulary when building a standalone model
+        if parent_model_type == "checkpoint" and model_type == "standalone":
+            tokens_to_add = None
 
         end_time = time.time()
         logger.info(

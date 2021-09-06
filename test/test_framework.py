@@ -895,12 +895,7 @@ def test_preprocess_as_standalone_model(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
     )
-    assert os.path.isfile(
-        os.path.join(model_dir, "data", "train.%s" % config["source"])
-    )
-    assert os.path.isfile(
-        os.path.join(model_dir, "data", "train.%s" % config["target"])
-    )
+    assert not os.path.isdir(os.path.join(model_dir, "data"))
 
 
 def _test_buildvocab(tmpdir, run_num, multi=False):
