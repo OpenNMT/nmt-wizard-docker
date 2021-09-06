@@ -2,7 +2,6 @@
 
 import hashlib
 import subprocess
-import six
 import os
 import gzip
 import enum
@@ -33,7 +32,7 @@ def md5files(files):
     """
     m = hashlib.md5()
     for key, path in sorted(files, key=lambda x: x[0]):
-        m.update(six.ensure_binary(key))
+        m.update(key.encode("utf-8"))
         if os.path.isdir(path):
             sub_md5 = md5files(
                 [
@@ -42,7 +41,7 @@ def md5files(files):
                     if not filename.startswith(".")
                 ]
             )
-            m.update(six.ensure_binary(sub_md5))
+            m.update(sub_md5.encode("utf-8"))
         else:
             with open(path, "rb") as f:
                 m.update(f.read())

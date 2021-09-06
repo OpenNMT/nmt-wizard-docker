@@ -2,13 +2,12 @@
 
 import collections
 import jsonschema
-import six
 import copy
 
 
 def merge_config(a, b):
     """Merges config b in a."""
-    for key, b_value in six.iteritems(b):
+    for key, b_value in b.items():
         if not isinstance(b_value, dict):
             a[key] = b_value
         else:

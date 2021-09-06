@@ -1,7 +1,6 @@
 import os
 import re
 import random
-import six
 
 from nmtwizard import utils
 from nmtwizard.logger import get_logger
@@ -162,15 +161,13 @@ def sample(config, source_dir, oversample_as_weights):
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
                         # distribution is a list of [pattern, weight, addtl options]
-                        if len(rule) < 2 or not isinstance(rule[0], six.string_types):
+                        if len(rule) < 2 or not isinstance(rule[0], str):
                             raise ValueError("invalid distribution element : %s" % rule)
                         pattern = rule[0]
 
                         weight = rule[1]
                         label = None
-                        if isinstance(
-                            weight, six.string_types
-                        ) and not weight.startswith("*"):
+                        if isinstance(weight, str) and not weight.startswith("*"):
                             weight = float(weight)
                         if len(rule) > 2:
                             label = rule[2]
@@ -198,7 +195,7 @@ def sample(config, source_dir, oversample_as_weights):
                             )
 
                             if d_idx_pattern not in pattern_sizes:
-                                if not isinstance(weight, six.string_types):
+                                if not isinstance(weight, str):
                                     pattern_weights_sum += float(weight)
                                 pattern_sizes[d_idx_pattern] = size
                             else:
@@ -314,7 +311,7 @@ def sample(config, source_dir, oversample_as_weights):
     reserved_sample = 0
     add_example_weights = False
     for f in all_files.values():
-        if isinstance(f.weight, six.string_types):
+        if isinstance(f.weight, str):
             # Oversampling with "*N"
             m = re.match(r"\*([0-9]*)([ws]?)$", f.weight)
             if not m:
@@ -353,14 +350,14 @@ def sample(config, source_dir, oversample_as_weights):
     leftover = 0.0
     logger.info("Summary of sampled lines:")
     for f in all_files.values():
-        if isinstance(f.weight, six.string_types) or f.weight != 0.0:
+        if isinstance(f.weight, str) or f.weight != 0.0:
             lines_kept = f.lines_count
             if not f.oversample_as_weights:
                 lines_kept *= f.oversample
                 f.oversample = 1
             if add_example_weights:
                 f.oversample_as_weights = True
-            if gsample and not isinstance(f.weight, six.string_types):
+            if gsample and not isinstance(f.weight, str):
                 weights_size -= 1
                 res = distribute * (f.weight / weights_sum)
                 leftover += res - int(res)

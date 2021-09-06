@@ -1,5 +1,4 @@
 import pytest
-import six
 import json
 import os
 

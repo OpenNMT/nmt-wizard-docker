@@ -1,4 +1,3 @@
-import six
 import abc
 import copy
 import collections
@@ -314,8 +313,7 @@ class Pipeline(object):
         return tu_list, batch_meta
 
 
-@six.add_metaclass(abc.ABCMeta)
-class Operator(object):
+class Operator(abc.ABC):
     """Base class for preprocessing operators."""
 
     @classmethod

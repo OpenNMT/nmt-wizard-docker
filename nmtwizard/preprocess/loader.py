@@ -1,4 +1,3 @@
-import six
 import abc
 import itertools
 
@@ -6,8 +5,7 @@ from nmtwizard import utils
 from nmtwizard.preprocess import tu
 
 
-@six.add_metaclass(abc.ABCMeta)
-class Loader(object):
+class Loader(abc.ABC):
     """Base class for creating batches of TUs."""
 
     def __init__(self, batch_size):

@@ -1,12 +1,12 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 WORKDIR /root
 
-RUN apt-get update && apt-get install -y  --no-install-recommends \
-        python3 \
-        python3-setuptools \
-        wget \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         ca-certificates \
+        python3-distutils \
+        wget \
         && \
     wget -nv https://bootstrap.pypa.io/get-pip.py && \
     python3 get-pip.py && \
@@ -15,8 +15,7 @@ RUN apt-get update && apt-get install -y  --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 ADD requirements.txt /root
-RUN pip --no-cache-dir install --upgrade pip
-RUN pip --no-cache-dir install -r /root/requirements.txt --use-feature=2020-resolver
+RUN pip --no-cache-dir install -r /root/requirements.txt
 
 ADD frameworks/naver_translate/entrypoint.py /root
 ADD nmtwizard /root/nmtwizard

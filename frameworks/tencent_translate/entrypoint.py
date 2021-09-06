@@ -7,8 +7,7 @@ import random
 import sys
 import binascii
 import requests
-
-from six.moves.urllib import parse as urllib_parse
+import urllib.parse
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -44,7 +43,7 @@ class TencentTranslateFramework(CloudTranslationFramework):
             ("Timestamp", int(time.time())),
             ("Version", "2018-03-21"),
         ]
-        request = "GET%s/?%s" % (url, urllib_parse.urlencode(params))
+        request = "GET%s/?%s" % (url, urllib.parse.urlencode(params))
         params.append(
             ("Signature", _sign_request(self._key, request, signature_method))
         )

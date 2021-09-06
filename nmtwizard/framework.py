@@ -7,7 +7,6 @@ import json
 import time
 import filecmp
 import re
-import six
 import gzip
 import shutil
 import collections
@@ -26,7 +25,6 @@ from nmtwizard import utility
 logger = get_logger(__name__)
 
 
-@six.add_metaclass(abc.ABCMeta)
 class Framework(utility.Utility):
     """Base class for frameworks."""
 
@@ -1304,9 +1302,7 @@ class Framework(utility.Utility):
             cum_sent_count = 0
             if parent_build_info is not None:
                 cum_sent_count = parent_build_info.get("cumSentenceCount")
-            sent_count = sum(
-                v.get("linefiltered", 0) for v in six.itervalues(distribution)
-            )
+            sent_count = sum(v.get("linefiltered", 0) for v in distribution.values())
             build_info["sentenceCount"] = sent_count
             build_info["cumSentenceCount"] = (
                 cum_sent_count + sent_count if cum_sent_count is not None else None
@@ -1350,13 +1346,13 @@ def bundle_dependencies(objects, config, local_config, keep_all=False):
             )
         return config
     elif isinstance(config, dict):
-        for k, v in six.iteritems(config):
+        for k, v in config.items():
             if k in ("sample_dist", "build"):
                 continue
             config[k] = bundle_dependencies(objects, v, local_config.get(k), keep_all)
         return config
     else:
-        if isinstance(config, six.string_types):
+        if isinstance(config, str):
             if os.path.isabs(config) and os.path.exists(config):
                 filename = os.path.basename(config)
             else:

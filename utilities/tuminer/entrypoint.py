@@ -10,7 +10,6 @@
 
 import os
 import sys
-import six
 import tempfile
 import gzip
 
