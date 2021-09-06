@@ -979,6 +979,10 @@ class Framework(utility.Utility):
             local_config
         )
 
+        # Avoid updating vocabulary when building a standalone model
+        if parent_model_type == "checkpoint" and model_type == "standalone":
+            tokens_to_add = None
+
         end_time = time.time()
         logger.info(
             "Finished preprocessing %s in %.1f seconds", model_id, end_time - start_time
