@@ -6,7 +6,6 @@ import shutil
 import json
 import copy
 import filecmp
-import six
 import functools
 import multiprocessing
 import requests
@@ -348,7 +347,7 @@ def _run_framework(
         full_args += ["-c", json.dumps(config)]
     if parent is not None:
         full_args += ["-m", parent]
-    if isinstance(args, six.string_types):
+    if isinstance(args, str):
         args = args.split(" ")
     full_args += args
     if framework_fn is None:

@@ -1,5 +1,4 @@
 import os
-import six
 import re
 import time
 import random

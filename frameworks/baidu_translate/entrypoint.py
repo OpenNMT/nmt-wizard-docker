@@ -2,7 +2,6 @@ import os
 import hashlib
 import random
 import requests
-import six
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 
@@ -52,7 +51,7 @@ class BaiduTranslateFramework(CloudTranslationFramework):
         salt = str(random.randint(10000, 99999))
         sign = self._appid + query + salt + self._key
         m1 = hashlib.md5()
-        m1.update(six.b(sign))
+        m1.update(sign.encode("utf-8"))
         sign = m1.hexdigest()
 
         params = {

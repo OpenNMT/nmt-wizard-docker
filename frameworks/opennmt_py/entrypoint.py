@@ -1,5 +1,4 @@
 import os
-import six
 import json
 import requests
 
@@ -157,7 +156,7 @@ def _trans_options(config, gpuid):
 
 def _build_cmd(options):
     opts = []
-    for k, v in six.iteritems(options):
+    for k, v in options.items():
         if isinstance(v, bool):
             if v:
                 opts.append("-%s" % k)

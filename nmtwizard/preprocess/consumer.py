@@ -1,4 +1,3 @@
-import six
 import abc
 import os
 import collections
@@ -12,8 +11,7 @@ from nmtwizard.preprocess import tokenizer
 logger = get_logger(__name__)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class Consumer(object):
+class Consumer(abc.ABC):
     """Base class for using preprocess results."""
 
     def __init__(self):

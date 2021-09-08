@@ -8,10 +8,8 @@ import time
 import re
 import shutil
 import uuid
-import six
 import sys
 import requests
-import io
 import tempfile
 import functools
 
@@ -49,7 +47,7 @@ def getenv(m, training=True):
 def _map_config_fn(a, fn):
     if isinstance(a, dict):
         new_a = {}
-        for k, v in six.iteritems(a):
+        for k, v in a.items():
             new_a[k] = _map_config_fn(v, fn)
         return new_a
     elif isinstance(a, list):
@@ -65,7 +63,7 @@ def resolve_environment_variables(config, training=True):
     """Returns a new configuration with all environment variables replaced."""
 
     def _map_fn(value):
-        if not isinstance(value, six.string_types):
+        if not isinstance(value, str):
             return value
         return ENVVAR_RE.sub(lambda m: getenv(m, training=training), value)
 
@@ -76,9 +74,7 @@ def resolve_remote_files(config, local_dir, storage_client):
     """Downloads remote files present in config locally."""
 
     def _map_fn(value):
-        if not isinstance(
-            value, six.string_types
-        ) or not storage_client.is_managed_path(value):
+        if not isinstance(value, str) or not storage_client.is_managed_path(value):
             return value
         storage_id, remote_path = storage_client.parse_managed_path(value)
         if remote_path and remote_path[0] == "/":
@@ -102,8 +98,7 @@ def load_config(config_arg):
             return json.load(config_file)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class Utility(object):
+class Utility(abc.ABC):
     """Base class for utilities."""
 
     def __init__(self):
@@ -318,7 +313,7 @@ def build_model_dir(model_dir, objects, config, should_check_integrity_fn):
     else:
         logger.info("Building model package in %s", model_dir)
     os.mkdir(model_dir)
-    for target, source in six.iteritems(objects):
+    for target, source in objects.items():
         if os.path.isdir(source):
             shutil.copytree(source, os.path.join(model_dir, target))
         else:
@@ -327,12 +322,10 @@ def build_model_dir(model_dir, objects, config, should_check_integrity_fn):
     objects[os.path.basename(config_path)] = config_path
     if "description" in config:
         readme_path = os.path.join(model_dir, "README.md")
-        with io.open(readme_path, "w", encoding="utf-8") as readme_file:
+        with open(readme_path, "w") as readme_file:
             readme_file.write(config["description"])
         objects["README.md"] = readme_path
-    md5 = md5files(
-        (k, v) for k, v in six.iteritems(objects) if should_check_integrity_fn(k)
-    )
+    md5 = md5files((k, v) for k, v in objects.items() if should_check_integrity_fn(k))
     with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
         f.write(md5)
 
