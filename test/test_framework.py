@@ -1562,13 +1562,11 @@ def test_serve(tmpdir):
     port = pick_free_port()
 
     def _run_server():
-        config = config_base.copy()
-        config["modelType"] = "release"
         _run_framework(
             tmpdir,
             "task_1",
             "serve --host %s --port %d" % (host, port),
-            config=config,
+            config=config_base,
             framework_fn=lambda: DummyFramework(stateless=True),
         )
 

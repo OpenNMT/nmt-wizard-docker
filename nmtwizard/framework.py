@@ -452,7 +452,10 @@ class Framework(utility.Utility):
                 raise ValueError(
                     "serving requires a training checkpoint or a released model"
                 )
-            if config["modelType"] in ("checkpoint", "standalone"):
+            if not self._stateless and config["modelType"] in (
+                "checkpoint",
+                "standalone",
+            ):
                 self._model_path = self.release_wrapper(
                     config,
                     self._model_path,
