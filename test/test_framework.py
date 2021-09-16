@@ -828,7 +828,7 @@ def test_preprocess_as_standalone_model(tmpdir):
         "sample_dist": [
             {
                 "distribution": [["train", 1]],
-                "path": "${MODEL_DIR}/standalone_data",
+                "path": "${MODEL_TRAIN_DIR}/standalone_data",
                 "no_preprocess": True,
             }
         ],
@@ -856,7 +856,7 @@ def test_preprocess_as_standalone_model(tmpdir):
         "sample_dist": [
             {
                 "distribution": [["train", 1]],
-                "path": "${MODEL_DIR}/standalone_data",
+                "path": "${MODEL_TRAIN_DIR}/standalone_data",
                 "no_preprocess": True,
             }
         ],
@@ -883,7 +883,7 @@ def test_preprocess_as_standalone_model(tmpdir):
         "sample_dist": [
             {
                 "distribution": [["train", 1]],
-                "path": "${MODEL_DIR}/standalone_data",
+                "path": "${MODEL_TRAIN_DIR}/standalone_data",
                 "no_preprocess": True,
             }
         ],
