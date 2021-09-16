@@ -834,10 +834,10 @@ def test_preprocess_as_standalone_model(tmpdir):
         ],
     }
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
     )
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
     )
     assert not os.path.isdir(os.path.join(model_dir, "data"))
 
@@ -862,10 +862,10 @@ def test_preprocess_as_standalone_model(tmpdir):
         ],
     }
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
     )
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
     )
     assert os.path.isfile(
         os.path.join(model_dir, "data", "train.%s" % config["source"])
@@ -889,10 +889,10 @@ def test_preprocess_as_standalone_model(tmpdir):
         ],
     }
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
     )
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
     )
     assert not os.path.isdir(os.path.join(model_dir, "data"))
 
