@@ -1027,7 +1027,7 @@ class Framework(utility.Utility):
         # Build and push the model package.
         if parent_model_type == "checkpoint" and model_type == "standalone":
             for filename in os.listdir(data_dir):
-                compress_file(os.path.join(data_dir, filename), True)
+                compress_file(os.path.join(data_dir, filename), remove=True)
             objects = {"standalone_data": data_dir}
             config["data"] = {
                 "sample": config.get("build", {}).get("sentenceCount")
