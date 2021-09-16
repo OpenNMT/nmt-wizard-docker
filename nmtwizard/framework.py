@@ -1359,7 +1359,7 @@ def bundle_dependencies(objects, config, local_config, keep_all=False):
         return config
     else:
         if isinstance(config, str):
-            filename=None
+            filename = None
             train_str = ""
             if os.path.isabs(config) and os.path.exists(config):
                 filename = os.path.basename(config)
