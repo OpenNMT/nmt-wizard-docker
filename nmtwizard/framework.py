@@ -604,11 +604,12 @@ class Framework(utility.Utility):
             )
             config["build"] = build_info
 
-        if parent_model_type == "standalone":
+        keep_all_objects = parent_model_type == "standalone"
+        if keep_all_objects:
             objects["standalone_data"] = os.path.join(model_path, "standalone_data")
 
         # Build and push the model package.
-        bundle_dependencies(objects, config, local_config)
+        bundle_dependencies(objects, config, local_config, keep_all_objects)
         objects_dir = os.path.join(self._models_dir, model_id)
         utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
@@ -1025,6 +1026,8 @@ class Framework(utility.Utility):
 
         # Build and push the model package.
         if parent_model_type == "checkpoint" and model_type == "standalone":
+            for filename in os.listdir(data_dir):
+                compress_file(os.path.join(data_dir, filename), remove=True)
             objects = {"standalone_data": data_dir}
             config["data"] = {
                 "sample": config.get("build", {}).get("sentenceCount")
@@ -1032,7 +1035,7 @@ class Framework(utility.Utility):
                 "sample_dist": [
                     {
                         "distribution": [["train", 1]],
-                        "path": os.path.join("${MODEL_DIR}", "standalone_data"),
+                        "path": os.path.join("${MODEL_TRAIN_DIR}", "standalone_data"),
                         "no_preprocess": True,
                     }
                 ],
@@ -1356,17 +1359,20 @@ def bundle_dependencies(objects, config, local_config, keep_all=False):
         return config
     else:
         if isinstance(config, str):
+            filename = None
+            train_str = ""
             if os.path.isabs(config) and os.path.exists(config):
                 filename = os.path.basename(config)
             else:
                 match = utility.ENVVAR_ABS_RE.match(config)
-                if match and ("TRAIN" not in match.group(1) or keep_all):
-                    filename = match.group(2)
-                else:
-                    filename = None
+                if match:
+                    if "TRAIN" in match.group(1):
+                        train_str = "_TRAIN"
+                    if not train_str or keep_all:
+                        filename = match.group(2)
             if filename is not None:
                 objects[filename] = local_config
-                return "${MODEL_DIR}/%s" % filename
+                return "${MODEL%s_DIR}/%s" % (train_str, filename)
         return config
 
 

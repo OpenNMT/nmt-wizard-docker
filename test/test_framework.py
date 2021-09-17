@@ -808,11 +808,19 @@ def test_preprocess_train_chain(tmpdir):
 
 
 def test_preprocess_as_standalone_model(tmpdir):
-    model_dir = _run_framework(tmpdir, "checkpoint0", "train", config=config_base)
+    config = copy.deepcopy(config_base)
+    config["additional_files"] = [
+        "${CORPUS_TRAIN_DIR}/resources/alignment/ende_forward.probs"
+    ]
+    model_dir = _run_framework(tmpdir, "checkpoint0", "train", config=config)
     config = _read_config(model_dir)
     assert config["model"] == "checkpoint0"
     assert config["modelType"] == "checkpoint"
+    assert config["additional_files"] == [
+        "${CORPUS_TRAIN_DIR}/resources/alignment/ende_forward.probs"
+    ]
     assert not os.path.isdir(os.path.join(model_dir, "data"))
+    assert not os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
     model_dir = _run_framework(
         tmpdir,
@@ -823,23 +831,25 @@ def test_preprocess_as_standalone_model(tmpdir):
     config = _read_config(model_dir)
     assert config["model"] == "standalone0"
     assert config["modelType"] == "standalone"
+    assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
     assert config["data"] == {
         "sample": 251,
         "sample_dist": [
             {
                 "distribution": [["train", 1]],
-                "path": "${MODEL_DIR}/standalone_data",
+                "path": "${MODEL_TRAIN_DIR}/standalone_data",
                 "no_preprocess": True,
             }
         ],
     }
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
     )
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
     )
     assert not os.path.isdir(os.path.join(model_dir, "data"))
+    assert os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
     model_dir = _run_framework(
         tmpdir,
@@ -856,16 +866,17 @@ def test_preprocess_as_standalone_model(tmpdir):
         "sample_dist": [
             {
                 "distribution": [["train", 1]],
-                "path": "${MODEL_DIR}/standalone_data",
+                "path": "${MODEL_TRAIN_DIR}/standalone_data",
                 "no_preprocess": True,
             }
         ],
     }
+    assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
     )
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
     )
     assert os.path.isfile(
         os.path.join(model_dir, "data", "train.%s" % config["source"])
@@ -873,6 +884,7 @@ def test_preprocess_as_standalone_model(tmpdir):
     assert os.path.isfile(
         os.path.join(model_dir, "data", "train.%s" % config["target"])
     )
+    assert os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
     model_dir = _run_framework(tmpdir, "standalone2", "train", parent="standalone1")
     config = _read_config(model_dir)
@@ -883,18 +895,30 @@ def test_preprocess_as_standalone_model(tmpdir):
         "sample_dist": [
             {
                 "distribution": [["train", 1]],
-                "path": "${MODEL_DIR}/standalone_data",
+                "path": "${MODEL_TRAIN_DIR}/standalone_data",
                 "no_preprocess": True,
             }
         ],
     }
+    assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["source"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
     )
     assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s" % config["target"])
+        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
     )
     assert not os.path.isdir(os.path.join(model_dir, "data"))
+    assert os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
+
+    _run_framework(tmpdir, "release0", "release", parent="standalone2")
+    model_dir = str(tmpdir.join("models").join("standalone2_release"))
+    config = _read_config(model_dir)
+    assert config["model"] == "standalone2_release"
+    assert config["modelType"] == "release"
+    assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
+    assert not os.path.isdir(os.path.join(model_dir, "standalone_data"))
+    assert not os.path.isdir(os.path.join(model_dir, "data"))
+    assert not os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
 
 def _test_buildvocab(tmpdir, run_num, multi=False):
