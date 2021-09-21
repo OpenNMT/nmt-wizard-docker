@@ -162,7 +162,9 @@ class Processor(object):
         self._inference_config = inference.get("overrides")
         self._inference_options = inference.get("options")
         if self._inference_options:
-            self._inference_options = prepoperator.read_options(config, self._inference_options)
+            self._inference_options = prepoperator.read_options(
+                config, self._inference_options
+            )
 
         # The global shared state contains all objects that are shared accross workers.
         # It includes shared objects defined in the main configuration as well as shared
@@ -175,9 +177,7 @@ class Processor(object):
             num_workers=self._num_workers,
         )
 
-    def process(
-        self, loader, consumer, preprocess_exit_step=None, pipeline=None
-    ):
+    def process(self, loader, consumer, preprocess_exit_step=None, pipeline=None):
 
         if self._num_workers == 0:
             logger.info("Start processing")
@@ -456,8 +456,8 @@ class InferenceProcessor(Processor):
         return prepoperator.Pipeline(
             config,
             self._pipeline_type,
-            inference_config = self._inference_config,
-            inference_options = self._inference_options,
+            inference_config=self._inference_config,
+            inference_options=self._inference_options,
             shared_state=self._global_shared_state.get(),
         )
 
@@ -629,12 +629,19 @@ class SharedManager(multiprocessing.managers.BaseManager):
 class SharedState:
     """A class collecting shared objects created by operators."""
 
-    def __init__(self, config, process_type, inference_config, preprocess_exit_step=None, num_workers=0):
+    def __init__(
+        self,
+        config,
+        process_type,
+        inference_config,
+        preprocess_exit_step=None,
+        num_workers=0,
+    ):
         self._all_state = collections.defaultdict(dict)
         self._cached_state = {}
         self._config = config
         self._process_type = process_type
-        self._inference_config=inference_config
+        self._inference_config = inference_config
         self._preprocess_exit_step = preprocess_exit_step
         self._num_workers = num_workers
         self._manager = None

@@ -57,7 +57,11 @@ def operator_info_generator(
             ignore_disabled = False
 
         operator_params = get_operator_params(
-            operator_config, operator_type, i, override_label=override_label, inference_config=inference_config
+            operator_config,
+            operator_type,
+            i,
+            override_label=override_label,
+            inference_config=inference_config,
         )
         if ignore_disabled and operator_params.get("disabled", False):
             continue
@@ -81,7 +85,9 @@ def get_operator_class(op):
     return operator_cls
 
 
-def get_operator_params(config, operator_type, index, override_label=None, inference_config=None):
+def get_operator_params(
+    config, operator_type, index, override_label=None, inference_config=None
+):
     """Returns the operator parameters from the configuration."""
     config = copy.deepcopy(config)
     config.pop("op", None)
@@ -170,15 +176,15 @@ class Pipeline(object):
         self,
         config,
         process_type,
-        inference_config = None,
-        inference_options = None,
+        inference_config=None,
+        inference_options=None,
         preprocess_exit_step=None,
         override_label=None,
         shared_state=None,
     ):
         self._process_type = process_type
-        self._inference_config=inference_config
-        self._inference_options=inference_options
+        self._inference_config = inference_config
+        self._inference_options = inference_options
 
         # When building a pipeline, a special label can be activated to override operator configuration in some cases (e.g. for some corpora).
         self.override_label = override_label
