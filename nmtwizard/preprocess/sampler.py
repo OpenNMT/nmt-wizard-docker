@@ -161,7 +161,11 @@ def sample(config, source_dir, oversample_as_weights):
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
                         # distribution is a list of [pattern, weight, addtl options]
-                        if len(rule) < 2 or len(rule) > 3 or not isinstance(rule[0], str):
+                        if (
+                            len(rule) < 2
+                            or len(rule) > 3
+                            or not isinstance(rule[0], str)
+                        ):
                             raise ValueError("invalid distribution element : %s" % rule)
                         pattern = rule[0]
 
