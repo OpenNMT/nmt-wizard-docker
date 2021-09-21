@@ -37,6 +37,7 @@ def operator_info_generator(
     config,
     process_type,
     override_label=None,
+    inference_config=None,
     preprocess_exit_step=None,
     supported_features=None,
     ignore_disabled=True,
@@ -54,8 +55,9 @@ def operator_info_generator(
             supported_features, process_type
         ):
             ignore_disabled = False
+
         operator_params = get_operator_params(
-            operator_config, operator_type, override_label=override_label
+            operator_config, operator_type, i, override_label=override_label, inference_config=inference_config
         )
         if ignore_disabled and operator_params.get("disabled", False):
             continue
@@ -79,7 +81,7 @@ def get_operator_class(op):
     return operator_cls
 
 
-def get_operator_params(config, operator_type, override_label=None):
+def get_operator_params(config, operator_type, index, override_label=None, inference_config=None):
     """Returns the operator parameters from the configuration."""
     config = copy.deepcopy(config)
     config.pop("op", None)
@@ -97,6 +99,13 @@ def get_operator_params(config, operator_type, override_label=None):
             override = override[0]
             override_config = override_config[override]
             config = merge_config(config, override_config)
+
+    name = config.get("name", "%s_%d" % (operator_type, index + 1))
+    if inference_config:
+        op_inference_config = inference_config.get(name)
+        if op_inference_config:
+            config = merge_config(config, op_inference_config)
+    config["name"] = name
     return config
 
 
@@ -117,7 +126,6 @@ def build_operator(
     build_state,
     index,
     shared_state=None,
-    inference_config=None,
 ):
     """Creates an operator instance from its configuration."""
 
@@ -128,11 +136,7 @@ def build_operator(
     args = []
     if shared_state:
         args.append(shared_state)
-    name = operator_params.get("name", "%s_%d" % (operator_type, index + 1))
-    if inference_config:
-        op_inference_config = inference_config.get(name)
-        if op_inference_config:
-            operator_params = merge_config(operator_params, op_inference_config)
+    name = operator_params["name"]
     if process_type == ProcessType.TRAINING:
         operator_cls.validate_parameters(operator_params, name)
     logger.debug("Building operator %s", name)
@@ -166,11 +170,15 @@ class Pipeline(object):
         self,
         config,
         process_type,
+        inference_config = None,
+        inference_options = None,
         preprocess_exit_step=None,
         override_label=None,
         shared_state=None,
     ):
         self._process_type = process_type
+        self._inference_config=inference_config
+        self._inference_options=inference_options
 
         # When building a pipeline, a special label can be activated to override operator configuration in some cases (e.g. for some corpora).
         self.override_label = override_label
@@ -210,6 +218,7 @@ class Pipeline(object):
             op_list_config,
             self._process_type,
             self.override_label,
+            self._inference_config,
             exit_step,
             supported_features,
         ):
@@ -224,7 +233,6 @@ class Pipeline(object):
                 self.build_state,
                 i,
                 shared_state=shared_state.get(i) if shared_state else None,
-                inference_config=self._inference_config,
             )
             if operator is not None:
                 self._ops.append(operator)
@@ -237,13 +245,6 @@ class Pipeline(object):
     ):
         self._ops = []
         self._config = config
-        inference = config.get("inference", {})
-        if inference and self._process_type == ProcessType.TRAINING:
-            raise RuntimeError("'inference' field can only be specified in translation")
-        self._inference_config = inference.get("overrides")
-        self._inference_options = inference.get("options")
-        if self._inference_options:
-            self._inference_options = read_options(config, self._inference_options)
 
         preprocess_config = config.get("preprocess")
         if preprocess_config:

@@ -134,45 +134,6 @@ def test_tokenization_with_non_iso_639_lang():
     prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
 
 
-def test_tokenization_with_inference_config(tmpdir):
-    config = {
-        "source": "en",
-        "target": "de",
-        "preprocess": [
-            {
-                "op": "tokenization",
-                "source": {
-                    "mode": "aggressive",
-                },
-                "target": {
-                    "mode": "aggressive",
-                },
-            },
-        ],
-    }
-
-    process_type = prepoperator.ProcessType.INFERENCE
-    example = tu.TranslationUnit("2,000", "2,000")
-
-    pipeline = prepoperator.Pipeline(config, process_type)
-
-    tu_list, _ = pipeline(([example], {}))
-
-    assert tu_list[0].src_tok.tokens[0] == ["2", ",", "000"]
-    assert tu_list[0].tgt_tok.tokens[0] == ["2", ",", "000"]
-
-    config["inference"] = {
-        "overrides": {"tokenization_1": {"source": {"mode": "none"}}}
-    }
-    pipeline = prepoperator.Pipeline(config, process_type)
-
-    example = tu.TranslationUnit("2,000", "2,000")
-    tu_list, _ = pipeline(([example], {}))
-
-    assert tu_list[0].src_tok.tokens[0] == ["2,000"]
-    assert tu_list[0].tgt_tok.tokens[0] == ["2", ",", "000"]
-
-
 @pytest.mark.parametrize(
     "config,training,text,expected",
     [

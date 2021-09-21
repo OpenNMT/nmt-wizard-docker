@@ -1186,6 +1186,38 @@ def test_preprocess_inference_config_with_options():
     assert source == [["｟informal｠", "This", "is", "a", "test", "."]]
 
 
+def test_preprocess_with_inference_config(tmpdir):
+    config = {
+        "source": "en",
+        "target": "de",
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {
+                    "mode": "aggressive",
+                },
+                "target": {
+                    "mode": "aggressive",
+                },
+            },
+        ],
+    }
+
+    processor = InferenceProcessor(config)
+    source, target, _ = processor.process_input("2,000", "2,000")
+    assert source[0] == ["2", ",", "000"]
+    assert target[0] == ["2", ",", "000"]
+
+    config["inference"] = {
+        "overrides": {"tokenization_1": {"source": {"mode": "none"}}}
+    }
+
+    processor = InferenceProcessor(config)
+    source, target, _ = processor.process_input("2,000", "2,000")
+    assert source[0] == ["2,000"]
+    assert target[0] == ["2", ",", "000"]
+
+
 def test_inference_preprocess_file_with_target(tmpdir):
     config = {
         "source": "en",
