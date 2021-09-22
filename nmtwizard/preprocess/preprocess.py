@@ -57,7 +57,8 @@ def _get_corpus_name(tu_batch):
 def _process_batch(
     pipeline,
     tu_batch,
-    options=None,
+    inference_config=None,
+    inference_options=None,
     # Arguments below are used to rebuild the pipeline, if required.
     config=None,
     process_type=None,
@@ -74,6 +75,8 @@ def _process_batch(
         pipeline = prepoperator.Pipeline(
             config,
             process_type,
+            inference_config=inference_config,
+            inference_options=inference_options,
             preprocess_exit_step=exit_step,
             override_label=override_label,
             shared_state=shared_state,
@@ -89,7 +92,7 @@ def _process_batch(
             " from %s" % base_name if base_name is not None else "",
         )
 
-        tu_list, batch_meta = pipeline(tu_batch, options=options)
+        tu_list, batch_meta = pipeline(tu_batch, options=inference_options)
 
         logger.info(
             "Exporting %d samples%s",
@@ -109,7 +112,8 @@ worker_pipeline = None
 
 def _process_batch_on_worker(
     inputs,
-    options=None,
+    inference_config=None,
+    inference_options=None,
     config=None,
     process_type=None,
     exit_step=None,
@@ -121,7 +125,8 @@ def _process_batch_on_worker(
         outputs, worker_pipeline = _process_batch(
             worker_pipeline,
             tu_batch,
-            options=options,
+            inference_config=inference_config,
+            inference_options=inference_options,
             config=config,
             process_type=process_type,
             exit_step=exit_step,
@@ -151,19 +156,28 @@ class Processor(object):
         self._pipeline_type = pipeline_type
         self._preprocess_exit_step = preprocess_exit_step
 
+        inference = config.get("inference", {})
+        if inference and self._pipeline_type == prepoperator.ProcessType.TRAINING:
+            raise RuntimeError("'inference' field can only be specified in translation")
+        self._inference_config = inference.get("overrides")
+        self._inference_options = inference.get("options")
+        if self._inference_options:
+            self._inference_options = prepoperator.read_options(
+                config, self._inference_options
+            )
+
         # The global shared state contains all objects that are shared accross workers.
         # It includes shared objects defined in the main configuration as well as shared
         # objects that are corpus-specific.
         self._global_shared_state = SharedState(
             self._config,
             self._pipeline_type,
+            self._inference_config,
             preprocess_exit_step=self._preprocess_exit_step,
             num_workers=self._num_workers,
         )
 
-    def process(
-        self, loader, consumer, preprocess_exit_step=None, options=None, pipeline=None
-    ):
+    def process(self, loader, consumer, preprocess_exit_step=None, pipeline=None):
 
         if self._num_workers == 0:
             logger.info("Start processing")
@@ -174,7 +188,8 @@ class Processor(object):
                 outputs, pipeline = _process_batch(
                     pipeline,
                     tu_batch,
-                    options=options,
+                    inference_config=self._inference_config,
+                    inference_options=self._inference_options,
                     config=self._config,
                     process_type=self._pipeline_type,
                     exit_step=preprocess_exit_step,
@@ -196,7 +211,8 @@ class Processor(object):
 
             process_func = functools.partial(
                 _process_batch_on_worker,
-                options=options,
+                inference_config=self._inference_config,
+                inference_options=self._inference_options,
                 config=self._config,
                 process_type=self._pipeline_type,
                 exit_step=preprocess_exit_step,
@@ -440,6 +456,8 @@ class InferenceProcessor(Processor):
         return prepoperator.Pipeline(
             config,
             self._pipeline_type,
+            inference_config=self._inference_config,
+            inference_options=self._inference_options,
             shared_state=self._global_shared_state.get(),
         )
 
@@ -611,11 +629,19 @@ class SharedManager(multiprocessing.managers.BaseManager):
 class SharedState:
     """A class collecting shared objects created by operators."""
 
-    def __init__(self, config, process_type, preprocess_exit_step=None, num_workers=0):
+    def __init__(
+        self,
+        config,
+        process_type,
+        inference_config,
+        preprocess_exit_step=None,
+        num_workers=0,
+    ):
         self._all_state = collections.defaultdict(dict)
         self._cached_state = {}
         self._config = config
         self._process_type = process_type
+        self._inference_config = inference_config
         self._preprocess_exit_step = preprocess_exit_step
         self._num_workers = num_workers
         self._manager = None
@@ -639,6 +665,7 @@ class SharedState:
                 preprocess_config,
                 self._process_type,
                 override_label,
+                self._inference_config,
                 self._preprocess_exit_step,
                 ignore_disabled=False,
             ):
@@ -655,6 +682,7 @@ class SharedState:
             preprocess_config,
             self._process_type,
             override_label,
+            self._inference_config,
             self._preprocess_exit_step,
         ):
             # Save how to build shared classes for this operator.
