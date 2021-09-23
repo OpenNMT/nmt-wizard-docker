@@ -659,6 +659,8 @@ class SharedState:
         if not preprocess_config:
             return {}
 
+        supported_features = self._config.get("supported_features")
+
         if self._num_workers > 0 and self._manager is None:
             # On initialization, register all classes that can be shared.
             for operator_cls, _, _, _ in prepoperator.operator_info_generator(
@@ -667,6 +669,7 @@ class SharedState:
                 override_label,
                 self._inference_config,
                 self._preprocess_exit_step,
+                supported_features=supported_features,
                 ignore_disabled=False,
             ):
                 shared_classes = operator_cls.get_shared_classes()
@@ -684,6 +687,7 @@ class SharedState:
             override_label,
             self._inference_config,
             self._preprocess_exit_step,
+            supported_features=supported_features,
         ):
             # Save how to build shared classes for this operator.
             builders = operator_cls.get_shared_builders(
