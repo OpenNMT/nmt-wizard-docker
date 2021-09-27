@@ -1531,7 +1531,8 @@ def test_translation_add_bt_tag(tmpdir):
     assert target == "｟mrk_bt｠ ! world Hello"
 
 
-def test_score(tmpdir):
+@pytest.mark.parametrize("with_postprocess", [True, False])
+def test_score(tmpdir, with_postprocess):
     vocab_path = str(tmpdir.join("vocab.txt"))
     with open(vocab_path, "w") as vocab_file:
         for i in range(1, 10):
@@ -1556,8 +1557,16 @@ def test_score(tmpdir):
         "preprocess": [
             {
                 "op": "tokenization",
-                "source": {"mode": "aggressive", "segment_numbers": True},
-                "target": {"mode": "aggressive", "segment_numbers": True},
+                "source": {
+                    "mode": "aggressive",
+                    "segment_numbers": True,
+                    "joiner_annotate": True,
+                },
+                "target": {
+                    "mode": "aggressive",
+                    "segment_numbers": True,
+                    "joiner_annotate": True,
+                },
             }
         ],
         "vocabulary": {
@@ -1570,15 +1579,24 @@ def test_score(tmpdir):
     _run_framework(tmpdir, "model", "train", config=config)
 
     score_cmd = "score -s %s -t %s -o %s" % (src_path, tgt_path, out_path)
+    if not with_postprocess:
+        score_cmd += " --no_postprocess"
     _run_framework(tmpdir, "score", score_cmd, parent="model")
 
-    # In this dummy test the score is the source length divided by the target length.
+    # In this dummy test the postprocessed score is the source length divided by the target length.
     with open(out_path) as out_file:
-        assert out_file.readlines() == [
-            "1.500000 ||| 8 4 5 6\n",
-            "0.600000 ||| 2 7 9 6 4\n",
-            "1.333333 ||| 1 1 2\n",
-        ]
+        if with_postprocess:
+            assert out_file.readlines() == [
+                "1.500000 ||| 8456\n",
+                "0.600000 ||| 27964\n",
+                "1.333333 ||| 112\n",
+            ]
+        else:
+            assert out_file.readlines() == [
+                "6.000000 ||| 8￭ 4￭ 5￭ 6\n",
+                "3.000000 ||| 2￭ 7￭ 9￭ 6￭ 4\n",
+                "4.000000 ||| 1￭ 1￭ 2\n",
+            ]
 
 
 def test_serve(tmpdir):
