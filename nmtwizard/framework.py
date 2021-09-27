@@ -321,6 +321,12 @@ class Framework(utility.Utility):
             help="Preprocess data into a model.",
         )
         parser_preprocess.add_argument(
+            "-s", "--source", help="Source file (inference preprocess)."
+        )
+        parser_preprocess.add_argument(
+            "-t", "--target", help="Target file (inference preprocess)."
+        )
+        parser_preprocess.add_argument(
             "-o", "--output", help="Prefix of output file(s)"
         )
 
@@ -471,12 +477,18 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "preprocess":
             if not args.build_model:
-                self.preprocess(config, self._storage, args.output)
+                self.preprocess(
+                    config,
+                    self._storage,
+                    output=args.output,
+                    source=args.source,
+                    target=args.target,
+                )
             else:
-                if args.output:
+                if args.source or args.target or args.output:
                     logger.warn(
-                        'Argument output (=%s) is set but will not be used in "build_model" mode.',
-                        args.output,
+                        "Options --source, --target, and --output are ignored in "
+                        '"build_model" mode.'
                     )
 
                 parent_model_type = config.get("modelType")
@@ -923,39 +935,77 @@ class Framework(utility.Utility):
             rebatch_request=not self.has_own_request_batching,
         )
 
-    def preprocess(self, config, storage, output=None):
+    def preprocess(
+        self,
+        config,
+        storage,
+        output=None,
+        source=None,
+        target=None,
+    ):
         logger.info("Starting preprocessing data ")
         start_time = time.time()
 
         local_config = self._finalize_config(config)
-        if output:
-            assert local_config.get(
-                "source"
-            ), "'source' option (source language) must be set."
-            outputs = self._build_data(local_config)
-        else:
-            assert local_config.get("source") and local_config.get(
-                "target"
-            ), "'source' and 'target' options (source and target languages) must be set."
-            outputs = self._generate_training_data(local_config)
-        data_dir = outputs[0]
 
-        if output:
-            storage.push(
-                os.path.join(data_dir, "train." + config["source"]),
-                output + "." + config["source"],
+        if source is not None:
+            preprocessor = self._get_preprocessor(local_config, train=False)
+
+            def _get_input_file(path):
+                output_dir = output or storage.join(*storage.split(path)[:-1])
+                input_path = os.path.join(self._data_dir, storage.split(path)[-1])
+                storage.get_file(path, input_path)
+                input_path = decompress_file(input_path, remove=True)
+                return input_path, output_dir
+
+            source_path, source_output_dir = _get_input_file(source)
+            target_path, target_output_dir = (
+                _get_input_file(target) if target else (None, None)
             )
-            if config.get("target", None):
+
+            outputs = preprocessor.process_file(
+                source_path, target_path, delete_input_files=True
+            )
+
+            storage.push(
+                outputs[0],
+                storage.join(source_output_dir, os.path.basename(outputs[0])),
+            )
+            if target:
                 storage.push(
-                    os.path.join(data_dir, "train." + config["target"]),
-                    output + "." + config["target"],
+                    outputs[1],
+                    storage.join(target_output_dir, os.path.basename(outputs[1])),
                 )
+
+        else:
+            src_lang = local_config.get("source")
+            tgt_lang = local_config.get("target")
+            if output:
+                if not src_lang:
+                    raise ValueError("'source' option (source language) must be set.")
+                outputs = self._build_data(local_config)
+            else:
+                if not src_lang or not tgt_lang:
+                    raise ValueError(
+                        "'source' and 'target' options (source and target languages) must be set."
+                    )
+                outputs = self._generate_training_data(local_config)
+
+            data_dir = outputs[0]
+
+            if output:
+                train_file = os.path.join(data_dir, "train")
+                storage.push(
+                    "%s.%s" % (train_file, src_lang), "%s.%s" % (output, src_lang)
+                )
+                if tgt_lang:
+                    storage.push(
+                        "%s.%s" % (train_file, tgt_lang), "%s.%s" % (output, tgt_lang)
+                    )
 
         end_time = time.time()
         logger.info(
-            "Finished preprocessing data in %.1f seconds into %s",
-            end_time - start_time,
-            data_dir,
+            "Finished preprocessing data in %.1f seconds", end_time - start_time
         )
 
     def preprocess_into_model(
