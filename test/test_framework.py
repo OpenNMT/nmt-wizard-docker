@@ -727,6 +727,56 @@ def test_preprocess_sample_with_output(tmpdir):
     verify_output_file("sample.de")
 
 
+@pytest.mark.parametrize("with_target,with_storage", [(True, True), (False, False)])
+def test_preprocess_file(tmpdir, with_target, with_storage):
+    source_path = str(tmpdir.join("source.txt"))
+    target_path = str(tmpdir.join("target.txt"))
+    with open(source_path, "w") as source_file:
+        source_file.write("Hello world!\n")
+    with open(target_path, "w") as target_file:
+        target_file.write("Hallo Welt!\n")
+
+    if with_storage:
+        output_basedir = str(tmpdir.join("output").ensure(dir=1))
+        storage_config = {"output": {"type": "local", "basedir": output_basedir}}
+    else:
+        output_basedir = None
+        storage_config = None
+
+    cmd = "preprocess -s %s" % source_path
+    if with_storage:
+        cmd += " -o output:preprocess"
+    if with_target:
+        cmd += " -t %s" % target_path
+
+    _run_framework(
+        tmpdir,
+        "preprocess0",
+        cmd,
+        config=config_base,
+        storage_config=storage_config,
+    )
+
+    if with_storage:
+        source_output_path = os.path.join(
+            output_basedir, "preprocess", "source.txt.tok"
+        )
+        target_output_path = os.path.join(
+            output_basedir, "preprocess", "target.txt.tok"
+        )
+    else:
+        source_output_path = str(tmpdir.join("source.txt.tok"))
+        target_output_path = str(tmpdir.join("target.txt.tok"))
+
+    with open(source_output_path) as source_output:
+        assert source_output.read() == "Hello world ￭!\n"
+    if with_target:
+        with open(target_output_path) as target_output:
+            assert target_output.read() == "Hallo Welt ￭!\n"
+    else:
+        assert not os.path.exists(target_output_path)
+
+
 def test_description(tmpdir):
     description = "A description with a non ascii character: é"
     config = copy.deepcopy(config_base)
