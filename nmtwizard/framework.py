@@ -271,6 +271,12 @@ class Framework(utility.Utility):
         parser_score.add_argument(
             "-o", "--output", required=True, nargs="+", help="Output files"
         )
+        parser_score.add_argument(
+            "--no_postprocess",
+            default=False,
+            action="store_true",
+            help="Do not apply postprocessing on the target files.",
+        )
 
         parser_release = subparsers.add_parser(
             "release", help="Release a model for serving."
@@ -431,6 +437,7 @@ class Framework(utility.Utility):
                 args.target,
                 args.output,
                 gpuid=self._gpuid,
+                no_postprocess=args.no_postprocess,
             )
         elif args.cmd == "release":
             if not self._stateless and (
@@ -815,6 +822,7 @@ class Framework(utility.Utility):
         targets,
         outputs,
         gpuid=0,
+        no_postprocess=False,
     ):
         if len(sources) != len(targets):
             raise ValueError("There should be as many source files as target files")
@@ -861,7 +869,7 @@ class Framework(utility.Utility):
             )
 
             os.remove(target_path)
-            if postprocessor is not None:
+            if not no_postprocess and postprocessor is not None:
                 output_path = postprocessor.process_file(
                     source_path,
                     output_path,
@@ -869,6 +877,8 @@ class Framework(utility.Utility):
                     target_score_type=score_type,
                     delete_input_files=True,
                 )
+            else:
+                os.remove(source_path)
 
             if compress_output:
                 output_path = compress_file(output_path, remove=True)
