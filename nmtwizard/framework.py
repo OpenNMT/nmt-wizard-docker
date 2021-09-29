@@ -144,6 +144,16 @@ class Framework(utility.Utility):
         """
         return self.trans(config, model_path, input, output, gpuid=gpuid)
 
+    def export(self, config, model_path, output_dir):
+        """Exports a model to be used directly in the underlying framework.
+
+        Args:
+          config: The run configuration.
+          model_path: The path to the model to export.
+          output_dir: The export directory.
+        """
+        raise NotImplementedError("This framework does not implement an export step")
+
     @abc.abstractmethod
     def release(self, config, model_path, optimization_level=None, gpuid=0):
         """Releases a model for serving.
@@ -276,6 +286,16 @@ class Framework(utility.Utility):
             default=False,
             action="store_true",
             help="Do not apply postprocessing on the target files.",
+        )
+
+        parser_export = subparsers.add_parser(
+            "export", help="Export a model to the original framework."
+        )
+        parser_export.add_argument(
+            "-o",
+            "--output_dir",
+            required=True,
+            help="Destination of the exported model.",
         )
 
         parser_release = subparsers.add_parser(
@@ -438,6 +458,18 @@ class Framework(utility.Utility):
                 args.output,
                 gpuid=self._gpuid,
                 no_postprocess=args.no_postprocess,
+            )
+        elif args.cmd == "export":
+            if not self._stateless and (
+                parent_model is None
+                or config["modelType"] not in ("checkpoint", "standalone")
+            ):
+                raise ValueError("exporting requires a training checkpoint")
+            self.export_wrapper(
+                config,
+                self._model_path,
+                self._storage,
+                args.output_dir,
             )
         elif args.cmd == "release":
             if not self._stateless and (
@@ -884,6 +916,24 @@ class Framework(utility.Utility):
                 output_path = compress_file(output_path, remove=True)
             storage.push(output_path, output)
 
+    def export_wrapper(
+        self,
+        config,
+        model_path,
+        storage,
+        output_dir,
+    ):
+        local_config = self._finalize_config(config, training=False)
+        model_name = config["model"]
+        model_dir = os.path.join(self._output_dir, model_name)
+        os.mkdir(model_dir)
+
+        logger.info("Exporting model to %s", model_dir)
+        self.export(local_config, model_path, model_dir)
+
+        storage.push(model_dir, storage.join(output_dir, model_name))
+        shutil.rmtree(model_dir)
+
     def release_wrapper(
         self,
         config,
@@ -1307,10 +1357,12 @@ class Framework(utility.Utility):
         VocabInfo = collections.namedtuple("VocabInfo", ["current", "previous"])
         return VocabInfo(current=current_vocab, previous=previous_vocab)
 
-    def _convert_vocab(self, vocab_file, basename=None):
+    def _convert_vocab(self, vocab_file, basename=None, output_dir=None):
         if basename is None:
             basename = os.path.basename(vocab_file)
-        converted_vocab_file = os.path.join(self._data_dir, basename)
+        if output_dir is None:
+            output_dir = self._data_dir
+        converted_vocab_file = os.path.join(output_dir, basename)
         with open(converted_vocab_file, "w") as converted_vocab:
             for index, token in enumerate(tokenizer.vocabulary_iterator(vocab_file)):
                 self._map_vocab_entry(index, token, converted_vocab)
