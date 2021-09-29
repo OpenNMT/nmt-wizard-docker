@@ -7,8 +7,10 @@ from nmtwizard.logger import get_logger
 import tensorflow as tf
 
 import opennmt
+import yaml
 
 from nmtwizard.framework import Framework
+from nmtwizard import config as config_util
 from nmtwizard import utils
 from nmtwizard import serving
 
@@ -68,6 +70,41 @@ class OpenNMTTFFramework(Framework):
             fallback_to_cpu=False,
         )
         return _list_checkpoint_files(output_dir), summary
+
+    def export(self, config, model_path, output_dir):
+        options = config["options"]
+
+        # Copy checkpoint files.
+        for filename, path in _list_checkpoint_files(model_path).items():
+            shutil.copy(path, os.path.join(output_dir, filename))
+
+        # Convert vocabularies.
+        src_vocab = self._convert_vocab(
+            config["vocabulary"]["source"]["path"], output_dir=output_dir
+        )
+        tgt_vocab = self._convert_vocab(
+            config["vocabulary"]["target"]["path"], output_dir=output_dir
+        )
+
+        # Save run configuration.
+        run_config = {
+            "auto_config": options.get("auto_config", False),
+            "data": {
+                "source_vocabulary": os.path.basename(src_vocab),
+                "target_vocabulary": os.path.basename(tgt_vocab),
+            },
+        }
+        run_config = config_util.merge_config(run_config, options.get("config", {}))
+        config_path = os.path.join(output_dir, "config.yml")
+        with open(config_path, "w") as config_file:
+            yaml.dump(run_config, config_file)
+
+        # Save model description.
+        opennmt.load_model(
+            output_dir,
+            model_file=options.get("model"),
+            model_name=options.get("model_type"),
+        )
 
     def score(self, config, model_path, source, target, output, gpuid=0):
         runner = self._build_runner(config, model_path=model_path)
