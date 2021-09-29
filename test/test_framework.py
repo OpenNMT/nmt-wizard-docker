@@ -136,6 +136,10 @@ class DummyFramework(_TestFramework):
             for line in input_file:
                 output_file.write(" ".join(reversed(line.split())))
 
+    def export(self, config, model_path, output_dir):
+        for filename, path in DummyCheckpoint(model_path).objects().items():
+            shutil.copy(path, os.path.join(output_dir, filename))
+
     def release(self, config, model_path, optimization_level=None, gpuid=0):
         return DummyCheckpoint(model_path).objects()
 
@@ -569,6 +573,20 @@ def test_model_storage(tmpdir):
     )
     assert ms1.join("model1").check(exists=0)
     assert ms2.join("model1").check(dir=1, exists=1)
+
+
+def test_export(tmpdir):
+    model_name = "model0"
+    _run_framework(tmpdir, model_name, "train", config=config_base)
+    model_dir = str(tmpdir.join("models").join("model0"))
+    checkpoint_files = list(DummyCheckpoint(model_dir).objects().keys())
+
+    export_dir = str(tmpdir.join("export"))
+    _run_framework(tmpdir, "export", "export -o %s" % export_dir, parent=model_name)
+    exported_files = os.listdir(os.path.join(export_dir, model_name))
+
+    # Export directory should only contain the exported dummy checkpoint files.
+    assert list(sorted(exported_files)) == list(sorted(checkpoint_files))
 
 
 def test_release(tmpdir):
