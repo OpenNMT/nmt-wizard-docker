@@ -1128,7 +1128,6 @@ class Framework(utility.Utility):
             "endDate": end_time,
             "startDate": start_time,
         }
-        # Mark standalone build for corpora anonymization
         if parent_model_type == "checkpoint" and model_type == "standalone":
             build_info["standalone"] = True
 
