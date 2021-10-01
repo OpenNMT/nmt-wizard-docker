@@ -1,5 +1,5 @@
 https://github.com/SYSTRAN/storages/archive/3601019941cca224e42dc1c1435355ebcb6d2cfd.tar.gz
 jsonschema==3.*
-pyonmttok==1.27.0
+pyonmttok==1.28.1
 requests==2.*
 systran-align>=3.3,<4
