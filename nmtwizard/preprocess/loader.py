@@ -157,7 +157,7 @@ def _extract_score(tokens, score_type, separator="|||"):
             score = -score
         total_score += score
 
-    return total_score / total_length
+    return total_score / total_length if total_length != 0 else 0
 
 
 class SamplerFileLoader(FileLoader):
