@@ -166,7 +166,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["sample_dist"][0]["distribution"] = [
         ["generic", "*3s"],
-        ["specific", [ 5.2, 2 ]],
+        ["specific", [5.2, 2]],
         ["news.*pattern", "*2w"],
         [".*something", 1],
     ]
