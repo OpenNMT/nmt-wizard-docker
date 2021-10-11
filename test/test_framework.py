@@ -1614,10 +1614,12 @@ def test_score(tmpdir, with_postprocess):
         src_file.write("123456\n")
         src_file.write("123\n")
         src_file.write("1234\n")
+        src_file.write("1\n")
     with open(tgt_path, "w") as tgt_file:
         tgt_file.write("8456\n")
         tgt_file.write("27964\n")
         tgt_file.write("112\n")
+        tgt_file.write("\n")
 
     config = {
         "source": "en",
@@ -1658,12 +1660,14 @@ def test_score(tmpdir, with_postprocess):
                 "1.500000 ||| 8456\n",
                 "0.600000 ||| 27964\n",
                 "1.333333 ||| 112\n",
+                "0.000000 ||| \n",
             ]
         else:
             assert out_file.readlines() == [
                 "6.000000 ||| 8￭ 4￭ 5￭ 6\n",
                 "3.000000 ||| 2￭ 7￭ 9￭ 6￭ 4\n",
                 "4.000000 ||| 1￭ 1￭ 2\n",
+                "1.000000 ||| \n",
             ]
 
 
