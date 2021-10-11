@@ -171,6 +171,10 @@ def sample(config, source_dir, oversample_as_weights):
 
                         weight = rule[1]
                         label = None
+                        overweight_factor = 1
+                        if isinstance(weight, list):
+                            overweight_factor = int(weight[1])
+                            weight = weight[0]
                         if isinstance(weight, str) and not weight.startswith("*"):
                             weight = float(weight)
                         if len(rule) > 2:
@@ -197,6 +201,8 @@ def sample(config, source_dir, oversample_as_weights):
                                 weight,
                                 label,
                             )
+
+                            sampler_file.oversample *= overweight_factor
 
                             if d_idx_pattern not in pattern_sizes:
                                 if not isinstance(weight, str):
@@ -339,6 +345,7 @@ def sample(config, source_dir, oversample_as_weights):
                 add_example_weights = True
             reserved_sample += added_sample
         else:
+            f.oversample_as_weights = True
             file_weight = f.lines_count / pattern_sizes[f.pattern]
             pattern_weight = (
                 f.weight / pattern_weights_sum if pattern_weights_sum else 0
