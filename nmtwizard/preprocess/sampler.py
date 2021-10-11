@@ -173,8 +173,10 @@ def sample(config, source_dir, oversample_as_weights):
                         label = None
                         overweight_factor = 1
                         if isinstance(weight, list):
-                            overweight_factor = int(weight[1])
+                            overweight_factor = weight[1]
                             weight = weight[0]
+                            if isinstance(weight, str) and weight.startswith("*"):
+                                raise ValueError("Cannot add overweight factor to '%s' weight for pattern '%s'." % (weight, pattern))
                         if isinstance(weight, str) and not weight.startswith("*"):
                             weight = float(weight)
                         if len(rule) > 2:
