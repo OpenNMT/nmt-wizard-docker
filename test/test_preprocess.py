@@ -166,7 +166,7 @@ def test_sampler(tmpdir, batch_size, num_threads):
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["sample_dist"][0]["distribution"] = [
         ["generic", "*3s"],
-        ["specific", 5.2],
+        ["specific", [5.2, 2]],
         ["news.*pattern", "*2w"],
         [".*something", 1],
     ]
@@ -192,7 +192,10 @@ def test_sampler(tmpdir, batch_size, num_threads):
         if not wf.endswith("news_pattern.weights"):
             with open(wf, "r") as f:
                 rf = f.readlines()
-                assert all(el == "1.0\n" for el in rf)
+                if "corpus_specific" in wf:
+                    assert all(el == "2.0\n" for el in rf)
+                else:
+                    assert all(el == "1.0\n" for el in rf)
                 if wf.endswith("generic_corpus.weights"):
                     assert len(rf) == 300
                 if wf.endswith("generic_added.weights"):
@@ -222,7 +225,10 @@ def test_sampler(tmpdir, batch_size, num_threads):
         if not wf.endswith("news_pattern.weights"):
             with open(wf, "r") as f:
                 rf = f.readlines()
-                assert all(el == "1.0\n" for el in rf)
+                if "corpus_specific" in wf:
+                    assert all(el == "2.0\n" for el in rf)
+                else:
+                    assert all(el == "1.0\n" for el in rf)
                 if wf.endswith("generic_corpus.weights"):
                     assert len(rf) == 300
                 if wf.endswith("generic_added.weights"):
