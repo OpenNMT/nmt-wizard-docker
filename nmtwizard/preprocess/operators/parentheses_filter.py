@@ -1,6 +1,7 @@
 import itertools
 import collections
 
+
 from nmtwizard.preprocess import prepoperator
 
 
@@ -88,6 +89,8 @@ class ParenthesesFilter(prepoperator.Filter):
         if tgt_replacements is None:  # Unbalanced or nested parentheses in target
             return True
 
+        src_replacements_to_keep = []
+        tgt_replacements_to_keep = []
         for parentheses_type in self._parentheses_types:
             src_repl = src_replacements[parentheses_type]
             tgt_repl = tgt_replacements[parentheses_type]
@@ -99,9 +102,18 @@ class ParenthesesFilter(prepoperator.Filter):
                 return True
 
             if self._remove_src and length_src_repl == 1 and length_tgt_repl == 0:
-                tu.replace_tokens_side("source", src_repl[0])
+                src_replacements_to_keep.append(src_repl[0])
 
             if self._remove_tgt and length_tgt_repl == 1 and length_src_repl == 0:
-                tu.replace_tokens_side("target", tgt_repl[0])
+                tgt_replacements_to_keep.append(tgt_repl[0])
+
+        src_replacements_to_keep.sort(key=lambda tup: tup[0])
+        tgt_replacements_to_keep.sort(key=lambda tup: tup[0])
+
+        for repl in reversed(src_replacements_to_keep):
+            tu.replace_tokens_side("source", repl)
+
+        for repl in reversed(tgt_replacements_to_keep):
+            tu.replace_tokens_side("target", repl)
 
         return False
