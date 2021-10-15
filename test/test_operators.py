@@ -509,6 +509,12 @@ def test_align_perplexity_percent_threshold(
             False,
             (None, "Teste pour remplacerjoiner."),
         ),
+        (
+            "Test <with different parethesis type> in one (and the same) sentence.",
+            "Le target n'est pas modifié.",
+            False,
+            ("Test in one sentence.", "Le target n'est pas modifié."),
+        ),
     ],
 )
 def test_parentheses_filter(src, tgt, filtered, expected):
