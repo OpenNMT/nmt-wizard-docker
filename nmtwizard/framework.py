@@ -355,6 +355,12 @@ class Framework(utility.Utility):
         parser_preprocess.add_argument(
             "-o", "--output", help="Prefix of output file(s)"
         )
+        parser_preprocess.add_argument(
+            "--compress_output",
+            default=False,
+            action="store_true",
+            help="Compress output files.",
+        )
 
         parser.build_vocab = subparsers.add_parser(
             "buildvocab", help="Build vocabularies."
@@ -522,6 +528,7 @@ class Framework(utility.Utility):
                     output=args.output,
                     source=args.source,
                     target=args.target,
+                    compress_output=args.compress_output
                 )
             else:
                 if args.source or args.target or args.output:
@@ -1002,7 +1009,14 @@ class Framework(utility.Utility):
         output=None,
         source=None,
         target=None,
+        compress_output=False,
     ):
+        def _storage_push_gzip(file_in, file_out):
+            if compress_output:
+                file_in = compress_file(file_in, remove=True)
+                file_out += ".gz"
+            storage.push(file_in, file_out)
+
         logger.info("Starting preprocessing data ")
         start_time = time.time()
 
@@ -1027,12 +1041,12 @@ class Framework(utility.Utility):
                 source_path, target_path, delete_input_files=True
             )
 
-            storage.push(
+            _storage_push_gzip(
                 outputs[0],
                 storage.join(source_output_dir, os.path.basename(outputs[0])),
             )
             if target:
-                storage.push(
+                _storage_push_gzip(
                     outputs[1],
                     storage.join(target_output_dir, os.path.basename(outputs[1])),
                 )
@@ -1055,11 +1069,11 @@ class Framework(utility.Utility):
 
             if output:
                 train_file = os.path.join(data_dir, "train")
-                storage.push(
+                _storage_push_gzip(
                     "%s.%s" % (train_file, src_lang), "%s.%s" % (output, src_lang)
                 )
                 if tgt_lang:
-                    storage.push(
+                    _storage_push_gzip(
                         "%s.%s" % (train_file, tgt_lang), "%s.%s" % (output, tgt_lang)
                     )
 

@@ -10,6 +10,7 @@ import functools
 import multiprocessing
 import requests
 import time
+import gzip
 
 from nmtwizard import utils
 from nmtwizard.framework import Framework
@@ -703,11 +704,17 @@ def test_preprocess_as_model(tmpdir):
     )
 
 
-def test_preprocess_sample_with_output(tmpdir):
+@pytest.mark.parametrize("compress_output", [(True), (False)])
+def test_preprocess_sample_with_output(tmpdir, compress_output):
     def verify_output_file(filename):
         outputfile = os.path.join(_test_dir(), "corpus", filename)
-        with open(outputfile) as file:
-            assert len(file.readlines()) == 1000
+        if compress_output:
+            outputfile += ".gz"
+            file = gzip.open(outputfile)
+        else:
+            file = open(outputfile)
+        assert len(file.readlines()) == 1000
+        file.close()
         os.remove(outputfile)
 
     storage_config = {
@@ -722,11 +729,16 @@ def test_preprocess_sample_with_output(tmpdir):
             ],
         },
     }
+
+    cmd = "preprocess -o corpus:sample"
+    if compress_output:
+        cmd += " --compress_output"
+
     os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
     _run_framework(
         tmpdir,
         "preprocess0",
-        "preprocess -o corpus:sample",
+        cmd,
         config=config,
         storage_config=storage_config,
     )
@@ -737,7 +749,7 @@ def test_preprocess_sample_with_output(tmpdir):
     _run_framework(
         tmpdir,
         "preprocess0",
-        "preprocess -o corpus:sample",
+        cmd,
         config=config,
         storage_config=storage_config,
     )
@@ -746,7 +758,17 @@ def test_preprocess_sample_with_output(tmpdir):
 
 
 @pytest.mark.parametrize("with_target,with_storage", [(True, True), (False, False)])
-def test_preprocess_file(tmpdir, with_target, with_storage):
+@pytest.mark.parametrize("compress_output", [(True), (False)])
+def test_preprocess_file(tmpdir, with_target, with_storage, compress_output):
+    def verify_file_content(filename, expected):
+        if compress_output:
+            filename += ".gz"
+            file = gzip.open(filename, "rt")
+        else:
+            file = open(filename)
+        assert file.read() == expected
+        file.close()
+
     source_path = str(tmpdir.join("source.txt"))
     target_path = str(tmpdir.join("target.txt"))
     with open(source_path, "w") as source_file:
@@ -766,6 +788,8 @@ def test_preprocess_file(tmpdir, with_target, with_storage):
         cmd += " -o output:preprocess"
     if with_target:
         cmd += " -t %s" % target_path
+    if compress_output:
+        cmd += " --compress_output"
 
     _run_framework(
         tmpdir,
@@ -786,11 +810,9 @@ def test_preprocess_file(tmpdir, with_target, with_storage):
         source_output_path = str(tmpdir.join("source.txt.tok"))
         target_output_path = str(tmpdir.join("target.txt.tok"))
 
-    with open(source_output_path) as source_output:
-        assert source_output.read() == "Hello world ￭!\n"
+    verify_file_content(source_output_path, "Hello world ￭!\n")
     if with_target:
-        with open(target_output_path) as target_output:
-            assert target_output.read() == "Hallo Welt ￭!\n"
+        verify_file_content(target_output_path, "Hallo Welt ￭!\n")
     else:
         assert not os.path.exists(target_output_path)
 
