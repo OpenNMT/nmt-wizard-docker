@@ -528,7 +528,7 @@ class Framework(utility.Utility):
                     output=args.output,
                     source=args.source,
                     target=args.target,
-                    compress_output=args.compress_output
+                    compress_output=args.compress_output,
                 )
             else:
                 if args.source or args.target or args.output:
