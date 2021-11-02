@@ -439,8 +439,6 @@ class TUOperator(Operator):
             new_tu_list.append(self._postprocess_tu(tu, **kwargs))
             log_level = logging.INFO if self._verbose else logging.DEBUG
             if logger.isEnabledFor(log_level):
-                if tu.src_detok != tu_src_detok :
-                    logger.info("'%s' operator modifies source in postprocess: %s", self.name, tu.src_detok)
                 if tu.tgt_detok != tu_tgt_detok :
                     logger.info("'%s' operator modifies target in postprocess: %s", self.name, tu.tgt_detok)
         return new_tu_list, meta_batch
