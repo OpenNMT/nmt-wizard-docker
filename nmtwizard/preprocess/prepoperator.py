@@ -443,8 +443,6 @@ class TUOperator(Operator):
                     logger.info("'%s' operator modifies source in postprocess: %s", self.name, tu.src_detok)
                 if tu.tgt_detok != tu_tgt_detok :
                     logger.info("'%s' operator modifies target in postprocess: %s", self.name, tu.tgt_detok)
-                if tu.get_tgt_detok("fuzzy") != tu_fuzzy_tgt_detok :
-                    logger.info("'%s' operator modifies fuzzy target in postprocess: %s", self.name, tu.get_tgt_detok("fuzzy"))
         return new_tu_list, meta_batch
 
     @abc.abstractmethod
