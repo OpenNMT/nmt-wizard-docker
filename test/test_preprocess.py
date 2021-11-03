@@ -4,7 +4,10 @@ import os
 from copy import deepcopy
 import random
 import glob
+import time
+import requests_mock
 
+from nmtwizard import beat_service
 from nmtwizard import utils
 from nmtwizard.preprocess.consumer import Consumer
 from nmtwizard.preprocess.loader import Loader
@@ -256,6 +259,77 @@ def test_sampler(tmpdir, batch_size, num_threads):
     assert summary["generic_added"]["linesampled"] == 50
 
     del os.environ["NB_CPU"]
+
+
+@prepoperator.register_operator("slow_operator")
+class _SlowOperator(prepoperator.Operator):
+    def _preprocess(self, tu_batch):
+        time.sleep(1)
+        return tu_batch
+
+
+@pytest.mark.parametrize(
+    "inactivity_timeout,beat_should_stop", [(None, False), (0.3, True)]
+)
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_preprocess_activity(tmpdir, inactivity_timeout, beat_should_stop, num_workers):
+    corpus_dir = tmpdir.join("corpus")
+    corpus_dir.mkdir()
+    generate_pseudo_corpus(corpus_dir, 200, "IT", "en")
+    generate_pseudo_corpus(corpus_dir, 200, "IT", "de")
+
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "batch_size": 200,
+            "sample": 0,
+            "sample_dist": [
+                {
+                    "path": str(corpus_dir),
+                    "distribution": [
+                        ["IT", "*"],
+                    ],
+                }
+            ],
+        },
+        "preprocess": [
+            {
+                "op": "slow_operator",
+            },
+            {
+                "op": "tokenization",
+                "source": {"mode": "space"},
+                "target": {"mode": "space"},
+            },
+        ],
+    }
+
+    with requests_mock.Mocker() as m:
+        m.register_uri(
+            "PUT", "http://test.com/task/beat/1?container_id=abc&duration=0.2"
+        )
+        beat_service.start_beat_service(
+            "abc",
+            "http://test.com",
+            "1",
+            interval=0.1,
+            inactivity_timeout=inactivity_timeout,
+        )
+
+        preprocessor = TrainingProcessor(
+            config, "", str(tmpdir), num_workers=num_workers
+        )
+        preprocessor.generate_preprocessed_data()
+
+        if beat_should_stop:
+            assert not beat_service.beat_service_is_running()
+            assert len(m.request_history) == pytest.approx(3, 1)
+        else:
+            assert beat_service.beat_service_is_running()
+            beat_service.stop_beat_service()
+            assert not beat_service.beat_service_is_running()
+            assert len(m.request_history) == pytest.approx(10, 1)
 
 
 @pytest.mark.parametrize(
