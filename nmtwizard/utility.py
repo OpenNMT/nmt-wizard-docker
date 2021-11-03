@@ -170,6 +170,12 @@ class Utility(abc.ABC):
             help="Interval of beat requests in seconds.",
         )
         parser.add_argument(
+            "--beat_inactivity_timeout",
+            default=3600,
+            type=int,
+            help="Stop the beat requests after this many seconds of inactivity in monitored execution.",
+        )
+        parser.add_argument(
             "--statistics_url",
             default=None,
             help=(
@@ -244,7 +250,11 @@ class Utility(abc.ABC):
         self._image = args.image
 
         start_beat_service(
-            os.uname()[1], args.beat_url, args.task_id, interval=args.beat_interval
+            os.uname()[1],
+            args.beat_url,
+            args.task_id,
+            interval=args.beat_interval,
+            inactivity_timeout=args.beat_inactivity_timeout,
         )
 
         self._storage = StorageClient(

@@ -10,6 +10,7 @@ import os
 
 from nmtwizard import config as config_util
 from nmtwizard import utils
+from nmtwizard import beat_service
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import consumer
 from nmtwizard.preprocess import loader
@@ -182,20 +183,22 @@ class Processor(object):
         if self._num_workers == 0:
             logger.info("Start processing")
 
-            for tu_batch in loader():
-                override_label = _get_corpus_label(tu_batch)
-                shared_state = self._global_shared_state.get(override_label)
-                outputs, pipeline = _process_batch(
-                    pipeline,
-                    tu_batch,
-                    inference_config=self._inference_config,
-                    inference_options=self._inference_options,
-                    config=self._config,
-                    process_type=self._pipeline_type,
-                    exit_step=preprocess_exit_step,
-                    shared_state=shared_state,
-                )
-                consumer(outputs)
+            with beat_service.monitor_activity() as monitor:
+                for tu_batch in loader():
+                    override_label = _get_corpus_label(tu_batch)
+                    shared_state = self._global_shared_state.get(override_label)
+                    outputs, pipeline = _process_batch(
+                        pipeline,
+                        tu_batch,
+                        inference_config=self._inference_config,
+                        inference_options=self._inference_options,
+                        config=self._config,
+                        process_type=self._pipeline_type,
+                        exit_step=preprocess_exit_step,
+                        shared_state=shared_state,
+                    )
+                    monitor.notify()
+                    consumer(outputs)
 
         else:
             logger.info("Start processing using %d worker(s)", self._num_workers)
@@ -229,10 +232,12 @@ class Processor(object):
                 semaphore = multiprocessing.Semaphore(buffer_size)
                 iterable = _get_iterator(semaphore)
 
-                for result in pool.imap_unordered(process_func, iterable):
-                    # Increment the semaphore value to allow loading another batch.
-                    semaphore.release()
-                    consumer(result)
+                with beat_service.monitor_activity() as monitor:
+                    for result in pool.imap_unordered(process_func, iterable):
+                        # Increment the semaphore value to allow loading another batch.
+                        semaphore.release()
+                        monitor.notify()
+                        consumer(result)
 
 
 class TrainingProcessor(Processor):
