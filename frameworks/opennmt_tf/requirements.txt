@@ -1,2 +1,2 @@
 tensorflow==2.3.*
-OpenNMT-tf==2.20.1
+OpenNMT-tf==2.22.0
