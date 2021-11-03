@@ -171,7 +171,7 @@ class Utility(abc.ABC):
         )
         parser.add_argument(
             "--beat_inactivity_timeout",
-            default=3600,
+            default=7200,
             type=int,
             help="Stop the beat requests after this many seconds of inactivity in monitored execution.",
         )
