@@ -415,11 +415,12 @@ class TUOperator(Operator):
         tu_list, meta_batch = tu_batch
         new_tu_list = []
         for tu in tu_list:
-            tu_src_detok = tu.src_detok
-            tu_tgt_detok = tu.tgt_detok
-            tu_fuzzy_tgt_detok = tu.get_tgt_detok("fuzzy")
-            new_tu_list.extend(self._preprocess_tu(tu, meta_batch, **kwargs))
             log_level = logging.INFO if self._verbose else logging.DEBUG
+            if logger.isEnabledFor(log_level):
+                tu_src_detok = tu.src_detok
+                tu_tgt_detok = tu.tgt_detok
+                tu_fuzzy_tgt_detok = tu.get_tgt_detok("fuzzy")
+            new_tu_list.extend(self._preprocess_tu(tu, meta_batch, **kwargs))
             if logger.isEnabledFor(log_level):
                 if tu.src_detok != tu_src_detok:
                     logger.info(
@@ -448,9 +449,10 @@ class TUOperator(Operator):
         tu_list, meta_batch = tu_batch
         new_tu_list = []
         for tu in tu_list:
-            tu_tgt_detok = tu.tgt_detok
-            new_tu_list.append(self._postprocess_tu(tu, **kwargs))
             log_level = logging.INFO if self._verbose else logging.DEBUG
+            if logger.isEnabledFor(log_level):
+                tu_tgt_detok = tu.tgt_detok
+            new_tu_list.append(self._postprocess_tu(tu, **kwargs))
             if logger.isEnabledFor(log_level):
                 if tu.tgt_detok != tu_tgt_detok:
                     logger.info(
