@@ -421,12 +421,27 @@ class TUOperator(Operator):
             new_tu_list.extend(self._preprocess_tu(tu, meta_batch, **kwargs))
             log_level = logging.INFO if self._verbose else logging.DEBUG
             if logger.isEnabledFor(log_level):
-                if tu.src_detok != tu_src_detok :
-                    logger.info("'%s' operator modifies source in preprocess.\nSRC BEFORE : %s\nSRC AFTER  : %s", self.name, tu_src_detok, tu.src_detok)
-                if tu.tgt_detok != tu_tgt_detok :
-                    logger.info("'%s' operator modifies target in preprocess.\nTGT BEFORE : %s\nTGT AFTER  : %s", self.name, tu_tgt_detok, tu.tgt_detok)
-                if tu.get_tgt_detok("fuzzy") != tu_fuzzy_tgt_detok :
-                    logger.info("'%s' operator modifies fuzzy target in preprocess.\nFUZZY TGT BEFORE : %s\nFUZZY TGT AFTER  : %s", self.name, tu_fuzzy_tgt_detok, tu.get_tgt_detok("fuzzy"))
+                if tu.src_detok != tu_src_detok:
+                    logger.info(
+                        "'%s' operator modifies source in preprocess.\nSRC BEFORE : %s\nSRC AFTER  : %s",
+                        self.name,
+                        tu_src_detok,
+                        tu.src_detok,
+                    )
+                if tu.tgt_detok != tu_tgt_detok:
+                    logger.info(
+                        "'%s' operator modifies target in preprocess.\nTGT BEFORE : %s\nTGT AFTER  : %s",
+                        self.name,
+                        tu_tgt_detok,
+                        tu.tgt_detok,
+                    )
+                if tu.get_tgt_detok("fuzzy") != tu_fuzzy_tgt_detok:
+                    logger.info(
+                        "'%s' operator modifies fuzzy target in preprocess.\nFUZZY TGT BEFORE : %s\nFUZZY TGT AFTER  : %s",
+                        self.name,
+                        tu_fuzzy_tgt_detok,
+                        tu.get_tgt_detok("fuzzy"),
+                    )
         return new_tu_list, meta_batch
 
     def _postprocess(self, tu_batch, **kwargs):
@@ -437,8 +452,13 @@ class TUOperator(Operator):
             new_tu_list.append(self._postprocess_tu(tu, **kwargs))
             log_level = logging.INFO if self._verbose else logging.DEBUG
             if logger.isEnabledFor(log_level):
-                if tu.tgt_detok != tu_tgt_detok :
-                    logger.info("'%s' operator modifies target in postprocess.\nTGT BEFORE : %s\nTGT AFTER  : %s", self.name, tu_tgt_detok, tu.tgt_detok)
+                if tu.tgt_detok != tu_tgt_detok:
+                    logger.info(
+                        "'%s' operator modifies target in postprocess.\nTGT BEFORE : %s\nTGT AFTER  : %s",
+                        self.name,
+                        tu_tgt_detok,
+                        tu.tgt_detok,
+                    )
         return new_tu_list, meta_batch
 
     @abc.abstractmethod
