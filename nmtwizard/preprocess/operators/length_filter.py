@@ -52,23 +52,23 @@ class LengthFilter(prepoperator.Filter):
 
         min_words_ratio = config.get("min_words_ratio")
         if min_words_ratio is not None:
-            message_min_words_ratio = "Inferior to min word length ratio"
+            message_min_words_ratio = "Inferior to min word length ratio (%.2f) (Src length : %d Tgt legth : %d Ratio : %.2f)"
             filters.append(
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     < min_words_ratio,
-                    message_min_words_ratio,
+                    message_min_words_ratio % (min_words_ratio, len(tu.src_tok.tokens[0]), len(tu.tgt_tok.tokens[0]), len(tu.src_tok.tokens[0])/len(tu.tgt_tok.tokens[0]))
                 )
             )
 
         max_words_ratio = config.get("max_words_ratio")
         if max_words_ratio is not None:
-            message_max_words_ratio = "Exceeds max word length ratio"
+            message_max_words_ratio = "Exceeds max word length ratio (%.2f) (Src length : %d Tgt legth : %d Ratio : %.2f)"
             filters.append(
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     > max_words_ratio,
-                    message_max_words_ratio,
+                    message_max_words_ratio % (max_words_ratio, len(tu.src_tok.tokens[0]), len(tu.tgt_tok.tokens[0]), len(tu.src_tok.tokens[0])/len(tu.tgt_tok.tokens[0]))
                 )
             )
 
