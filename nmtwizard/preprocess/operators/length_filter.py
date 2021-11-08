@@ -69,7 +69,7 @@ class LengthFilter(prepoperator.Filter):
 
         max_words_ratio = config.get("max_words_ratio")
         if max_words_ratio is not None:
-            message_max_words_ratio = "Exceeds max word length ratio (%.2f) (Src length : %d Tgt legth : %d Ratio : %.2f)"
+            message_max_words_ratio = "Exceeds max word length ratio (%.2f) (Src length : %d Tgt length : %d Ratio : %.2f)"
             filters.append(
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
