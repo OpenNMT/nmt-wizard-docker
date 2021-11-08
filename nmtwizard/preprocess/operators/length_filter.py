@@ -57,7 +57,13 @@ class LengthFilter(prepoperator.Filter):
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     < min_words_ratio,
-                    message_min_words_ratio % (min_words_ratio, len(tu.src_tok.tokens[0]), len(tu.tgt_tok.tokens[0]), len(tu.src_tok.tokens[0])/len(tu.tgt_tok.tokens[0]))
+                    message_min_words_ratio
+                    % (
+                        min_words_ratio,
+                        len(tu.src_tok.tokens[0]),
+                        len(tu.tgt_tok.tokens[0]),
+                        len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]),
+                    ),
                 )
             )
 
@@ -68,7 +74,13 @@ class LengthFilter(prepoperator.Filter):
                 lambda tu: (
                     len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     > max_words_ratio,
-                    message_max_words_ratio % (max_words_ratio, len(tu.src_tok.tokens[0]), len(tu.tgt_tok.tokens[0]), len(tu.src_tok.tokens[0])/len(tu.tgt_tok.tokens[0]))
+                    message_max_words_ratio
+                    % (
+                        max_words_ratio,
+                        len(tu.src_tok.tokens[0]),
+                        len(tu.tgt_tok.tokens[0]),
+                        len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0]),
+                    ),
                 )
             )
 
