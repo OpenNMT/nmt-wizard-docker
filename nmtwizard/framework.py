@@ -218,7 +218,12 @@ class Framework(utility.Utility):
 
     def declare_arguments(self, parser):
         subparsers = parser.add_subparsers(help="Run type", dest="cmd")
-        _ = subparsers.add_parser("train", help="Run a training.")
+        parser_train = subparsers.add_parser("train", help="Run a training.")
+        parser_train.add_argument(
+            "--output_model_name",
+            default=None,
+            help="Name of the generated model. If not set, defaults to the task ID.",
+        )
 
         parser_trans = subparsers.add_parser("trans", help="Run a translation.")
         parser_trans.add_argument(
@@ -347,6 +352,11 @@ class Framework(utility.Utility):
             help="Preprocess data into a model.",
         )
         parser_preprocess.add_argument(
+            "--output_model_name",
+            default=None,
+            help="Name of the generated model. If not set, defaults to the task ID.",
+        )
+        parser_preprocess.add_argument(
             "-s", "--source", help="Source file (inference preprocess)."
         )
         parser_preprocess.add_argument(
@@ -362,8 +372,13 @@ class Framework(utility.Utility):
             help="Compress output files.",
         )
 
-        parser.build_vocab = subparsers.add_parser(
+        parser_build_vocab = subparsers.add_parser(
             "buildvocab", help="Build vocabularies."
+        )
+        parser_build_vocab.add_argument(
+            "--output_model_name",
+            default=None,
+            help="Name of the generated model. If not set, defaults to the task ID",
         )
         self.parser = parser
 
@@ -410,7 +425,7 @@ class Framework(utility.Utility):
                     "a base model, a standalone model or a preprocess model"
                 )
             return self.train_wrapper(
-                self._task_id,
+                args.output_model_name or self._task_id,
                 config,
                 self._storage,
                 self._model_storage_write,
@@ -423,7 +438,7 @@ class Framework(utility.Utility):
             )
         elif args.cmd == "buildvocab":
             self.build_vocab(
-                self._task_id,
+                args.output_model_name or self._task_id,
                 config,
                 self._storage,
                 self._model_storage_write,
@@ -560,7 +575,7 @@ class Framework(utility.Utility):
                     config["modelType"] = "standalone"
 
                 return self.preprocess_into_model(
-                    self._task_id,
+                    args.output_model_name or self._task_id,
                     config,
                     self._storage,
                     self._model_storage_write,

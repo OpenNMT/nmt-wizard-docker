@@ -330,7 +330,7 @@ def _run_framework(
     args,
     config=None,
     parent=None,
-    auto_ms=True,
+    model_name=None,
     corpus_env=True,
     env=None,
     storage_config=None,
@@ -346,8 +346,6 @@ def _run_framework(
     full_args = ["-t", str(task_id)]
     if storage_config is not None:
         full_args += ["-s", json.dumps(storage_config)]
-    if auto_ms:
-        full_args += ["-ms", os.environ["MODELS_DIR"]]
     if config is not None:
         full_args += ["-c", json.dumps(config)]
     if parent is not None:
@@ -355,13 +353,15 @@ def _run_framework(
     if isinstance(args, str):
         args = args.split(" ")
     full_args += args
+    if model_name is not None:
+        full_args += ["--output_model_name", model_name]
     if framework_fn is None:
         framework = DummyFramework()
     else:
         framework = framework_fn()
     framework.run(args=full_args)
     _clear_workspace(tmpdir)
-    model_dir = os.path.join(os.environ["MODELS_DIR"], task_id)
+    model_dir = os.path.join(os.environ["MODELS_DIR"], model_name or task_id)
     os.environ.clear()
     os.environ.update(base_environ)
     return model_dir
@@ -561,16 +561,13 @@ def test_config_v2_upgrade(tmpdir):
 def test_model_storage(tmpdir):
     ms1 = tmpdir.join("ms1")
     ms2 = tmpdir.join("ms2")
-    _run_framework(
-        tmpdir, "model0", ["-ms", str(ms1), "train"], config=config_base, auto_ms=False
-    )
+    _run_framework(tmpdir, "model0", ["-ms", str(ms1), "train"], config=config_base)
     assert ms1.join("model0").check(dir=1, exists=1)
     _run_framework(
         tmpdir,
         "model1",
         ["-msr", str(ms1), "-msw", str(ms2), "train"],
         parent="model0",
-        auto_ms=False,
     )
     assert ms1.join("model1").check(exists=0)
     assert ms2.join("model1").check(dir=1, exists=1)
@@ -914,9 +911,10 @@ def test_preprocess_as_standalone_model(tmpdir):
 
     model_dir = _run_framework(
         tmpdir,
-        "standalone0",
+        "task1",
         "preprocess --build_model standalone",
         parent="checkpoint0",
+        model_name="standalone0",
     )
     config = _read_config(model_dir)
     assert config["model"] == "standalone0"
