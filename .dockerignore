@@ -3,3 +3,5 @@
 !nmtwizard
 !requirements.txt
 !utilities
+**/*.pyc
+**/__pycache__
