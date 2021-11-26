@@ -1,5 +1,6 @@
 import random
-import copy
+
+import pyonmttok
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
@@ -53,12 +54,17 @@ class Noise(prepoperator.TUOperator):
         self._add_marker = config.get("add_marker", 0)
 
     def _preprocess_tu(self, tu, *args):
-        original_tokens = copy.deepcopy(tu.src_tok.token_objects)
-        tu = self._apply_space_insertion_noise(tu)
+        original_tokens = (
+            [pyonmttok.Token(token) for token in tu.src_tok.token_objects[0]]
+            if self._add_marker
+            else None
+        )
+        if self._insert_space_prob > 0:
+            tu = self._apply_space_insertion_noise(tu)
         src_tok = tu.src_tok
-        tokens = src_tok.token_objects
-        new_tokens = [self._apply_word_noise(tokens[0])]
-        tu.src_tok = (src_tok.tokenizer, new_tokens)
+        tokens = src_tok.token_objects[0]
+        new_tokens = self._apply_word_noise(tokens)
+        tu.src_tok = (src_tok.tokenizer, [new_tokens])
         if self._add_marker and new_tokens != original_tokens:
             tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
         return [tu]
