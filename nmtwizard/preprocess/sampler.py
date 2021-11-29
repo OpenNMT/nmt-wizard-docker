@@ -256,7 +256,7 @@ def sample(config, source_dir, oversample_as_weights):
             # 1  if full sample (lines_kept == lines_count or no gsample)
             # >1 if oversampling (lines_kept > lines_count)
             # 0  if undersampling (lines_kept < lines_count)
-            min_occurrence = not gsample or int(f.lines_kept / f.lines_count)
+            min_occurrence = int(f.lines_kept / f.lines_count) or int(not gsample)
 
             if min_occurrence:
                 random_sample = {i: min_occurrence for i in range(f.lines_count)}
