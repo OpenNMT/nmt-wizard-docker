@@ -52,7 +52,28 @@ class Noise(prepoperator.TUOperator):
     def is_applied_for(process_type):
         return process_type == prepoperator.ProcessType.TRAINING
 
-    def __init__(self, config, *args):
+    def get_shared_classes():
+        return [fasttext.load_model]
+
+    @staticmethod
+    def get_shared_builders(config, process_type):
+        word_embedding_file = config.get("substitute_word", {}).get("word_embedding_file")
+        if word_embedding_file is None:
+            return None
+        if not os.path.isfile(word_embedding_file):
+            raise ValueError(
+                "Word embedding file doesn't exist: %s"
+                % (word_embedding_file)
+            )
+        return {
+            "word_embedding_model": (
+                fasttext.load_model,
+                (word_embedding_file,)
+            )
+        }
+
+
+    def __init__(self, config, process_type, build_state, shared_state=None):
         source_config = config.get("source")
         if source_config:
             config = source_config
@@ -64,19 +85,21 @@ class Noise(prepoperator.TUOperator):
         if substitute_word_config:
             self._substitute_word_prob = substitute_word_config.get("prob", 0)
             if self._substitute_word_prob:
-                # TODO: SharedState builder ?
-                word_embedding_file = substitute_word_config.get("word_embedding_file")
-                self._word_embedding_model = None
-                if word_embedding_file is not None:
-                    if not os.path.isfile(word_embedding_file):
-                        raise ValueError(
-                            "Word embedding file doesn't exist: %s"
-                            % (word_embedding_file)
+                self._word_embedding_model = shared_state.get("word_embedding_model") if shared_state else None
+                if not shared_state:
+                    # TODO: batched processing
+                    word_embedding_file = substitute_word_config.get("word_embedding_file")
+                    self._word_embedding_model = None
+                    if word_embedding_file is not None:
+                        if not os.path.isfile(word_embedding_file):
+                            raise ValueError(
+                                "Word embedding file doesn't exist: %s"
+                                % (word_embedding_file)
+                            )
+                        self._word_embedding_model = fasttext.load_model(
+                            word_embedding_file
                         )
-                    self._word_embedding_model = fasttext.load_model(
-                        word_embedding_file
-                    )
-                    self._nn = substitute_word_config.get("nearest_neighbors_num")
+                self._nn = substitute_word_config.get("nearest_neighbors_num")
         self._drop_space_prob = config.get("drop_space_prob", 0)
         self._insert_space_prob = config.get("insert_space_prob", 0)
         self._drop_char_prob = config.get("drop_char_prob", 0)
