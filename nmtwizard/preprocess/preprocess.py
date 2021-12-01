@@ -7,6 +7,7 @@ import multiprocessing
 import multiprocessing.managers
 import threading
 import os
+import gc
 
 from nmtwizard import config as config_util
 from nmtwizard import utils
@@ -199,6 +200,9 @@ class Processor(object):
                     )
                     monitor.notify()
                     consumer(outputs)
+                    del tu_batch
+                    del outputs
+                    gc.collect()
 
         else:
             logger.info("Start processing using %d worker(s)", self._num_workers)
@@ -208,6 +212,7 @@ class Processor(object):
                     override_label = _get_corpus_label(tu_batch)
                     shared_state = self._global_shared_state.get(override_label)
                     yield tu_batch, shared_state
+                    del tu_batch
                     # If the semaphore value reaches 0, the iterator will block so that no more
                     # batches are loaded.
                     semaphore.acquire()
@@ -228,7 +233,7 @@ class Processor(object):
             # the loader/consumer which avoids loading the full corpus in memory.
             with multiprocessing.Pool(processes=self._num_workers) as pool:
                 # We use a semaphore to control how many batches can be loaded in advance.
-                buffer_size = 2 * self._num_workers
+                buffer_size = self._num_workers
                 semaphore = multiprocessing.Semaphore(buffer_size)
                 iterable = _get_iterator(semaphore)
 
@@ -238,6 +243,8 @@ class Processor(object):
                         semaphore.release()
                         monitor.notify()
                         consumer(result)
+                        del result
+                        gc.collect()
 
 
 class TrainingProcessor(Processor):
