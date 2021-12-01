@@ -174,7 +174,18 @@ def test_tokenization_with_non_iso_639_lang():
         ),
         (dict(duplicate_word_prob=1), True, "hello.", ["hello hello.."]),
         (dict(swap_word_prob=1), True, "hello.", [". hello"]),
-        (dict(substitute_word={"prob" : 1, "word_embedding_file" : "/nfs/SSALING-DATA/segal/dev/systran-docker/nmt-wizard-docker/test/corpus/resources/embeddings/dbpedia.ftz", "nearest_neighbors_num":5}), True, "hello.", ['translator.', 'dichotomy.', 'violin.', 'clarinetist.', 'luce.']),
+        (
+            dict(
+                substitute_word={
+                    "prob": 1,
+                    "word_embedding_file": "/nfs/SSALING-DATA/segal/dev/systran-docker/nmt-wizard-docker/test/corpus/resources/embeddings/dbpedia.ftz",
+                    "nearest_neighbors_num": 5,
+                }
+            ),
+            True,
+            "hello.",
+            ["translator.", "dichotomy.", "violin.", "clarinetist.", "luce."],
+        ),
     ],
 )
 def test_noise(config, training, text, expected):

@@ -19,13 +19,13 @@ class Noise(prepoperator.TUOperator):
             "duplicate_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "swap_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "substitute_word": {
-                "properties" : {
+                "properties": {
                     "prob": {"type": "number", "minimum": 0, "maximum": 1},
                     "word_embedding_file": {"type": "string"},
-                    "nearest_neighbors_num": {"type": "integer"}
+                    "nearest_neighbors_num": {"type": "integer"},
                 },
                 "type": "object",
-                "additionalProperties": False
+                "additionalProperties": False,
             },
             "drop_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "insert_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
@@ -73,8 +73,10 @@ class Noise(prepoperator.TUOperator):
                             "Word embedding file doesn't exist: %s"
                             % (word_embedding_file)
                         )
-                    self._word_embedding_model = fasttext.load_model(word_embedding_file)
-                    self._nn =  substitute_word_config.get("nearest_neighbors_num")
+                    self._word_embedding_model = fasttext.load_model(
+                        word_embedding_file
+                    )
+                    self._nn = substitute_word_config.get("nearest_neighbors_num")
         self._drop_space_prob = config.get("drop_space_prob", 0)
         self._insert_space_prob = config.get("insert_space_prob", 0)
         self._drop_char_prob = config.get("drop_char_prob", 0)
@@ -131,15 +133,35 @@ class Noise(prepoperator.TUOperator):
                 if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
                     continue
                 # TODO : joiners
-                elif self._duplicate_word_prob > 0 and random.random() <= self._duplicate_word_prob:
+                elif (
+                    self._duplicate_word_prob > 0
+                    and random.random() <= self._duplicate_word_prob
+                ):
                     new_tokens.extend([token, token])
                     continue
-                elif len(new_tokens) > 0 and self._swap_word_prob > 0 and random.random() <= self._swap_word_prob:
+                elif (
+                    len(new_tokens) > 0
+                    and self._swap_word_prob > 0
+                    and random.random() <= self._swap_word_prob
+                ):
                     new_tokens.insert(-1, token)
                     continue
-                elif self._substitute_word_prob > 0 and self._word_embedding_model is not None and random.random() <= self._substitute_word_prob and all(c.isalpha() for c in token.surface):
-                    nearest_neighbors = self._word_embedding_model.get_nearest_neighbors(token.surface, k=self._nn)
-                    nearest_neighbors = [nn[1] for nn in nearest_neighbors if all(c.isalpha() for c in nn[1])]
+                elif (
+                    self._substitute_word_prob > 0
+                    and self._word_embedding_model is not None
+                    and random.random() <= self._substitute_word_prob
+                    and all(c.isalpha() for c in token.surface)
+                ):
+                    nearest_neighbors = (
+                        self._word_embedding_model.get_nearest_neighbors(
+                            token.surface, k=self._nn
+                        )
+                    )
+                    nearest_neighbors = [
+                        nn[1]
+                        for nn in nearest_neighbors
+                        if all(c.isalpha() for c in nn[1])
+                    ]
                     if nearest_neighbors:
                         token.surface = random.choice(nearest_neighbors)
                     new_tokens.append(token)
