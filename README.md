@@ -319,7 +319,7 @@ Advanced users could extend existing frameworks to implement customized behavior
 
 ```bash
 # Install test requirements:
-pip install -r tests/requirements.txt
+pip install -r test/requirements.txt
 
 # Run unit tests:
 PYTHONPATH=$PWD pytest test/
