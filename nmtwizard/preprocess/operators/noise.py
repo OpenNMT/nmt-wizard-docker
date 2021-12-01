@@ -12,8 +12,8 @@ import fasttext
 
 logger = get_logger(__name__)
 
-class Noiser:
 
+class Noiser:
     def __init__(self, config):
         self._drop_word_prob = config.get("drop_word_prob", 0)
         self._duplicate_word_prob = config.get("duplicate_word_prob", 0)
@@ -217,15 +217,9 @@ class Noise(prepoperator.Operator):
         # Only build noiser as shared object for word substitution with embeddings
         word_emb = config.get("substitute_word", {}).get("word_embedding_file")
         if word_emb:
-            return {
-                "noiser": (
-                    Noiser,
-                    (config,)
-                )
-            }
+            return {"noiser": (Noiser, (config,))}
         else:
             return None
-
 
     def __init__(self, config, process_type, build_state, shared_state=None):
         source_config = config.get("source")
@@ -235,7 +229,6 @@ class Noise(prepoperator.Operator):
         if not self._noiser:
             self._noiser = Noiser(config)
         self._add_marker = config.get("add_marker", 0)
-
 
     def _preprocess(self, tu_batch):
         tu_list, meta_batch = tu_batch
