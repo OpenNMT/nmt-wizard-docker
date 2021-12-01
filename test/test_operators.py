@@ -178,7 +178,13 @@ def test_tokenization_with_non_iso_639_lang():
             dict(
                 substitute_word={
                     "prob": 1,
-                    "word_embedding_file": "/nfs/SSALING-DATA/segal/dev/systran-docker/nmt-wizard-docker/test/corpus/resources/embeddings/dbpedia.ftz",
+                    "word_embedding_file": os.path.join(
+                        os.path.dirname(os.path.realpath(__file__)),
+                        "corpus",
+                        "resources",
+                        "embeddings",
+                        "dbpedia.ftz",
+                    ),
                     "nearest_neighbors_num": 5,
                 }
             ),
