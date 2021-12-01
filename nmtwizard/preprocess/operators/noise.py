@@ -132,7 +132,6 @@ class Noise(prepoperator.TUOperator):
             if not token.is_placeholder():
                 if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
                     continue
-                # TODO : joiners
                 elif (
                     self._duplicate_word_prob > 0
                     and random.random() <= self._duplicate_word_prob
