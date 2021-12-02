@@ -1,9 +1,10 @@
 import random
-
 import pyonmttok
+import os
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
+import fasttext
 
 
 @prepoperator.register_operator("noise")
@@ -15,6 +16,17 @@ class Noise(prepoperator.TUOperator):
         noise_block = {
             "lang": {"type": "string"},
             "drop_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "duplicate_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "swap_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "substitute_word": {
+                "properties": {
+                    "prob": {"type": "number", "minimum": 0, "maximum": 1},
+                    "word_embedding_file": {"type": "string"},
+                    "nearest_neighbors_num": {"type": "integer"},
+                },
+                "type": "object",
+                "additionalProperties": False,
+            },
             "drop_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "insert_space_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "drop_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
@@ -45,6 +57,26 @@ class Noise(prepoperator.TUOperator):
         if source_config:
             config = source_config
         self._drop_word_prob = config.get("drop_word_prob", 0)
+        self._duplicate_word_prob = config.get("duplicate_word_prob", 0)
+        self._swap_word_prob = config.get("swap_word_prob", 0)
+        substitute_word_config = config.get("substitute_word", None)
+        self._substitute_word_prob = 0
+        if substitute_word_config:
+            self._substitute_word_prob = substitute_word_config.get("prob", 0)
+            if self._substitute_word_prob:
+                # TODO: SharedState builder ?
+                word_embedding_file = substitute_word_config.get("word_embedding_file")
+                self._word_embedding_model = None
+                if word_embedding_file is not None:
+                    if not os.path.isfile(word_embedding_file):
+                        raise ValueError(
+                            "Word embedding file doesn't exist: %s"
+                            % (word_embedding_file)
+                        )
+                    self._word_embedding_model = fasttext.load_model(
+                        word_embedding_file
+                    )
+                    self._nn = substitute_word_config.get("nearest_neighbors_num")
         self._drop_space_prob = config.get("drop_space_prob", 0)
         self._insert_space_prob = config.get("insert_space_prob", 0)
         self._drop_char_prob = config.get("drop_char_prob", 0)
@@ -99,6 +131,39 @@ class Noise(prepoperator.TUOperator):
         for token in tokens:
             if not token.is_placeholder():
                 if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
+                    continue
+                elif (
+                    self._duplicate_word_prob > 0
+                    and random.random() <= self._duplicate_word_prob
+                ):
+                    new_tokens.extend([token, token])
+                    continue
+                elif (
+                    len(new_tokens) > 0
+                    and self._swap_word_prob > 0
+                    and random.random() <= self._swap_word_prob
+                ):
+                    new_tokens.insert(-1, token)
+                    continue
+                elif (
+                    self._substitute_word_prob > 0
+                    and self._word_embedding_model is not None
+                    and random.random() <= self._substitute_word_prob
+                    and all(c.isalpha() for c in token.surface)
+                ):
+                    nearest_neighbors = (
+                        self._word_embedding_model.get_nearest_neighbors(
+                            token.surface, k=self._nn
+                        )
+                    )
+                    nearest_neighbors = [
+                        nn[1]
+                        for nn in nearest_neighbors
+                        if all(c.isalpha() for c in nn[1])
+                    ]
+                    if nearest_neighbors:
+                        token.surface = random.choice(nearest_neighbors)
+                    new_tokens.append(token)
                     continue
                 elif (
                     self._drop_space_prob > 0
