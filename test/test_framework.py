@@ -611,6 +611,20 @@ def test_release(tmpdir):
     )
 
 
+def test_release_custom_model_name(tmpdir):
+    _run_framework(tmpdir, "model0", "train", config=config_base)
+
+    model_name = "my_release"
+    model_dir = _run_framework(
+        tmpdir, "release1", "release", parent="model0", model_name=model_name
+    )
+    assert os.path.basename(model_dir) == model_name
+    assert os.path.isdir(model_dir)
+    config = _read_config(model_dir)
+    assert config["model"] == model_name
+    assert config["modelType"] == "release"
+
+
 def test_release_change_file(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base)
 

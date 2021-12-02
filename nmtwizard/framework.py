@@ -313,6 +313,11 @@ class Framework(utility.Utility):
             help="Released model storage (defaults to the model storage).",
         )
         parser_release.add_argument(
+            "--output_model_name",
+            default=None,
+            help="Name of the released model. If not set, defaults to <model_id>_release.",
+        )
+        parser_release.add_argument(
             "-o",
             "--optimization_level",
             type=int,
@@ -506,6 +511,7 @@ class Framework(utility.Utility):
                 self._image,
                 storage=self._storage,
                 destination=args.destination,
+                output_model_name=args.output_model_name,
                 optimization_level=args.optimization_level,
                 gpuid=self._gpuid,
                 push_model=not self._no_push,
@@ -964,6 +970,7 @@ class Framework(utility.Utility):
         storage=None,
         local_destination=None,
         destination=None,
+        output_model_name=None,
         optimization_level=None,
         gpuid=0,
         push_model=True,
@@ -973,8 +980,9 @@ class Framework(utility.Utility):
             local_config, model_path, optimization_level=optimization_level, gpuid=gpuid
         )
         bundle_dependencies(objects, config, local_config)
-        model_id = config["model"] + "_release"
-        config["model"] = model_id
+        if output_model_name is None:
+            output_model_name = config["model"] + "_release"
+        config["model"] = output_model_name
         config["modelType"] = "release"
         config["imageTag"] = image
         for name in ("parent_model", "build", "data"):
@@ -995,10 +1003,10 @@ class Framework(utility.Utility):
             objects[os.path.basename(options_path)] = options_path
         if local_destination is None:
             local_destination = self._models_dir
-        objects_dir = os.path.join(local_destination, model_id)
+        objects_dir = os.path.join(local_destination, output_model_name)
         utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
         if push_model:
-            storage.push(objects_dir, storage.join(destination, model_id))
+            storage.push(objects_dir, storage.join(destination, output_model_name))
         return objects_dir
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
