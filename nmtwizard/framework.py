@@ -1043,9 +1043,8 @@ class Framework(utility.Utility):
         logger.info("Starting preprocessing data ")
         start_time = time.time()
 
-        local_config = self._finalize_config(config)
-
         if source is not None:
+            local_config = self._finalize_config(config, training=False)
             preprocessor = self._get_preprocessor(local_config, train=False)
 
             def _get_input_file(path):
@@ -1075,6 +1074,7 @@ class Framework(utility.Utility):
                 )
 
         else:
+            local_config = self._finalize_config(config)
             src_lang = local_config.get("source")
             tgt_lang = local_config.get("target")
             if output:
