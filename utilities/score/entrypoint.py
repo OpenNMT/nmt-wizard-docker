@@ -137,7 +137,7 @@ class ScoreUtility(Utility):
     def eval_BLEU(self, tgtfile, reffile):
         reffile = reffile.replace(",", " ")
         result = self.exec_command_with_timeout(
-            "/usr/bin/perl %s %s < %s"
+            '/usr/bin/perl "%s" "%s" < "%s"'
             % (
                 os.path.join(self._tools_dir, "BLEU", "multi-bleu-detok_cjk.perl"),
                 reffile,
