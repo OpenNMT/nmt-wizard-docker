@@ -116,6 +116,9 @@ def test_sampler(tmpdir, batch_size, num_threads):
         for c in rf_dict.values():
             assert 2 <= c <= 3
 
+    weights_file_list = glob.glob(str(tmpdir.join("preprocess/*.weights")))
+    assert len(weights_file_list) == 0
+
     # Check strict mode
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["sample_dist"][0]["mode_strict"] = True
@@ -163,6 +166,9 @@ def test_sampler(tmpdir, batch_size, num_threads):
     assert summary["corpus_specific1"]["linesampled"] == 0
     assert summary["corpus_specific2"]["linesampled"] == 0
     assert "IT" not in summary
+
+    weights_file_list = glob.glob(str(tmpdir.join("preprocess/*.weights")))
+    assert len(weights_file_list) == 0
 
     # Test oversampling as example weights
 
