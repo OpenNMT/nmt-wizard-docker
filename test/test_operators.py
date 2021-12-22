@@ -155,6 +155,7 @@ def test_tokenization_with_non_iso_639_lang():
         ),
         (dict(insert_space_prob=1, drop_space_prob=1), True, "hello.", ["hello."]),
         (dict(substitute_char_prob=1), True, "pp", ["oo", "ol", "lo", "ll"]),
+        (dict(substitute_char_prob=1), True, "PP", ["OO", "OL", "LO", "LL"]),
         (
             dict(drop_space_prob=1, add_marker=True),
             True,

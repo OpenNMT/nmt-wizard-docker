@@ -183,18 +183,26 @@ class Noise(prepoperator.TUOperator):
         return new_tokens
 
     @staticmethod
-    def get_neighbor_keys_on_qwerty(key):
+    def get_neighbor_keys_on_qwerty(original_key):
+        if original_key.isupper():
+            key = original_key.lower()
+        else:
+            key = original_key
         lines = "qwertyuiop", "asdfghjkl", "zxcvbnm"
         line_index, index = [(i, l.find(key)) for i, l in enumerate(lines) if key in l][
             0
         ]
         lines = lines[line_index - 1 : line_index + 2] if line_index else lines[0:2]
-        return [
+        result = [
             line[index + i]
             for line in lines
             for i in [-1, 0, 1]
             if len(line) > index + i and line[index + i] != key and index + i >= 0
         ]
+        if original_key.isupper():
+            return [r.upper() for r in result]
+        else:
+            return result
 
     def _apply_character_noise(self, cur_surface):
         new_surface = ""
