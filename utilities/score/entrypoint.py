@@ -135,13 +135,13 @@ class ScoreUtility(Utility):
         return p.stdout.read()
 
     def eval_BLEU(self, tgtfile, reffile):
-        reffile = reffile.replace(",", " ")
+        reffile = [f'"{f}"' for f in reffile.split(",")]
         result = self.exec_command_with_timeout(
-            '/usr/bin/perl "%s" "%s" < "%s"'
+            "/usr/bin/perl %s %s < %s"
             % (
                 os.path.join(self._tools_dir, "BLEU", "multi-bleu-detok_cjk.perl"),
-                reffile,
-                tgtfile,
+                " ".join(reffile),
+                f'"{tgtfile}"',
             ),
             shell=True,
         )  # nosec
