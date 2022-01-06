@@ -1,3 +1,4 @@
+import copy
 import itertools
 import pyonmttok
 
@@ -84,6 +85,18 @@ class Alignment(object):
                     break
 
         self.__log_probs = log_probs
+
+    def __deepcopy__(self, memo={}):
+        alignment = Alignment.__new__(Alignment)
+        alignment.__alignments = (
+            [alignments.copy() for alignments in self.__alignments]
+            if self.__alignments is not None
+            else None
+        )
+        alignment.__log_probs = (
+            self.__log_probs.copy() if self.__log_probs is not None else None
+        )
+        return alignment
 
     @property
     def alignments(self):
@@ -175,6 +188,17 @@ class TranslationSide(object):
             self.tok = (tokenizer, [tokens])
         else:
             raise TypeError("Can't build a TranslationSide from type %s" % type(line))
+
+    def __deepcopy__(self, memo={}):
+        side = TranslationSide.__new__(TranslationSide)
+        side.output_side = self.output_side
+        side.output_delimiter = self.output_delimiter
+        side.__detok = self.__detok
+        side.__tok = (
+            [part.copy() for part in self.__tok] if self.__tok is not None else None
+        )
+        side.__tokenizer = self.__tokenizer
+        return side
 
     @property
     def tok(self):
@@ -325,6 +349,32 @@ class TranslationUnit(object):
                 self.__alignment = Alignment(
                     alignments=alignment, log_probs=alignment_log_probs
                 )
+
+    def __deepcopy__(self, memo={}):
+        unit = TranslationUnit.__new__(TranslationUnit)
+        unit.__source = {
+            key: copy.deepcopy(side, memo) for key, side in self.__source.items()
+        }
+        unit.__target = (
+            {key: copy.deepcopy(side, memo) for key, side in self.__target.items()}
+            if self.__target is not None
+            else None
+        )
+        unit.__alignment = (
+            copy.deepcopy(self.__alignment, memo)
+            if self.__alignment is not None
+            else None
+        )
+        unit.__metadata = self.__metadata.copy()
+        unit.__annotations = (
+            copy.deepcopy(self.__annotations, memo)
+            if self.__annotations is not None
+            else None
+        )
+        return unit
+
+    def clone(self):
+        return copy.deepcopy(self)
 
     def add_source(
         self,
