@@ -135,32 +135,40 @@ def test_tokenization_with_non_iso_639_lang():
 
 
 @pytest.mark.parametrize(
-    "config,training,text,expected",
+    "config,training,text,expected,data_augmentation",
     [
-        (dict(), True, "hello world.", ["hello world."]),
-        (dict(drop_word_prob=1), True, "hello world.", [""]),
-        (dict({"source": {"drop_word_prob": 1}}), True, "hello world.", [""]),
-        (dict(drop_word_prob=1), False, "hello world.", ["hello world."]),
-        (dict(drop_space_prob=1), True, "hello world.", ["helloworld."]),
-        (dict(drop_char_prob=1), True, "hello world.", [""]),
-        (dict(drop_char_prob=1), True, "a｟a｠.", ["｟a｠"]),
-        (dict(duplicate_char_prob=1), True, "hello.", ["hheelllloo.."]),
-        (dict(swap_char_prob=1), True, "hello.", ["ehllo."]),
-        (dict(drop_word_prob=1, drop_space_prob=1), True, "a｟a｠.", ["｟a｠"]),
+        (dict(), True, "hello world.", ["hello world."], False),
+        (dict(drop_word_prob=1), True, "hello world.", [""], False),
+        (dict({"source": {"drop_word_prob": 1}}), True, "hello world.", [""], False),
+        (dict(drop_word_prob=1), False, "hello world.", ["hello world."], False),
+        (dict(drop_space_prob=1), True, "hello world.", ["helloworld."], False),
+        (dict(drop_char_prob=1), True, "hello world.", [""], False),
+        (dict(drop_char_prob=1), True, "a｟a｠.", ["｟a｠"], False),
+        (dict(duplicate_char_prob=1), True, "hello.", ["hheelllloo.."], False),
+        (dict(swap_char_prob=1), True, "hello.", ["ehllo."], False),
+        (dict(drop_word_prob=1, drop_space_prob=1), True, "a｟a｠.", ["｟a｠"], False),
         (
             dict(insert_space_prob=1),
             True,
             "hello.",
             ["h ello.", "he llo.", "hel lo.", "hell o."],
+            False,
         ),
-        (dict(insert_space_prob=1, drop_space_prob=1), True, "hello.", ["hello."]),
-        (dict(substitute_char_prob=1), True, "pp", ["oo", "ol", "lo", "ll"]),
-        (dict(substitute_char_prob=1), True, "PP", ["OO", "OL", "LO", "LL"]),
+        (
+            dict(insert_space_prob=1, drop_space_prob=1),
+            True,
+            "hello.",
+            ["hello."],
+            False,
+        ),
+        (dict(substitute_char_prob=1), True, "pp", ["oo", "ol", "lo", "ll"], False),
+        (dict(substitute_char_prob=1), True, "PP", ["OO", "OL", "LO", "LL"], False),
         (
             dict(drop_space_prob=1, add_marker=True),
             True,
             "hello world.",
             ["｟mrk_noisy｠ helloworld."],
+            False,
         ),
         (
             dict(insert_space_prob=1, add_marker=True),
@@ -172,9 +180,10 @@ def test_tokenization_with_non_iso_639_lang():
                 "｟mrk_noisy｠ hel lo.",
                 "｟mrk_noisy｠ hell o.",
             ],
+            False,
         ),
-        (dict(duplicate_word_prob=1), True, "hello.", ["hello hello.."]),
-        (dict(swap_word_prob=1), True, "hello.", [". hello"]),
+        (dict(duplicate_word_prob=1), True, "hello.", ["hello hello.."], False),
+        (dict(swap_word_prob=1), True, "hello.", [". hello"], False),
         (
             dict(
                 substitute_word={
@@ -192,22 +201,32 @@ def test_tokenization_with_non_iso_639_lang():
             True,
             "hello.",
             ["translator.", "dichotomy.", "violin.", "clarinetist.", "luce."],
+            False,
         ),
         (
             dict(drop_word_prob=1, data_augmentation=True),
             True,
             "hello world.",
             ["", "hello world."],
+            True,
         ),
         (
             dict(drop_space_prob=1, data_augmentation=True),
             True,
             "hello world.",
             ["helloworld.", "hello world."],
+            True,
+        ),
+        (
+            dict(drop_space_prob=0, data_augmentation=True),
+            True,
+            "hello world.",
+            ["hello world."],
+            False,
         ),
     ],
 )
-def test_noise(config, training, text, expected):
+def test_noise(config, training, text, expected, data_augmentation):
     config_base = [
         {
             "op": "tokenization",
@@ -226,6 +245,13 @@ def test_noise(config, training, text, expected):
         else prepoperator.ProcessType.INFERENCE
     )
     tu_list = _run_pipeline(config_base, process_type, text)
+
+    tu_list_len = len(tu_list)
+    if data_augmentation:
+        assert tu_list_len == 2
+    else:
+        assert tu_list_len == 1
+
     for tu_res in tu_list:
         assert tu_res.src_detok in expected
 
