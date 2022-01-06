@@ -101,7 +101,7 @@ class Noise(prepoperator.TUOperator):
         new_tokens = self._apply_word_noise(tokens)
         result = [tu]
         tu.src_tok = (src_tok.tokenizer, [new_tokens])
-        if new_tokens != original_tokens:
+        if original_tokens is not None and new_tokens != original_tokens:
             if self._data_augmentation:
                 original_tu = copy.deepcopy(tu)
                 original_tu.src_tok = (src_tok.tokenizer, [original_tokens])
