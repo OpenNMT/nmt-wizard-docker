@@ -1,6 +1,7 @@
 import random
 import pyonmttok
 import os
+import copy
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
@@ -15,6 +16,7 @@ class Noise(prepoperator.TUOperator):
 
         noise_block = {
             "lang": {"type": "string"},
+            "data_augmentation": {"type": "boolean"},
             "drop_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "duplicate_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "swap_word_prob": {"type": "number", "minimum": 0, "maximum": 1},
@@ -56,6 +58,7 @@ class Noise(prepoperator.TUOperator):
         source_config = config.get("source")
         if source_config:
             config = source_config
+        self._data_augmentation = config.get("data_augmentation", False)
         self._drop_word_prob = config.get("drop_word_prob", 0)
         self._duplicate_word_prob = config.get("duplicate_word_prob", 0)
         self._swap_word_prob = config.get("swap_word_prob", 0)
@@ -96,10 +99,14 @@ class Noise(prepoperator.TUOperator):
         src_tok = tu.src_tok
         tokens = src_tok.token_objects[0]
         new_tokens = self._apply_word_noise(tokens)
+        result = [tu]
+        if self._data_augmentation:
+            original_tu = copy.deepcopy(tu)
+            result.append(original_tu)
         tu.src_tok = (src_tok.tokenizer, [new_tokens])
         if self._add_marker and new_tokens != original_tokens:
             tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
-        return [tu]
+        return result
 
     def _apply_space_insertion_noise(self, tu):
         src_tok = tu.src_tok
