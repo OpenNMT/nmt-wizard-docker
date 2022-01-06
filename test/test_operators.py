@@ -226,8 +226,8 @@ def test_noise(config, training, text, expected):
         else prepoperator.ProcessType.INFERENCE
     )
     tu_list = _run_pipeline(config_base, process_type, text)
-    for tu in tu_list:
-        assert tu.src_detok in expected
+    for tu_res in tu_list:
+        assert tu_res.src_detok in expected
 
 
 def test_identity_filter():
