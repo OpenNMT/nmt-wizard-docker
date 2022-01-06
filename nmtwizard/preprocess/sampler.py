@@ -388,7 +388,11 @@ def sample(config, source_dir, oversample_as_weights):
             f.lines_kept = lines_kept
 
             logger.info(
-                "\t%s: %d (out of %d)", f.base_name, f.lines_kept, f.lines_count
+                "\t%s: %d (out of %d) from '%s'",
+                f.base_name,
+                f.lines_kept,
+                f.lines_count,
+                f.pattern,
             )
             summary[f.base_name] = {
                 "linecount": f.lines_count,
