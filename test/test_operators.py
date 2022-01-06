@@ -193,6 +193,18 @@ def test_tokenization_with_non_iso_639_lang():
             "hello.",
             ["translator.", "dichotomy.", "violin.", "clarinetist.", "luce."],
         ),
+        (
+            dict(drop_word_prob=1, data_augmentation=True),
+            True,
+            "hello world.",
+            ["", "hello world."],
+        ),
+        (
+            dict(drop_space_prob=1, data_augmentation=True),
+            True,
+            "hello world.",
+            ["helloworld.", "hello world."],
+        ),
     ],
 )
 def test_noise(config, training, text, expected):
@@ -214,7 +226,8 @@ def test_noise(config, training, text, expected):
         else prepoperator.ProcessType.INFERENCE
     )
     tu_list = _run_pipeline(config_base, process_type, text)
-    assert tu_list[0].src_detok in expected
+    for tu_res in tu_list:
+        assert tu_res.src_detok in expected
 
 
 def test_identity_filter():
