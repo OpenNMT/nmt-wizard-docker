@@ -89,23 +89,23 @@ class Noise(prepoperator.TUOperator):
         self._add_marker = config.get("add_marker", 0)
 
     def _preprocess_tu(self, tu, *args):
-        original_tokens = (
-            [pyonmttok.Token(token) for token in tu.src_tok.token_objects[0]]
-            if self._add_marker
-            else None
-        )
+        original_tokens = [
+            pyonmttok.Token(token) for token in tu.src_tok.token_objects[0]
+        ]
         if self._insert_space_prob > 0:
             tu = self._apply_space_insertion_noise(tu)
         src_tok = tu.src_tok
         tokens = src_tok.token_objects[0]
         new_tokens = self._apply_word_noise(tokens)
         result = [tu]
-        if self._data_augmentation:
-            original_tu = copy.deepcopy(tu)
-            result.append(original_tu)
-        tu.src_tok = (src_tok.tokenizer, [new_tokens])
-        if self._add_marker and new_tokens != original_tokens:
-            tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
+        if new_tokens != original_tokens:
+            if self._data_augmentation:
+                original_tu = copy.deepcopy(tu)
+                original_tu.src_tok = (src_tok.tokenizer, [original_tokens])
+                result.append(original_tu)
+            tu.src_tok = (src_tok.tokenizer, [new_tokens])
+            if self._add_marker:
+                tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
         return result
 
     def _apply_space_insertion_noise(self, tu):
