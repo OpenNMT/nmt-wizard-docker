@@ -198,9 +198,11 @@ class Noise(prepoperator.TUOperator):
         else:
             key = original_key
         lines = "qwertyuiop", "asdfghjkl", "zxcvbnm"
-        line_index, index = [(i, l.find(key)) for i, l in enumerate(lines) if key in l][
-            0
-        ]
+        index_list = [(i, l.find(key)) for i, l in enumerate(lines) if key in l]
+        if index_list:
+            line_index, index = index_list[0]
+        else:
+            return []
         lines = lines[line_index - 1 : line_index + 2] if line_index else lines[0:2]
         result = [
             line[index + i]
@@ -237,8 +239,9 @@ class Noise(prepoperator.TUOperator):
                 and random.random() <= self._substitute_char_prob
                 and cur_surface[i].isalpha()
             ):
-                neighbors = self.get_neighbor_keys_on_qwerty(cur_surface[i])
-                new_surface += random.choice(neighbors)
+                key = cur_surface[i]
+                neighbors = self.get_neighbor_keys_on_qwerty(key)
+                new_surface += random.choice(neighbors) if neighbors else key
             else:
                 new_surface += cur_surface[i]
             i += 1
