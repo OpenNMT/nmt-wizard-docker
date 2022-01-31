@@ -55,7 +55,7 @@ class CloudTranslationFramework(Framework):
                 )
                 for translation in translations:
                     output_file.write(translation)
-                    output_file.write(u"\n")
+                    output_file.write("\n")
 
     def train(self, *args, **kwargs):
         raise NotImplementedError("This framework can only be used for translation")
