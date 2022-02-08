@@ -505,7 +505,7 @@ class InferenceProcessor(Processor):
         if config:
             if config_util.is_v2_config(self._config):
                 raise ValueError(
-                    "Configuration override is not supported for V2 " "configurations"
+                    "Configuration override is not supported for V2 configurations"
                 )
             config = config_util.merge_config(copy.deepcopy(self._config), config)
             pipeline = self.build_pipeline(config)
