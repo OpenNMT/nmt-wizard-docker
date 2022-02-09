@@ -583,13 +583,13 @@ class TranslationUnit(object):
                 side.pop(key)
 
     def finalize(self, process_type):
-        if process_type != prepoperator.ProcessType.POSTPROCESS:
+        if process_type.preprocess:
             self._finalize_side("source", self.__source)
             if self.__target is not None:
                 self._finalize_side("target", self.__target)
 
     def export(self, process_type):
-        if process_type == prepoperator.ProcessType.POSTPROCESS:
+        if process_type.postprocess:
             return PreprocessOutput(
                 src=self.src_detok,
                 tgt=self.tgt_detok,

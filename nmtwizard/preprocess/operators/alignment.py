@@ -30,7 +30,7 @@ class Aligner(prepoperator.Operator):
 
     @staticmethod
     def is_applied_for(process_type):
-        return process_type == prepoperator.ProcessType.TRAINING
+        return process_type.training
 
     # Alignment models can take several GB in memory so we need to share an Aligner
     # instance across workers.
@@ -68,7 +68,7 @@ class Aligner(prepoperator.Operator):
 
     def _preprocess(self, tu_batch):
         tu_list, meta_batch = tu_batch
-        if self.process_type == prepoperator.ProcessType.TRAINING:
+        if self.process_type.training:
             meta_batch["write_alignment"] = self._write_alignment
 
         src_tokens = []

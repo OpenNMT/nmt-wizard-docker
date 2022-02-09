@@ -11,6 +11,12 @@ from nmtwizard.logger import get_logger
 logger = get_logger(__name__)
 
 
+class Task(enum.Enum):
+    TRAINING = 0
+    TRANSLATION = 1
+    SCORING = 2
+
+
 class ScoreType(enum.Enum):
     CUMULATED_LL = 0
     CUMULATED_NLL = 1

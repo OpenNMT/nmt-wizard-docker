@@ -5,6 +5,7 @@ import pyonmttok
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess import loader
 from nmtwizard.preprocess import tu
+from nmtwizard.utils import Task
 
 
 # Helper function to run the pipeline on a string or TU.
@@ -26,7 +27,7 @@ def _run_pipeline(config, process_type, tu_list):
 
 # Helper function to check filter operators.
 def _is_filtered(config, tu_list):
-    tu_list = _run_pipeline(config, prepoperator.ProcessType.TRAINING, tu_list)
+    tu_list = _run_pipeline(config, prepoperator.ProcessType(Task.TRAINING), tu_list)
     return len(tu_list) == 0
 
 
@@ -57,7 +58,7 @@ def test_tokenization_with_vocabulary_restriction(tmpdir):
         ],
     }
 
-    process_type = prepoperator.ProcessType.INFERENCE
+    process_type = prepoperator.ProcessType(Task.TRANSLATION)
     example = tu.TranslationUnit("World", "World")
 
     with pytest.raises(ValueError, match="restrict_subword_vocabulary"):
@@ -106,7 +107,7 @@ def test_tokenization_with_lang():
     }
 
     example = tu.TranslationUnit("ΣΙΓΜΑ ΤΕΛΙΚΟΣ")
-    pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
+    pipeline = prepoperator.Pipeline(config, prepoperator.ProcessType(Task.TRANSLATION))
     tu_list, _ = pipeline(([example], {}))
 
     assert tu_list[0].src_tok.tokens[0] == [
@@ -131,7 +132,7 @@ def test_tokenization_with_non_iso_639_lang():
     }
 
     # Should not throw an exception.
-    prepoperator.Pipeline(config, prepoperator.ProcessType.INFERENCE)
+    prepoperator.Pipeline(config, prepoperator.ProcessType(Task.TRANSLATION))
 
 
 @pytest.mark.parametrize(
@@ -239,11 +240,8 @@ def test_noise(config, training, text, expected, data_augmentation):
     ]
 
     config_base[-1].update(config)
-    process_type = (
-        prepoperator.ProcessType.TRAINING
-        if training
-        else prepoperator.ProcessType.INFERENCE
-    )
+    task = Task.TRAINING if training else Task.TRANSLATION
+    process_type = prepoperator.ProcessType(task)
     tu_list = _run_pipeline(config_base, process_type, text)
 
     tu_list_len = len(tu_list)
@@ -346,7 +344,7 @@ def test_align_perplexity_invalid_config(mode, lower, upper):
         ],
     }
     with pytest.raises(ValueError, match="align_perplexity_filter"):
-        prepoperator.Pipeline(config, prepoperator.ProcessType.TRAINING)
+        prepoperator.Pipeline(config, prepoperator.ProcessType(Task.TRAINING))
 
 
 @pytest.mark.parametrize(
@@ -428,7 +426,7 @@ def test_align_perplexity_percent_threshold(
         ],
     }
 
-    tu_list = _run_pipeline(config, prepoperator.ProcessType.TRAINING, tu_list)
+    tu_list = _run_pipeline(config, prepoperator.ProcessType(Task.TRAINING), tu_list)
     assert len(tu_list) == len(expected_log_probs)
     for single_tu, log_prob in zip(tu_list, expected_log_probs):
         assert single_tu.alignment_log_probs[0][0] == log_prob

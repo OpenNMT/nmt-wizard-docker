@@ -1081,7 +1081,7 @@ def test_extra_target(tmpdir):
     @prepoperator.register_operator("extra_target")
     class ExtraTargetOperator(prepoperator.TUOperator):
         def is_applied_for(process_type):
-            return process_type != prepoperator.ProcessType.POSTPROCESS
+            return process_type.preprocess
 
         def _preprocess_tu(self, tu, training):
             tu.add_target("Das ist ein neues Ziel.", "extra")
@@ -1203,7 +1203,7 @@ def test_shared_state_with_overrides(num_workers):
     }
 
     processor = Processor(
-        config, prepoperator.ProcessType.TRAINING, num_workers=num_workers
+        config, prepoperator.ProcessType(utils.Task.TRAINING), num_workers=num_workers
     )
     loader = CustomLoader([None, "two", "one", None])
     consumer = CustomConsumer()
