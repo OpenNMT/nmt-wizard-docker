@@ -65,7 +65,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
 
     def _build_process(self, config, side, build_state):
         # Disable subword regularization in inference.
-        if self.process_type != prepoperator.ProcessType.TRAINING:
+        if not self.process_type.training:
             config["bpe_dropout"] = 0
             config["sp_nbest_size"] = 0
             config["sp_alpha"] = 0
@@ -99,10 +99,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
             else:
                 previous_tokenizer = build_state["tgt_tokenizer"]
                 build_state["tgt_tokenizer"] = current_tokenizer
-        if (
-            self.process_type == prepoperator.ProcessType.POSTPROCESS
-            and not self._postprocess_only
-        ):
+        if self.process_type.postprocess and not self._postprocess_only:
             return previous_tokenizer
         return current_tokenizer
 

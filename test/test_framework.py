@@ -538,11 +538,11 @@ def test_config_v2_upgrade(tmpdir):
     _run_framework(tmpdir, "model0", "train", config=config_base_old)
 
     class _CheckV2ConfigFramework(DummyFramework):
-        def _get_preprocessor(self, config, train=True):
+        def _get_preprocessor(self, config, *args, **kwargs):
             # The configuration should be fully upgraded to V2.
             assert "tokenization" not in config
             assert "preprocess" in config
-            return super()._get_preprocessor(config, train=train)
+            return super()._get_preprocessor(config, *args, **kwargs)
 
     model_dir = _run_framework(
         tmpdir,

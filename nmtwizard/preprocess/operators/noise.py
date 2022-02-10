@@ -52,7 +52,7 @@ class Noise(prepoperator.TUOperator):
 
     @staticmethod
     def is_applied_for(process_type):
-        return process_type == prepoperator.ProcessType.TRAINING
+        return process_type.training
 
     def __init__(self, config, *args):
         source_config = config.get("source")

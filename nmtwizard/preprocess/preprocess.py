@@ -159,8 +159,8 @@ class Processor(object):
         self._preprocess_exit_step = preprocess_exit_step
 
         inference = config.get("inference", {})
-        if inference and self._pipeline_type == prepoperator.ProcessType.TRAINING:
-            raise RuntimeError("'inference' field can only be specified in translation")
+        if inference and self._pipeline_type.training:
+            raise RuntimeError("'inference' field cannot be specified in training")
         self._inference_config = inference.get("overrides")
         self._inference_options = inference.get("options")
         if self._inference_options:
@@ -253,7 +253,7 @@ class TrainingProcessor(Processor):
     ):
         super().__init__(
             config,
-            prepoperator.ProcessType.TRAINING,
+            prepoperator.ProcessType(utils.Task.TRAINING),
             preprocess_exit_step=preprocess_exit_step,
             num_workers=num_workers,
         )
@@ -453,13 +453,9 @@ class TrainingProcessor(Processor):
 
 
 class InferenceProcessor(Processor):
-    def __init__(self, config, postprocess=False):
-        pipeline_type = (
-            prepoperator.ProcessType.POSTPROCESS
-            if postprocess
-            else prepoperator.ProcessType.INFERENCE
-        )
-        super().__init__(config, pipeline_type, num_workers=0)
+    def __init__(self, config, task=utils.Task.TRANSLATION, postprocess=False):
+        process_type = prepoperator.ProcessType(task, postprocess=postprocess)
+        super().__init__(config, process_type, num_workers=0)
         self._postprocess = postprocess
         # Build a generic pipeline that will be used in process_input.
         self._pipeline = self.build_pipeline(self._config)

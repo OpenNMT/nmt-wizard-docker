@@ -9,6 +9,7 @@ from itertools import chain
 from nmtwizard.logger import get_logger
 from nmtwizard.config import merge_config
 from nmtwizard.config import read_options
+from nmtwizard.utils import Task
 
 logger = get_logger(__name__)
 
@@ -144,7 +145,7 @@ def build_operator(
     if shared_state:
         args.append(shared_state)
     name = operator_params["name"]
-    if process_type == ProcessType.TRAINING:
+    if process_type.training:
         operator_cls.validate_parameters(operator_params, name)
     logger.debug("Building operator %s", name)
     operator = operator_cls(operator_params, process_type, build_state, *args)
@@ -157,17 +158,27 @@ def build_operator(
 
 
 class ProcessType(object):
-    """Type of processing pipeline.
+    """Type of processing pipeline."""
 
-    Possible values are:
-      * ``TRAINING``
-      * ``INFERENCE``
-      * ``POSTPROCESS``
-    """
+    def __init__(self, task, postprocess=False):
+        self._task = task
+        self._postprocess = postprocess
 
-    TRAINING = 0
-    INFERENCE = 1
-    POSTPROCESS = 2
+    @property
+    def preprocess(self):
+        return not self._postprocess
+
+    @property
+    def postprocess(self):
+        return self._postprocess
+
+    @property
+    def task(self):
+        return self._task
+
+    @property
+    def training(self):
+        return self._task == Task.TRAINING
 
 
 class Pipeline(object):
@@ -261,7 +272,7 @@ class Pipeline(object):
                 shared_state=shared_state,
             )
 
-        if self._process_type == ProcessType.POSTPROCESS:
+        if self._process_type.postprocess:
             # Reverse preprocessing operators.
             self._ops = list(reversed(self._ops))
 
@@ -278,7 +289,7 @@ class Pipeline(object):
                 self._add_op_list(postprocess_config)
 
     def __call__(self, tu_batch, options=None):
-        if self._process_type == ProcessType.TRAINING:
+        if self._process_type.training:
             ops_profile = collections.defaultdict(float)
         else:
             ops_profile = None
@@ -300,9 +311,7 @@ class Pipeline(object):
                 kwargs["options"] = op_options
 
             process_type = (
-                "postprocess"
-                if self._process_type == ProcessType.POSTPROCESS
-                else "preprocess"
+                "postprocess" if self._process_type.postprocess else "preprocess"
             )
             logger.debug("Applying operator %s in %s", op.name, process_type)
             tu_batch = op(tu_batch, **kwargs)
@@ -361,7 +370,7 @@ class Operator(abc.ABC):
             ) from None
 
     def __call__(self, tu_batch, **kwargs):
-        if self.process_type == ProcessType.POSTPROCESS:
+        if self.process_type.postprocess:
             tu_batch = self._postprocess(tu_batch, **kwargs)
         else:
             tu_batch = self._preprocess(tu_batch, **kwargs)
@@ -582,7 +591,7 @@ class Filter(TUOperator):
 
     @staticmethod
     def is_applied_for(process_type):
-        return process_type == ProcessType.TRAINING
+        return process_type.training
 
     def __call__(self, tu_batch):
         before = len(tu_batch[0])

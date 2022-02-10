@@ -772,8 +772,8 @@ class Framework(utility.Utility):
                 return self.trans(*args, **kwargs)
 
         local_config = self._finalize_config(config, training=False)
-        preprocessor = self._get_preprocessor(local_config, train=False)
-        postprocessor = self._get_postprocessor(local_config)
+        preprocessor = self._get_preprocessor(local_config, utils.Task.TRANSLATION)
+        postprocessor = self._get_postprocessor(local_config, utils.Task.TRANSLATION)
 
         failed_translation = 0
         translated_lines = 0
@@ -890,8 +890,8 @@ class Framework(utility.Utility):
             raise ValueError("There should be as many output files as input files")
 
         local_config = self._finalize_config(config, training=False)
-        preprocessor = self._get_preprocessor(local_config, train=False)
-        postprocessor = self._get_postprocessor(local_config)
+        preprocessor = self._get_preprocessor(local_config, utils.Task.SCORING)
+        postprocessor = self._get_postprocessor(local_config, utils.Task.SCORING)
 
         for source, target, output in zip(sources, targets, outputs):
             logger.info(
@@ -1011,8 +1011,8 @@ class Framework(utility.Utility):
 
     def serve_wrapper(self, config, model_path, host, port, gpuid=0):
         local_config = self._finalize_config(config, training=False)
-        preprocessor = self._get_preprocessor(local_config, train=False)
-        postprocessor = self._get_postprocessor(local_config)
+        preprocessor = self._get_preprocessor(local_config, utils.Task.TRANSLATION)
+        postprocessor = self._get_postprocessor(local_config, utils.Task.TRANSLATION)
         serving.start_server(
             host,
             port,
@@ -1045,7 +1045,7 @@ class Framework(utility.Utility):
 
         if source is not None:
             local_config = self._finalize_config(config, training=False)
-            preprocessor = self._get_preprocessor(local_config, train=False)
+            preprocessor = self._get_preprocessor(local_config, task=None)
 
             def _get_input_file(path):
                 output_dir = output or storage.join(*storage.split(path)[:-1])
@@ -1433,22 +1433,22 @@ class Framework(utility.Utility):
         data_util.merge_files_in_directory(data_path, merged_path, source, target)
         return merged_path
 
-    def _get_preprocessor(self, config, train=True):
-        if train:
+    def _get_preprocessor(self, config, task):
+        if task == utils.Task.TRAINING:
             return preprocess.TrainingProcessor(
                 config, self._corpus_dir, self._data_dir
             )
-        return preprocess.InferenceProcessor(config)
+        return preprocess.InferenceProcessor(config, task=task)
 
-    def _get_postprocessor(self, config):
-        return preprocess.InferenceProcessor(config, postprocess=True)
+    def _get_postprocessor(self, config, task):
+        return preprocess.InferenceProcessor(config, task=task, postprocess=True)
 
     def _generate_training_data(self, config):
-        preprocessor = self._get_preprocessor(config)
+        preprocessor = self._get_preprocessor(config, utils.Task.TRAINING)
         return preprocessor.generate_preprocessed_data()
 
     def _generate_vocabularies(self, config):
-        preprocessor = self._get_preprocessor(config)
+        preprocessor = self._get_preprocessor(config, utils.Task.TRAINING)
         return preprocessor.generate_vocabularies()
 
     def _summarize_data_distribution(
