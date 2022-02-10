@@ -1045,8 +1045,7 @@ class Framework(utility.Utility):
 
         if source is not None:
             local_config = self._finalize_config(config, training=False)
-            task = utils.Task.TRANSLATION if target is None else utils.Task.SCORING
-            preprocessor = self._get_preprocessor(local_config, task)
+            preprocessor = self._get_preprocessor(local_config, task=None)
 
             def _get_input_file(path):
                 output_dir = output or storage.join(*storage.split(path)[:-1])
