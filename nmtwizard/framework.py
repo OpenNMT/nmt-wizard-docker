@@ -915,30 +915,45 @@ class Framework(utility.Utility):
 
             metadata = None
             if preprocessor is not None:
-                source_path, target_path, metadata = preprocessor.process_file(
-                    source_path, target_path, delete_input_files=True
+                (
+                    preprocessed_source_path,
+                    preprocessed_target_path,
+                    metadata,
+                ) = preprocessor.process_file(
+                    source_path, target_path, delete_input_files=False
                 )
+            else:
+                preprocessed_source_path = source_path
+                preprocessed_target_path = target_path
 
             score_type = self.score(
                 local_config,
                 model_path,
-                source_path,
-                target_path,
+                preprocessed_source_path,
+                preprocessed_target_path,
                 output_path,
                 gpuid=gpuid,
             )
 
+            if not no_postprocess:
+                # we need to run postprocess because it can change scores
+                if postprocessor is not None:
+                    output_path = postprocessor.process_file(
+                        source_path,
+                        output_path,
+                        metadata,
+                        target_score_type=score_type,
+                        delete_input_files=True,
+                    )
+                else:
+                    os.remove(source_path)
+                add_target_to_score_output(target_path, output_path)
             os.remove(target_path)
-            if not no_postprocess and postprocessor is not None:
-                output_path = postprocessor.process_file(
-                    source_path,
-                    output_path,
-                    metadata,
-                    target_score_type=score_type,
-                    delete_input_files=True,
-                )
-            else:
-                os.remove(source_path)
+            try:
+                os.remove(preprocessed_source_path)
+                os.remove(preprocessed_target_path)
+            except OSError:
+                pass
 
             if compress_output:
                 output_path = compress_file(output_path, remove=True)
@@ -1529,12 +1544,16 @@ def bundle_dependencies(objects, config, local_config, keep_all=False):
 
 def should_check_integrity(f):
     """Returns True if f should be checked for integrity."""
-    return f not in (
-        "README.md",
-        "TRAINING_LOG",
-        "checksum.md5",
-        "data",
-    ) and not f.startswith(".")
+    return (
+        f
+        not in (
+            "README.md",
+            "TRAINING_LOG",
+            "checksum.md5",
+            "data",
+        )
+        and not f.startswith(".")
+    )
 
 
 def file_stats(path):
@@ -1597,3 +1616,13 @@ def is_joint_vocab(vocabulary_config):
     source = vocabulary_config.get("source", {})
     target = vocabulary_config.get("target", {})
     return source.get("path") == target.get("path")
+
+
+def add_target_to_score_output(target_path, score_path):
+    with open(target_path) as tf, open(score_path) as sf:
+        scores = [x.split(" ||| ")[0] for x in sf.readlines()]
+        target_lines = tf.readlines()
+    output_path = score_path
+    with open(score_path, "w") as sf:
+        for score, line in zip(scores, target_lines):
+            sf.write(f"{score} ||| {line}")
