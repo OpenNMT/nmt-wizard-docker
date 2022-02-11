@@ -1622,7 +1622,6 @@ def add_target_to_score_output(target_path, score_path):
     with open(target_path) as tf, open(score_path) as sf:
         scores = [x.split(" ||| ")[0] for x in sf.readlines()]
         target_lines = tf.readlines()
-    output_path = score_path
     with open(score_path, "w") as sf:
         for score, line in zip(scores, target_lines):
             sf.write(f"{score} ||| {line}")
