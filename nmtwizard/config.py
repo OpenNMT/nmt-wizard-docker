@@ -4,6 +4,10 @@ import collections
 import jsonschema
 import copy
 
+from nmtwizard.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def merge_config(a, b):
     """Merges config b in a."""
@@ -164,7 +168,12 @@ def read_options(config, options):
     """
     inference_options = config.get("inference_options")
     if inference_options is None:
-        raise ValueError("This model does not expect inference options")
+        logger.warning(
+            "This model does not accept inference options, "
+            "but the request includes the following option(s): %s",
+            ", ".join(options.keys()),
+        )
+        return {}
     try:
         jsonschema.validate(options, inference_options["json_schema"])
     except jsonschema.ValidationError as e:
