@@ -79,6 +79,11 @@ class PreprocessFileLoader(FileLoader):
             yield tu.TranslationUnit(source=source, target=target)
 
 
+def _make_tokens_iterator(input_file):
+    for line in input_file:
+        yield line.strip().split(" ")
+
+
 class PostprocessFileLoader(FileLoader):
     """Loads TUs for postprocessing."""
 
@@ -86,7 +91,7 @@ class PostprocessFileLoader(FileLoader):
         self,
         source_path,
         target_path,
-        metadata,
+        metadata=None,
         start_state=None,
         batch_size=None,
         target_score_type=None,
@@ -101,15 +106,23 @@ class PostprocessFileLoader(FileLoader):
         self.register_file("source", source_path)
         self.register_file("target", target_path)
 
+    def _get_parts(self, source_file, target_file):
+        source_file = _make_tokens_iterator(source_file)
+        target_file = _make_tokens_iterator(target_file)
+        if self._metadata:
+            for metadata in self._metadata:
+                num_parts = len(metadata)
+                src_lines = [next(source_file) for _ in range(num_parts)]
+                tgt_lines = [next(target_file) for _ in range(num_parts)]
+                yield metadata, src_lines, tgt_lines
+        else:
+            for src_line, tgt_line in zip(source_file, target_file):
+                yield [None], [src_line], [tgt_line]
+
     def _get_translation_units(self, files):
         source_file = files["source"]
         target_file = files["target"]
-        for meta in self._metadata:
-            # TODO : features
-            num_parts = len(meta)
-            src_lines = [next(source_file).strip().split(" ") for _ in range(num_parts)]
-            tgt_lines = [next(target_file).strip().split(" ") for _ in range(num_parts)]
-
+        for meta, src_lines, tgt_lines in self._get_parts(source_file, target_file):
             if self._target_score_type is not None:
                 score = _extract_score(tgt_lines, self._target_score_type)
                 meta = [{"score": score}]

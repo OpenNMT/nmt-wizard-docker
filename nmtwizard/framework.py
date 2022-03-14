@@ -377,6 +377,13 @@ class Framework(utility.Utility):
             help="Compress output files.",
         )
 
+        parser_postprocess = subparsers.add_parser(
+            "postprocess", help="Postprocess file."
+        )
+        parser_postprocess.add_argument("-s", "--source", help="Source file.")
+        parser_postprocess.add_argument("-t", "--target", help="Target file.")
+        parser_postprocess.add_argument("-o", "--output", help="Output file.")
+
         parser_build_vocab = subparsers.add_parser(
             "buildvocab", help="Build vocabularies."
         )
@@ -540,6 +547,14 @@ class Framework(utility.Utility):
                 config = utility.load_model_config(self._model_path)
             self.serve_wrapper(
                 config, self._model_path, args.host, args.port, gpuid=self._gpuid
+            )
+        elif args.cmd == "postprocess":
+            self.postprocess(
+                config,
+                self._storage,
+                args.source,
+                args.target,
+                args.output,
             )
         elif args.cmd == "preprocess":
             if not args.build_model:
@@ -1038,6 +1053,38 @@ class Framework(utility.Utility):
             postprocessor=postprocessor,
             backend_info_fn=self.backend_info,
             rebatch_request=not self.has_own_request_batching,
+        )
+
+    def postprocess(
+        self,
+        config,
+        storage,
+        source,
+        target,
+        output,
+    ):
+        logger.info("Starting file postprocessing")
+        start_time = time.time()
+
+        local_config = self._finalize_config(config, training=False)
+        postprocessor = self._get_postprocessor(local_config, task=None)
+
+        def _get_input_file(path):
+            input_path = os.path.join(self._data_dir, storage.split(path)[-1])
+            storage.get_file(path, input_path)
+            return decompress_file(input_path, remove=True)
+
+        source_path = _get_input_file(source)
+        target_path = _get_input_file(target)
+        output_path = postprocessor.process_file(
+            source_path, target_path, delete_input_files=True
+        )
+
+        storage.push(output_path, output)
+
+        end_time = time.time()
+        logger.info(
+            "Finished postprocessing data in %.1f seconds", end_time - start_time
         )
 
     def preprocess(
