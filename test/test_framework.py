@@ -828,6 +828,26 @@ def test_preprocess_file(tmpdir, with_target, with_storage, compress_output):
         assert not os.path.exists(target_output_path)
 
 
+def test_postprocess_file(tmpdir):
+    source_path = str(tmpdir.join("source.txt"))
+    target_path = str(tmpdir.join("target.txt"))
+    output_path = str(tmpdir.join("output.txt"))
+    with open(source_path, "w") as source_file:
+        source_file.write("Hello world ￭!\n")
+    with open(target_path, "w") as target_file:
+        target_file.write("Hallo Welt ￭!\n")
+
+    _run_framework(
+        tmpdir,
+        "postprocess",
+        "postprocess -s %s -t %s -o %s" % (source_path, target_path, output_path),
+        config=config_base,
+    )
+
+    with open(output_path) as output_file:
+        assert output_file.read() == "Hallo Welt!\n"
+
+
 def test_description(tmpdir):
     description = "A description with a non ascii character: é"
     config = copy.deepcopy(config_base)

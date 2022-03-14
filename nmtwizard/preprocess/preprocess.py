@@ -598,7 +598,7 @@ class InferenceProcessor(Processor):
             file_loader = loader.PostprocessFileLoader(
                 source_file,
                 target_file,
-                metadata,
+                metadata=metadata,
                 start_state=self._pipeline.start_state,
                 batch_size=batch_size,
                 target_score_type=target_score_type,
