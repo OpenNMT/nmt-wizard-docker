@@ -84,7 +84,7 @@ def resolve_remote_files(config, local_dir, storage_client):
             local_path = os.path.join(local_dir, storage_id, remote_path)
             # can be a file or a directory
             storage_client.get(remote_path, local_path, storage_id=storage_id)
-            monitory.notify()
+            monitor.notify()
             return local_path
 
         return _map_config_fn(config, _map_fn)
