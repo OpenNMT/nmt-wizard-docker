@@ -73,7 +73,7 @@ def resolve_environment_variables(config, training=True):
 def resolve_remote_files(config, local_dir, storage_client):
     """Downloads remote files present in config locally."""
 
-    with monitory_activity() as monitor:
+    with monitor_activity() as monitor:
 
         def _map_fn(value):
             if not isinstance(value, str) or not storage_client.is_managed_path(value):
