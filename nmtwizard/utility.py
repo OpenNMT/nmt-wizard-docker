@@ -14,7 +14,7 @@ import tempfile
 import functools
 
 from nmtwizard import config as config_util
-from nmtwizard.beat_service import start_beat_service
+from nmtwizard.beat_service import monitor_activity, start_beat_service
 from nmtwizard.utils import md5files
 from nmtwizard.logger import get_logger
 
@@ -73,18 +73,21 @@ def resolve_environment_variables(config, training=True):
 def resolve_remote_files(config, local_dir, storage_client):
     """Downloads remote files present in config locally."""
 
-    def _map_fn(value):
-        if not isinstance(value, str) or not storage_client.is_managed_path(value):
-            return value
-        storage_id, remote_path = storage_client.parse_managed_path(value)
-        if remote_path and remote_path[0] == "/":
-            remote_path = remote_path[1:]
-        local_path = os.path.join(local_dir, storage_id, remote_path)
-        # can be a file or a directory
-        storage_client.get(remote_path, local_path, storage_id=storage_id)
-        return local_path
+    with monitory_activity() as monitor:
 
-    return _map_config_fn(config, _map_fn)
+        def _map_fn(value):
+            if not isinstance(value, str) or not storage_client.is_managed_path(value):
+                return value
+            storage_id, remote_path = storage_client.parse_managed_path(value)
+            if remote_path and remote_path[0] == "/":
+                remote_path = remote_path[1:]
+            local_path = os.path.join(local_dir, storage_id, remote_path)
+            # can be a file or a directory
+            storage_client.get(remote_path, local_path, storage_id=storage_id)
+            monitory.notify()
+            return local_path
+
+        return _map_config_fn(config, _map_fn)
 
 
 def load_config(config_arg):
