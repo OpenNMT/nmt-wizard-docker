@@ -50,7 +50,7 @@ def start_beat_service(
                         and time.time() - _last_activity > inactivity_timeout
                     ):
                         logger.warning(
-                            "No process activity after %d seconds. Stopping the beat requests.",
+                            "No activity reported after %d seconds. Stopping the beat requests.",
                             inactivity_timeout,
                         )
                         break
