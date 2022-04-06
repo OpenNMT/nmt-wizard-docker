@@ -2,6 +2,7 @@ FROM ubuntu:18.04
 
 WORKDIR /root
 
+ENV LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python \
         python3 \
@@ -13,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxml-parser-perl \
         libxml-twig-perl \
         wget && \
-    wget -nv https://bootstrap.pypa.io/get-pip.py && \
+    wget -nv https://bootstrap.pypa.io/pip/3.6/get-pip.py && \
     python3 get-pip.py && \
     rm get-pip.py && \
     rm -rf /var/lib/apt/lists/*

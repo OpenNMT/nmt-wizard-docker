@@ -145,7 +145,7 @@ class ScoreUtility(Utility):
             ),
             shell=True,
         )  # nosec
-        bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode("ascii"))
+        bleu = re.match(r"^BLEU\s=\s([\d\.]+),\s([\d\.]+)/", result.decode("utf-8"))
         bleu_score = {"BLEU": 0, "BLEU-1": 0}
         if bleu is not None:
             bleu_score["BLEU"] = float(bleu.group(1))
@@ -181,7 +181,7 @@ class ScoreUtility(Utility):
                 ]
             )
             ter = re.match(
-                r"^.*Total\sTER:\s([\d\.]+).*$", result.decode("ascii"), re.DOTALL
+                r"^.*Total\sTER:\s([\d\.]+).*$", result.decode("utf-8"), re.DOTALL
             )
             if ter is not None:
                 return round(float(ter.group(1)) * 100, 2)
@@ -204,7 +204,7 @@ class ScoreUtility(Utility):
         )
         otem = re.match(
             r"^OTEM-2/UTEM-4/BLEU-4: ([\d\.]+)/([\d\.]+)/([\d\.]+)",
-            result.decode("ascii"),
+            result.decode("utf-8"),
         )
         if otem is not None:
             otem_utem_score["OTEM"] = float(otem.group(1))
@@ -249,7 +249,7 @@ class ScoreUtility(Utility):
             ]
         )
         nist = re.match(
-            r"^.*NIST\sscore\s=\s([\d\.]+).*$", result.decode("ascii"), re.DOTALL
+            r"^.*NIST\sscore\s=\s([\d\.]+).*$", result.decode("utf-8"), re.DOTALL
         )
 
         os.remove(file_prefix.name)
@@ -291,7 +291,7 @@ class ScoreUtility(Utility):
                 ]
             )
             meteor = re.match(
-                r"^.*Final\sscore:\s+([\d\.]+).*$", result.decode("ascii"), re.DOTALL
+                r"^.*Final\sscore:\s+([\d\.]+).*$", result.decode("utf-8"), re.DOTALL
             )
             if meteor is not None:
                 return round(float(meteor.group(1)) * 100, 2)
