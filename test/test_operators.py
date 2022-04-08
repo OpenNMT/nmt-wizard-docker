@@ -225,6 +225,45 @@ def test_tokenization_with_non_iso_639_lang():
             ["hello world."],
             False,
         ),
+        (
+            dict(
+                char_equivalence_prob=1,
+                char_equivalence_table={"\u0300": "'", "\u0301": "'"},
+                data_augmentation=True,
+            ),
+            True,
+            "Élève doit connaître la leçon par cœur.",
+            [
+                "E'le've doit connaître la leçon par cœur.",
+                "Élève doit connaître la leçon par cœur.",
+            ],
+            True,
+        ),
+        (
+            dict(
+                char_equivalence_prob=1,
+                char_equivalence_table={"\u0300": "'", "\u0301": "'", "\u0302": "^"},
+                data_augmentation=True,
+            ),
+            True,
+            "Élève doit connaître la leçon par cœur.",
+            [
+                "E'le've doit connai^tre la leçon par cœur.",
+                "Élève doit connaître la leçon par cœur.",
+            ],
+            True,
+        ),
+        (
+            dict(
+                char_equivalence_prob=1,
+                char_equivalence_table={"-": " "},
+                data_augmentation=False,
+            ),
+            True,
+            "mini-saia com letras de logotipo",
+            ["mini saia com letras de logotipo"],
+            False,
+        ),
     ],
 )
 def test_noise(config, training, text, expected, data_augmentation):

@@ -2,6 +2,7 @@ import random
 import pyonmttok
 import os
 import copy
+import unicodedata
 
 from nmtwizard.preprocess import prepoperator
 from nmtwizard.preprocess.tu import TokReplace
@@ -36,6 +37,8 @@ class Noise(prepoperator.TUOperator):
             "swap_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "substitute_char_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "add_marker": {"type": "boolean"},
+            "char_equivalence_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "char_equivalence_table": {"type": "object"},
         }
         schema["properties"].update(
             {
@@ -86,6 +89,8 @@ class Noise(prepoperator.TUOperator):
         self._duplicate_char_prob = config.get("duplicate_char_prob", 0)
         self._swap_char_prob = config.get("swap_char_prob", 0)
         self._substitute_char_prob = config.get("substitute_char_prob", 0)
+        self._char_equivalence_prob = config.get("char_equivalence_prob", 0)
+        self._char_equivalence_table = config.get("char_equivalence_table", {})
         self._add_marker = config.get("add_marker", 0)
 
     def _preprocess_tu(self, tu, *args):
@@ -187,6 +192,14 @@ class Noise(prepoperator.TUOperator):
                     or self._substitute_char_prob > 0
                 ):
                     token.surface = self._apply_character_noise(token.surface)
+
+                if (
+                    self._char_equivalence_prob > 0
+                    and self._char_equivalence_table
+                    and random.random() <= self._char_equivalence_prob
+                ):
+                    token.surface = self._apply_char_equivalence_noise(token.surface)
+
             if len(token.surface) != 0:  # Delete token if empty.
                 new_tokens.append(token)
         return new_tokens
@@ -245,4 +258,11 @@ class Noise(prepoperator.TUOperator):
             else:
                 new_surface += cur_surface[i]
             i += 1
+        return new_surface
+
+    def _apply_char_equivalence_noise(self, cur_surface):
+        new_surface = unicodedata.normalize("NFD", cur_surface)
+        for k, v in self._char_equivalence_table.items():
+            new_surface = new_surface.replace(k, v)
+        new_surface = unicodedata.normalize("NFC", new_surface)
         return new_surface
