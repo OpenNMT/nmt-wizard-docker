@@ -311,8 +311,16 @@ def sample(config, source_dir, oversample_as_weights):
     # In strict mode, check that all patterns have been triggered
     for d_idx, d_item in enumerate(sample_dist):
         if d_item.get("mode_strict"):
+            patterns = set()
             for rule in d_item["distribution"]:
                 pattern = rule[0]
+                if pattern in patterns:
+                    raise RuntimeError(
+                        "pattern '%s' in block %d appears more than once, with strict mode enabled."
+                        % (pattern, d_idx)
+                    )
+                else:
+                    patterns.add(pattern)
                 d_idx_pattern = str(d_idx) + "-" + pattern
                 if d_idx_pattern not in pattern_sizes:
                     raise RuntimeError(

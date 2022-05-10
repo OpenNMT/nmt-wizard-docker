@@ -137,6 +137,15 @@ def test_sampler(tmpdir, batch_size, num_threads):
         == "pattern '.*something' in block 0 doesn't match any file with strict mode enabled."
     )
 
+    config["data"]["sample_dist"][0]["distribution"].insert(0, ["specific", 1])
+    preprocessor = TrainingProcessor(config, "", str(tmpdir))
+    with pytest.raises(RuntimeError) as excinfo:
+        preprocessor.generate_preprocessed_data()
+    assert (
+        str(excinfo.value)
+        == "pattern 'specific' in block 0 appears more than once, with strict mode enabled."
+    )
+
     shutil.rmtree(str(tmpdir.join("preprocess")))
     config["data"]["sample_dist"] = [
         {
