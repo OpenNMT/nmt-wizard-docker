@@ -120,9 +120,7 @@ class Noise(prepoperator.TUOperator):
         tokens = src_tok.token_objects[0]
         added_spaces = 0
         for pos, token in enumerate(tokens):
-            if not token.is_placeholder() and not any(
-                char.isdigit() for char in token.surface
-            ):
+            if not self._preserve_token(token):
                 if (
                     self._insert_space_prob > 0
                     and random.random() <= self._insert_space_prob
@@ -145,9 +143,7 @@ class Noise(prepoperator.TUOperator):
     def _apply_word_noise(self, tokens):
         new_tokens = []
         for token in tokens:
-            if not token.is_placeholder() and not any(
-                char.isdigit() for char in token.surface
-            ):
+            if not self._preserve_token(token):
                 if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
                     continue
                 elif (
@@ -270,3 +266,7 @@ class Noise(prepoperator.TUOperator):
             new_surface = new_surface.replace(k, v)
         new_surface = unicodedata.normalize("NFC", new_surface)
         return new_surface
+
+    @staticmethod
+    def _preserve_token(token):
+        return token.is_placeholder() or any(char.isdigit() for char in token.surface)
