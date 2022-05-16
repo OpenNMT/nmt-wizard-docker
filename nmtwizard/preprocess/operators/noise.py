@@ -94,6 +94,8 @@ class Noise(prepoperator.TUOperator):
         self._add_marker = config.get("add_marker", 0)
 
     def _preprocess_tu(self, tu, *args):
+        if any(char.isdigit() for char in tu.src_detok):
+            return [tu]
         original_tokens = (
             [pyonmttok.Token(token) for token in tu.src_tok.token_objects[0]]
             if self._add_marker or self._data_augmentation
@@ -120,7 +122,7 @@ class Noise(prepoperator.TUOperator):
         tokens = src_tok.token_objects[0]
         added_spaces = 0
         for pos, token in enumerate(tokens):
-            if not self._preserve_token(token):
+            if not token.is_placeholder():
                 if (
                     self._insert_space_prob > 0
                     and random.random() <= self._insert_space_prob
@@ -143,7 +145,7 @@ class Noise(prepoperator.TUOperator):
     def _apply_word_noise(self, tokens):
         new_tokens = []
         for token in tokens:
-            if not self._preserve_token(token):
+            if not token.is_placeholder():
                 if self._drop_word_prob > 0 and random.random() <= self._drop_word_prob:
                     continue
                 elif (
@@ -266,7 +268,3 @@ class Noise(prepoperator.TUOperator):
             new_surface = new_surface.replace(k, v)
         new_surface = unicodedata.normalize("NFC", new_surface)
         return new_surface
-
-    @staticmethod
-    def _preserve_token(token):
-        return token.is_placeholder() or any(char.isdigit() for char in token.surface)
