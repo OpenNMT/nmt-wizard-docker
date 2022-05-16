@@ -264,6 +264,16 @@ def test_tokenization_with_non_iso_639_lang():
             ["mini saia com letras de logotipo"],
             False,
         ),
+        (
+            dict(
+                swap_char_prob=1,
+                data_augmentation=True,
+            ),
+            True,
+            "11:51:02",
+            ["11:51:02"],
+            False,
+        ),
     ],
 )
 def test_noise(config, training, text, expected, data_augmentation):
