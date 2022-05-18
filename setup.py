@@ -23,5 +23,5 @@ setup(
     extras_require={
         "tests": tests_require,
     },
-    packages=find_packages(include=["nmtwizard"]),
+    packages=find_packages(),
 )
