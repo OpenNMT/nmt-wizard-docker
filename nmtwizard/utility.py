@@ -262,7 +262,7 @@ class Utility(abc.ABC):
         )
 
         if args.storage_config:
-            self._storage = StorageClient(args.storage_config)
+            self._storage = StorageClient(load_config(args.storage_config))
 
         if args.model_storage_read is None:
             args.model_storage_read = args.model_storage
