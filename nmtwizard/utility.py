@@ -105,6 +105,7 @@ class Utility(abc.ABC):
     """Base class for utilities."""
 
     def __init__(self):
+        self._storage = StorageClient()
         self._corpus_dir = os.getenv("CORPUS_DIR")
         workspace_dir = os.getenv("WORKSPACE_DIR", "/root/workspace")
         self._output_dir = os.path.join(workspace_dir, "output")
@@ -260,9 +261,8 @@ class Utility(abc.ABC):
             inactivity_timeout=args.beat_inactivity_timeout,
         )
 
-        self._storage = StorageClient(
-            config=load_config(args.storage_config) if args.storage_config else None
-        )
+        if args.storage_config:
+            self._storage = StorageClient(args.storage_config)
 
         if args.model_storage_read is None:
             args.model_storage_read = args.model_storage
