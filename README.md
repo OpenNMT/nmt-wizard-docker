@@ -319,10 +319,10 @@ Advanced users could extend existing frameworks to implement customized behavior
 
 ```bash
 # Install test requirements:
-pip install -r test/requirements.txt
+pip install -e .[tests]
 
 # Run unit tests:
-PYTHONPATH=$PWD pytest test/
+pytest test/
 
 # Automatically reformat code:
 black .
