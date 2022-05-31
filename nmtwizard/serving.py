@@ -216,6 +216,9 @@ def start_server(
             backend_process, backend_info = backend_service_fn()
             self.status()
 
+        def log_message(self, format, *args):
+            logger.info(format, *args)
+
     try:
         frontend_server = socketserver.ThreadingTCPServer((host, port), ServerHandler)
     except socket.error as e:
