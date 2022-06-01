@@ -23,7 +23,7 @@ class LengthFilter(prepoperator.Filter):
                 "target": length_mono_block,
                 "min_words_ratio": {"type": "number"},
                 "max_words_ratio": {"type": "number"},
-                "min_abs_words_for_ratio": {"type": "integer"},
+                "min_num_words_for_ratio": {"type": "integer"},
             }
         )
         return schema
@@ -52,14 +52,14 @@ class LengthFilter(prepoperator.Filter):
         )
 
         min_words_ratio = config.get("min_words_ratio")
-        min_abs_words_for_ratio = config.get("min_abs_words_for_ratio", 0)
+        min_num_words_for_ratio = config.get("min_num_words_for_ratio", 0)
 
         if min_words_ratio is not None:
             message_min_words_ratio = "Inferior to min word length ratio (%.2f) (Src length : %d Tgt length : %d Ratio : %.2f)"
             filters.append(
                 lambda tu: (
-                    len(tu.src_tok.tokens[0]) >= min_abs_words_for_ratio
-                    and len(tu.tgt_tok.tokens[0]) >= min_abs_words_for_ratio
+                    len(tu.src_tok.tokens[0]) >= min_num_words_for_ratio
+                    and len(tu.tgt_tok.tokens[0]) >= min_num_words_for_ratio
                     and len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     < min_words_ratio,
                     message_min_words_ratio
@@ -77,8 +77,8 @@ class LengthFilter(prepoperator.Filter):
             message_max_words_ratio = "Exceeds max word length ratio (%.2f) (Src length : %d Tgt length : %d Ratio : %.2f)"
             filters.append(
                 lambda tu: (
-                    len(tu.src_tok.tokens[0]) >= min_abs_words_for_ratio
-                    and len(tu.tgt_tok.tokens[0]) >= min_abs_words_for_ratio
+                    len(tu.src_tok.tokens[0]) >= min_num_words_for_ratio
+                    and len(tu.tgt_tok.tokens[0]) >= min_num_words_for_ratio
                     and len(tu.src_tok.tokens[0]) / len(tu.tgt_tok.tokens[0])
                     > max_words_ratio,
                     message_max_words_ratio
