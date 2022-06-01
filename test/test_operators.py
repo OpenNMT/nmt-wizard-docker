@@ -329,7 +329,9 @@ def test_identity_filter():
         (dict(target=dict(max_characters=20, min_words=5)), True),
         (dict(source=dict(max_words=2)), True),
         (dict(min_words_ratio=1), True),
+        (dict(min_words_ratio=1, min_num_words_for_ratio=4), False),
         (dict(max_words_ratio=0.5), True),
+        (dict(max_words_ratio=0.5, min_num_words_for_ratio=4), False),
     ],
 )
 def test_length_filter(filter_config, filtered):
