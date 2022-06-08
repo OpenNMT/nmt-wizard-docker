@@ -1167,6 +1167,23 @@ class Framework(utility.Utility):
             "Finished preprocessing data in %.1f seconds", end_time - start_time
         )
 
+    def _build_standalone_data(self, data_dir, config):
+        for filename in os.listdir(data_dir):
+            compress_file(os.path.join(data_dir, filename), remove=True)
+        objects = {"standalone_data": data_dir}
+        config["data"] = {
+            "sample": config.get("build", {}).get("sentenceCount")
+            or config.get("sampling", {}).get("numSamples"),
+            "sample_dist": [
+                {
+                    "distribution": [["train", 1]],
+                    "path": os.path.join("${MODEL_TRAIN_DIR}", "standalone_data"),
+                    "no_preprocess": True,
+                }
+            ],
+        }
+        return objects
+
     def preprocess_into_model(
         self,
         model_id,
@@ -1237,20 +1254,7 @@ class Framework(utility.Utility):
 
         # Build and push the model package.
         if parent_model_type == "checkpoint" and model_type == "standalone":
-            for filename in os.listdir(data_dir):
-                compress_file(os.path.join(data_dir, filename), remove=True)
-            objects = {"standalone_data": data_dir}
-            config["data"] = {
-                "sample": config.get("build", {}).get("sentenceCount")
-                or config.get("sampling", {}).get("numSamples"),
-                "sample_dist": [
-                    {
-                        "distribution": [["train", 1]],
-                        "path": os.path.join("${MODEL_TRAIN_DIR}", "standalone_data"),
-                        "no_preprocess": True,
-                    }
-                ],
-            }
+            objects = self._build_standalone_data(data_dir, config)
         else:
             objects = {"data": data_dir}
         keep_all_objects = config["modelType"] == "standalone"
