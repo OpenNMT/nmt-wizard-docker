@@ -207,7 +207,7 @@ class Processor(object):
         else:
             logger.info("Start processing using %d worker(s)", self._num_workers)
 
-            def _get_iterator(semaphore):
+            def _get_iterator(semaphore, stop_event):
                 for tu_batch in loader():
                     override_label = _get_corpus_label(tu_batch)
                     shared_state = self._global_shared_state.get(override_label)
@@ -216,6 +216,8 @@ class Processor(object):
                     # If the semaphore value reaches 0, the iterator will block so that no more
                     # batches are loaded.
                     semaphore.acquire()
+                    if stop_event.is_set():
+                        break
 
             process_func = functools.partial(
                 _process_batch_on_worker,
@@ -235,16 +237,24 @@ class Processor(object):
                 # We use a semaphore to control how many batches can be loaded in advance.
                 buffer_size = self._num_workers
                 semaphore = multiprocessing.Semaphore(buffer_size)
-                iterable = _get_iterator(semaphore)
+                stop_event = multiprocessing.Event()
+                iterable = _get_iterator(semaphore, stop_event)
 
                 with beat_service.monitor_activity() as monitor:
-                    for result in pool.imap_unordered(process_func, iterable):
-                        # Increment the semaphore value to allow loading another batch.
+                    try:
+                        for result in pool.imap_unordered(process_func, iterable):
+                            # Increment the semaphore value to allow loading another batch.
+                            semaphore.release()
+                            monitor.notify()
+                            consumer(result)
+                            del result
+                            gc.collect()
+                    except Exception:
+                        # When an exception occurs in a worker, unblock and exit the iterator
+                        # to allow the pool to terminate properly.
+                        stop_event.set()
                         semaphore.release()
-                        monitor.notify()
-                        consumer(result)
-                        del result
-                        gc.collect()
+                        raise
 
 
 class TrainingProcessor(Processor):

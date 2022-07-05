@@ -347,6 +347,44 @@ def test_preprocess_activity(tmpdir, inactivity_timeout, beat_should_stop, num_w
             assert len(m.request_history) == pytest.approx(10, 1)
 
 
+def test_preprocess_worker_exception(tmpdir):
+    @prepoperator.register_operator("exception_operator")
+    class _ExceptionOperator(prepoperator.Operator):
+        def _preprocess(self, tu_batch):
+            raise NotImplementedError()
+
+    corpus_dir = tmpdir.join("corpus")
+    corpus_dir.mkdir()
+    generate_pseudo_corpus(corpus_dir, 200, "IT", "en")
+    generate_pseudo_corpus(corpus_dir, 200, "IT", "de")
+
+    config = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "batch_size": 1,
+            "sample": 0,
+            "sample_dist": [
+                {
+                    "path": str(corpus_dir),
+                    "distribution": [
+                        ["IT", "*"],
+                    ],
+                }
+            ],
+        },
+        "preprocess": [
+            {
+                "op": "exception_operator",
+            },
+        ],
+    }
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir), num_workers=1)
+    with pytest.raises(RuntimeError):
+        preprocessor.generate_preprocessed_data()
+
+
 @pytest.mark.parametrize(
     "similarity_filter_config,expected_num_samples",
     [
