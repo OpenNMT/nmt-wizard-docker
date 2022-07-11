@@ -4,20 +4,14 @@ WORKDIR /root
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates \
-        python3-distutils \
-        wget \
+        python3-pip \
         && \
-    wget -nv https://bootstrap.pypa.io/get-pip.py && \
-    python3 get-pip.py && \
-    rm get-pip.py && \
-    apt-get autoremove -y wget && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 ADD requirements.txt /root/base_requirements.txt
 ADD frameworks/google_translate/requirements.txt /root
-RUN pip --no-cache-dir install -r /root/base_requirements.txt
-RUN pip --no-cache-dir install -r /root/requirements.txt
+RUN python3 -m pip --no-cache-dir install -r /root/requirements.txt -r /root/base_requirements.txt
 
 ENV PYTHONWARNINGS="ignore"
 

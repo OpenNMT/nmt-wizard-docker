@@ -7,14 +7,9 @@ ENV LANG=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3 \
-        python3-distutils \
-        wget \
+        python3-pip \
         && \
-    wget -nv https://bootstrap.pypa.io/get-pip.py && \
-    python3 get-pip.py && \
-    rm get-pip.py && \
-    apt-get autoremove -y wget && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 ADD requirements.txt /root/base_requirements.txt
