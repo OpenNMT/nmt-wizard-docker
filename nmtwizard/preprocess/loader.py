@@ -84,12 +84,6 @@ def _make_tokens_iterator(input_file):
         yield line.strip().split(" ")
 
 
-def _repeat_elements(iterator, repeat):
-    for element in iterator:
-        for _ in range(repeat):
-            yield element
-
-
 class PostprocessFileLoader(FileLoader):
     """Loads TUs for postprocessing."""
 
@@ -107,32 +101,34 @@ class PostprocessFileLoader(FileLoader):
             start_state = {}
         self._source_tokenizer = start_state.get("src_tokenizer")
         self._target_tokenizer = start_state.get("tgt_tokenizer")
-        self._metadata = metadata
         self._target_score_type = target_score_type
         self.register_file("source", source_path)
         self.register_file("target", target_path)
 
         _, source_size = utils.count_lines(source_path)
         _, target_size = utils.count_lines(target_path)
+
         self._num_hypotheses = (
             target_size // source_size
             if target_size > source_size and target_size % source_size == 0
             else 1
         )
 
+        if not metadata:
+            metadata = itertools.repeat([None], source_size)
+        self._metadata = metadata
+
     def _get_parts(self, source_file, target_file):
         source_file = _make_tokens_iterator(source_file)
-        source_file = _repeat_elements(source_file, self._num_hypotheses)
         target_file = _make_tokens_iterator(target_file)
-        if self._metadata:
-            for metadata in _repeat_elements(self._metadata, self._num_hypotheses):
-                num_parts = len(metadata)
-                src_lines = [next(source_file) for _ in range(num_parts)]
-                tgt_lines = [next(target_file) for _ in range(num_parts)]
-                yield metadata, src_lines, tgt_lines
-        else:
-            for src_line, tgt_line in zip(source_file, target_file):
-                yield [None], [src_line], [tgt_line]
+        for metadata in self._metadata:
+            num_parts = len(metadata)
+            num_hyps = self._num_hypotheses
+            src_lines = [next(source_file) for _ in range(num_parts)]
+            tgt_lines = [next(target_file) for _ in range(num_parts * num_hyps)]
+
+            for i in range(num_hyps):
+                yield metadata.copy(), src_lines.copy(), tgt_lines[i::num_hyps]
 
     def _get_translation_units(self, files):
         source_file = files["source"]
