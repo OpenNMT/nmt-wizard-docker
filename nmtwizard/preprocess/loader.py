@@ -84,6 +84,12 @@ def _make_tokens_iterator(input_file):
         yield line.strip().split(" ")
 
 
+def _repeat_elements(iterator, repeat):
+    for element in iterator:
+        for _ in range(repeat):
+            yield element
+
+
 class PostprocessFileLoader(FileLoader):
     """Loads TUs for postprocessing."""
 
@@ -106,11 +112,20 @@ class PostprocessFileLoader(FileLoader):
         self.register_file("source", source_path)
         self.register_file("target", target_path)
 
+        _, source_size = utils.count_lines(source_path)
+        _, target_size = utils.count_lines(target_path)
+        self._num_hypotheses = (
+            target_size // source_size
+            if target_size > source_size and target_size % source_size == 0
+            else 1
+        )
+
     def _get_parts(self, source_file, target_file):
         source_file = _make_tokens_iterator(source_file)
+        source_file = _repeat_elements(source_file, self._num_hypotheses)
         target_file = _make_tokens_iterator(target_file)
         if self._metadata:
-            for metadata in self._metadata:
+            for metadata in _repeat_elements(self._metadata, self._num_hypotheses):
                 num_parts = len(metadata)
                 src_lines = [next(source_file) for _ in range(num_parts)]
                 tgt_lines = [next(target_file) for _ in range(num_parts)]
