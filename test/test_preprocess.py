@@ -916,6 +916,24 @@ def test_preprocess_empty_line(tmpdir):
         assert output_file.readlines() == ["\n"]
 
 
+@pytest.mark.parametrize("with_metadata", [True, False])
+def test_postprocess_multiple_hypotheses(tmpdir, with_metadata):
+    src_num_lines = 8
+    src_input_path = generate_pseudo_corpus(tmpdir, src_num_lines, "input", "en")
+    tgt_num_lines = 8 * 4
+    tgt_input_path = generate_pseudo_corpus(tmpdir, tgt_num_lines, "input", "de")
+    processor = InferenceProcessor(config_base, postprocess=True)
+
+    metadata = None
+    if with_metadata:
+        metadata = [[None] for _ in range(src_num_lines)]
+
+    output_path = processor.process_file(src_input_path, tgt_input_path, metadata)
+
+    with open(output_path) as output_file:
+        assert len(output_file.readlines()) == tgt_num_lines
+
+
 def test_postprocess_multipart_file_loader(tmpdir):
     src_num_lines = 8
     src_input_path = generate_pseudo_corpus(tmpdir, src_num_lines, "input", "en")
