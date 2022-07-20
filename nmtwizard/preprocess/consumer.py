@@ -527,9 +527,18 @@ class PreprocessFileWriter(FileWriter):
                 f.write(" ".join(part))
                 f.write("\n")
 
-        _write_parts(files[0], output.src)
+        if isinstance(output.src, list):
+            _write_parts(files[0], output.src)
+        else:
+            files[0].write(output.src)
+            files[0].write("\n")
+
         if len(files) > 1 and output.tgt is not None:
-            _write_parts(files[1], output.tgt)
+            if isinstance(output.tgt, list):
+                _write_parts(files[1], output.tgt)
+            else:
+                files[1].write(output.tgt)
+                files[1].write("\n")
 
         self._metadata.append(output.metadata)
 
