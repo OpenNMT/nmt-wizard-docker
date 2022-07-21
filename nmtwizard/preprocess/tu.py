@@ -351,7 +351,6 @@ class TranslationUnit(object):
         "__metadata",
         "__annotations",
         "__alignment",
-        "__context_placeholder",
     ]
 
     def __init__(
@@ -364,24 +363,10 @@ class TranslationUnit(object):
         alignment_log_probs=None,
         source_tokenizer=None,
         target_tokenizer=None,
-        source_context=None,
-        target_context=None,
     ):
         self.__source = {
             "main": TranslationSide(source, "source", tokenizer=source_tokenizer)
         }
-        if source_context:
-            self.__context_placeholder = "｟mrk_context｠"
-            for i, c in enumerate(reversed(source_context)):
-                if isinstance(c, bytes):
-                    c = c.decode("utf-8")  # Ensure Unicode string.
-                self.add_source(
-                    c,
-                    name="context_" + str(i),
-                    tokenizer=source_tokenizer,
-                    output_delimiter=self.__context_placeholder,
-                    before_main=True,
-                )
 
         self.__target = None
         self.__metadata = (
@@ -394,18 +379,6 @@ class TranslationUnit(object):
             self.__target = {
                 "main": TranslationSide(target, "target", tokenizer=target_tokenizer)
             }
-            if target_context:
-                for i, c in enumerate(reversed(target_context)):
-                    if isinstance(c, bytes):
-                        c = c.decode("utf-8")  # Ensure Unicode string.
-                    self.add_target(
-                        c,
-                        name="context_" + str(i),
-                        tokenizer=target_tokenizer,
-                        output_delimiter=self.__context_placeholder,
-                        before_main=True,
-                    )
-
             if alignment is not None:
                 self.__alignment = Alignment(
                     alignments=alignment, log_probs=alignment_log_probs

@@ -30,6 +30,27 @@ def _add_line_to_context(context, line, length):
         del context[0]
 
 
+def _add_context_to_tu(context, tu, side):
+    context_placeholder = "｟mrk_context｠"
+    for i, c in enumerate(reversed(context)):
+        if isinstance(c, bytes):
+            c = c.decode("utf-8")  # Ensure Unicode string.
+        if side == "source":
+            tu.add_source(
+                c,
+                name="context_" + str(i),
+                output_delimiter=context_placeholder,
+                before_main=True,
+            )
+        elif side == "target":
+            tu.add_target(
+                c,
+                name="context_" + str(i),
+                output_delimiter=context_placeholder,
+                before_main=True,
+            )
+
+
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
@@ -96,16 +117,16 @@ class PreprocessFileLoader(FileLoader):
         source_context = []
         target_context = []
         for source, target in zip(source_file, target_file):
-            yield tu.TranslationUnit(
-                source=source,
-                target=target,
-                source_context=source_context,
-                target_context=target_context,
-            )
+            current_tu = tu.TranslationUnit(source=source, target=target)
             if self._context_length is not None and self._context_apply_in_inference:
+                if source_context:
+                    _add_context_to_tu(source_context, current_tu, side="source")
                 _add_line_to_context(source_context, source, self._context_length)
                 if self._context_target:
+                    if target_context:
+                        _add_context_to_tu(target_context, current_tu, side="target")
                     _add_line_to_context(target_context, target, self._context_length)
+            yield current_tu
 
 
 def _make_tokens_iterator(input_file):
@@ -274,13 +295,16 @@ class SamplerFileLoader(FileLoader):
                 tu_source_context = source_context
                 tu_target_context = target_context
             while num_samples > 0:
-                yield tu.TranslationUnit(
+                current_tu = tu.TranslationUnit(
                     source=src_line,
                     target=tgt_line,
                     annotations=annot_lines,
-                    source_context=tu_source_context,
-                    target_context=tu_target_context,
                 )
+                if tu_source_context:
+                    _add_context_to_tu(source_context, current_tu, side="source")
+                if tu_target_context:
+                    _add_context_to_tu(target_context, current_tu, side="target")
+                yield current_tu
                 num_samples -= 1
 
             if self._context_length is not None and (
