@@ -313,7 +313,10 @@ class TrainingProcessor(Processor):
                 self._config, data_path, oversample_as_weights
             )
             batch_size = self._config.get("data", {}).get("batch_size", 100000)
-            sampler_loader = loader.SamplerFilesLoader(all_files, batch_size)
+            context = self._config.get("data", {}).get("context", {})
+            sampler_loader = loader.SamplerFilesLoader(
+                all_files, batch_size, context=context
+            )
             sampler_consumer = consumer.MultiConsumer(
                 [
                     consumer.OpsProfileLogger(),
@@ -603,7 +606,6 @@ class InferenceProcessor(Processor):
             return "%s.%s" % (path, suffix)
 
         batch_size = self._config.get("data", {}).get("batch_size", 100000)
-
         if self._postprocess:
             file_loader = loader.PostprocessFileLoader(
                 source_file,
@@ -617,10 +619,9 @@ class InferenceProcessor(Processor):
                 _build_output_path(target_file, "detok")
             )
         else:
+            context = self._config.get("data", {}).get("context", {})
             file_loader = loader.PreprocessFileLoader(
-                source_file,
-                target_file,
-                batch_size=batch_size,
+                source_file, target_file, batch_size=batch_size, context=context
             )
             file_consumer = consumer.PreprocessFileWriter(
                 _build_output_path(source_file, "tok"),

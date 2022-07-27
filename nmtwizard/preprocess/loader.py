@@ -1,8 +1,12 @@
 import abc
 import itertools
+import random
 
 from nmtwizard import utils
+from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import tu
+
+logger = get_logger(__name__)
 
 
 class Loader(abc.ABC):
@@ -20,15 +24,50 @@ class Loader(abc.ABC):
         raise NotImplementedError()
 
 
+def _add_line_to_context(context, line, length):
+    context.append(line)
+    if len(context) > length:
+        del context[0]
+
+
+def _add_context_to_tu(context, tu, side):
+    context_placeholder = "｟mrk_context｠"
+    for i, c in enumerate(reversed(context)):
+        if isinstance(c, bytes):
+            c = c.decode("utf-8")  # Ensure Unicode string.
+        if side == "source":
+            tu.add_source(
+                c,
+                name="context_" + str(i),
+                output_delimiter=context_placeholder,
+                before_main=True,
+            )
+        elif side == "target":
+            tu.add_target(
+                c,
+                name="context_" + str(i),
+                output_delimiter=context_placeholder,
+                before_main=True,
+            )
+
+
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
-    def __init__(self, batch_size, batch_meta=None):
+    def __init__(self, batch_size, batch_meta=None, context=None):
         super().__init__(batch_size)
         if batch_meta is None:
             batch_meta = {}
         self._input_paths = {}
         self._batch_meta = batch_meta
+        if context is not None:
+            if not isinstance(context, dict):
+                logger.warning("'context' field is not a valid object.")
+            self._context_prob = context.get("prob")
+            self._context_length = context.get("length")
+            self._context_target = context.get("target")
+            self._context_labels = context.get("labels")
+            self._context_apply_in_inference = context.get("apply_in_inference", False)
 
     def register_file(self, name, path):
         if name in self._input_paths:
@@ -66,8 +105,8 @@ class FileLoader(Loader):
 class PreprocessFileLoader(FileLoader):
     """Loads TUs for preprocessing."""
 
-    def __init__(self, source_path, target_path=None, batch_size=None):
-        super().__init__(batch_size)
+    def __init__(self, source_path, target_path=None, batch_size=None, context=None):
+        super().__init__(batch_size, context=context)
         self.register_file("source", source_path)
         if target_path is not None:
             self.register_file("target", target_path)
@@ -75,8 +114,19 @@ class PreprocessFileLoader(FileLoader):
     def _get_translation_units(self, files):
         source_file = files["source"]
         target_file = files.get("target", itertools.repeat(None))
+        source_context = []
+        target_context = []
         for source, target in zip(source_file, target_file):
-            yield tu.TranslationUnit(source=source, target=target)
+            current_tu = tu.TranslationUnit(source=source, target=target)
+            if self._context_length is not None and self._context_apply_in_inference:
+                if source_context:
+                    _add_context_to_tu(source_context, current_tu, side="source")
+                _add_line_to_context(source_context, source, self._context_length)
+                if self._context_target:
+                    if target_context:
+                        _add_context_to_tu(target_context, current_tu, side="target")
+                    _add_line_to_context(target_context, target, self._context_length)
+            yield current_tu
 
 
 def _make_tokens_iterator(input_file):
@@ -187,7 +237,7 @@ def _extract_score(tokens, score_type, separator="|||"):
 class SamplerFileLoader(FileLoader):
     """SamplerFileLoader class creates TUs from a SamplerFile object."""
 
-    def __init__(self, f, batch_size):
+    def __init__(self, f, batch_size, context=None):
         # TODO V2: multiple src
         batch_meta = {
             "base_name": f.base_name,
@@ -200,7 +250,7 @@ class SamplerFileLoader(FileLoader):
         if f.oversample_as_weights:
             batch_meta["example_weights"] = f.oversample
 
-        super().__init__(batch_size, batch_meta=batch_meta)
+        super().__init__(batch_size, batch_meta=batch_meta, context=context)
         self._file = f
 
         src_path = f.files["src"]
@@ -220,6 +270,8 @@ class SamplerFileLoader(FileLoader):
         annotations = {
             key: f for key, f in files.items() if key not in ("source", "target")
         }
+        source_context = []
+        target_context = []
         for i in range(self._file.lines_count):
             src_line = src_file.readline()
             tgt_line = tgt_file.readline() if tgt_file else None
@@ -237,24 +289,45 @@ class SamplerFileLoader(FileLoader):
             for key, line in annot_lines.items():
                 annot_lines[key] = line.strip()
 
+            tu_source_context = None
+            tu_target_context = None
+            if self._context_prob is not None and random.random() <= self._context_prob:
+                tu_source_context = source_context
+                tu_target_context = target_context
             while num_samples > 0:
-                yield tu.TranslationUnit(
-                    source=src_line, target=tgt_line, annotations=annot_lines
+                current_tu = tu.TranslationUnit(
+                    source=src_line,
+                    target=tgt_line,
+                    annotations=annot_lines,
                 )
+                if tu_source_context:
+                    _add_context_to_tu(source_context, current_tu, side="source")
+                if tu_target_context:
+                    _add_context_to_tu(target_context, current_tu, side="target")
+                yield current_tu
                 num_samples -= 1
+
+            if self._context_length is not None and (
+                self._context_labels is None
+                or self._batch_meta["label"] in self._context_labels
+            ):
+                _add_line_to_context(source_context, src_line, self._context_length)
+                if self._context_target:
+                    _add_line_to_context(target_context, tgt_line, self._context_length)
 
 
 class SamplerFilesLoader(Loader):
     """Load TUs from a sequence of SamplerFile objects."""
 
-    def __init__(self, files, batch_size):
+    def __init__(self, files, batch_size, context=None):
         super().__init__(batch_size)
         self._files = files
+        self._context = context
 
     def __call__(self):
         for f in self._files:
             if f.lines_kept == 0:
                 continue
-            loader = SamplerFileLoader(f, self._batch_size)
+            loader = SamplerFileLoader(f, self._batch_size, context=self._context)
             for tu_batch in loader():
                 yield tu_batch

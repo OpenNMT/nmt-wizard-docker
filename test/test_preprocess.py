@@ -1396,3 +1396,97 @@ def test_inference_preprocess_file_with_target(tmpdir):
         assert pre_src_file.read().strip() == "Hello world ￭!"
     with open(pre_tgt_path) as pre_tgt_file:
         assert pre_tgt_file.read().strip() == "Hallo Welt ￭!"
+
+
+def test_sampler_with_context(tmpdir):
+    def _check_context_lines(res_file, corpus_file):
+        context = []
+        for res_line, corpus_line in zip(res_file, corpus_file):
+            res_line = res_line.strip()
+            corpus_line = corpus_line.strip()
+            context_to_print = [line for line in context if line.strip()]
+            line_with_context = " ｟mrk_context｠ ".join(context_to_print + [corpus_line])
+            assert res_line == line_with_context.strip()
+            context.append(corpus_line)
+            if len(context) > 2:
+                del context[0]
+
+    corpus_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "corpus", "train"
+    )
+
+    config_context = {
+        "source": "en",
+        "target": "de",
+        "data": {
+            "sample": 251,
+            "sample_dist": [
+                {
+                    "path": corpus_dir,
+                    "distribution": [["europarl", 1, "context_label"]],
+                }
+            ],
+            "context": {
+                "length": 2,
+                "prob": 1,
+                "target": True,
+                "apply_in_inference": True,
+                "labels": ["context_label"],
+            },
+        },
+    }
+
+    preprocessor = TrainingProcessor(config_context, "", str(tmpdir))
+    (
+        data_path,
+        train_dir,
+        num_samples,
+        summary,
+        _,
+    ) = preprocessor.generate_preprocessed_data()
+
+    with open(
+        str(tmpdir.join("preprocess/europarl-v7.de-en.10K.tok.en"))
+    ) as res_src_file, open(
+        corpus_dir + "/europarl-v7.de-en.10K.tok.en"
+    ) as corpus_src_file:
+        _check_context_lines(res_src_file, corpus_src_file)
+    with open(
+        str(tmpdir.join("preprocess/europarl-v7.de-en.10K.tok.de"))
+    ) as res_tgt_file, open(
+        corpus_dir + "/europarl-v7.de-en.10K.tok.de"
+    ) as corpus_tgt_file:
+        _check_context_lines(res_tgt_file, corpus_tgt_file)
+
+    # Test file inference.
+    src_path = str(tmpdir.join("src.txt"))
+    tgt_path = str(tmpdir.join("tgt.txt"))
+    with open(src_path, "w") as src_file:
+        for line in [
+            "Hello world!\n",
+            "Nice to meet you.\n",
+            "Please be nice.\n",
+            " \n",
+            "Peace and love.\n",
+            "No war.\n",
+        ]:
+            src_file.write(line)
+
+    with open(tgt_path, "w") as tgt_file:
+        for line in [
+            "Hallo Welt!\n",
+            "Schön dich kennenzulernen.\n",
+            "Bitte sei nett.\n",
+            "\n",
+            "Frieden und Liebe.\n",
+            "Kein Krieg.\n",
+        ]:
+            tgt_file.write(line)
+
+    processor = InferenceProcessor(config_context)
+    pre_src_path, pre_tgt_path, metadata = processor.process_file(src_path, tgt_path)
+
+    with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
+        _check_context_lines(pre_src_file, src_file)
+    with open(pre_tgt_path) as pre_tgt_file, open(tgt_path) as tgt_file:
+        _check_context_lines(pre_tgt_file, tgt_file)

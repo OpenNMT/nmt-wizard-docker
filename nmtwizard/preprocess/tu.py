@@ -170,11 +170,26 @@ class Alignment(object):
 
 class TranslationSide(object):
 
-    __slots__ = ["output_side", "output_delimiter", "__detok", "__tok", "__tokenizer"]
+    __slots__ = [
+        "output_side",
+        "output_delimiter",
+        "before_main",
+        "__detok",
+        "__tok",
+        "__tokenizer",
+    ]
 
-    def __init__(self, line, output_side, output_delimiter=None, tokenizer=None):
+    def __init__(
+        self,
+        line,
+        output_side,
+        output_delimiter=None,
+        tokenizer=None,
+        before_main=False,
+    ):
         self.output_side = output_side
         self.output_delimiter = output_delimiter
+        self.before_main = before_main
         if isinstance(line, bytes):
             line = line.decode("utf-8")  # Ensure Unicode string.
         if isinstance(line, str):
@@ -252,15 +267,21 @@ class TranslationSide(object):
         if other_tokens is None:
             if not other.detok:
                 return False
+            if other.before_main:
+                first_detok = other.detok
+                second_detok = self.detok
+            else:
+                first_detok = self.detok
+                second_detok = other.detok
             self.detok = (
-                self.detok
+                first_detok
                 + (
                     (" " + other.output_delimiter)
                     if other.output_delimiter is not None
                     else ""
                 )
                 + " "
-                + other.detok
+                + second_detok
             )
         else:
             if not other_tokens[0]:
@@ -272,10 +293,16 @@ class TranslationSide(object):
                 tokens = [[]]
             elif len(tokens) > 1:
                 return False
-            elif tokens[0] and other.output_delimiter is not None:
-                tokens[0].append(other.output_delimiter)
-            tokens[0].extend(other_tokens[0])
-            self.tok = (tokenizer, tokens)
+            if other.before_main:
+                first_tokens = other_tokens
+                second_tokens = tokens
+            else:
+                first_tokens = tokens
+                second_tokens = other_tokens
+            if first_tokens[0] and other.output_delimiter is not None:
+                first_tokens[0].append(other.output_delimiter)
+            first_tokens[0].extend(second_tokens[0])
+            self.tok = (tokenizer, first_tokens)
         return True
 
     def replace_tokens(self, start_idx, tok_num, new_tokens=None, part=0):
@@ -318,7 +345,13 @@ class TranslationSide(object):
 class TranslationUnit(object):
     """Class to store information about translation units."""
 
-    __slots__ = ["__source", "__target", "__metadata", "__annotations", "__alignment"]
+    __slots__ = [
+        "__source",
+        "__target",
+        "__metadata",
+        "__annotations",
+        "__alignment",
+    ]
 
     def __init__(
         self,
@@ -334,6 +367,7 @@ class TranslationUnit(object):
         self.__source = {
             "main": TranslationSide(source, "source", tokenizer=source_tokenizer)
         }
+
         self.__target = None
         self.__metadata = (
             metadata if metadata is not None else [None]
@@ -383,11 +417,16 @@ class TranslationUnit(object):
         tokenizer=None,
         output_side="source",
         output_delimiter=None,
+        before_main=None,
     ):
         if name is None:
             name = "main"
         ts = TranslationSide(
-            source, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter
+            source,
+            output_side,
+            tokenizer=tokenizer,
+            output_delimiter=output_delimiter,
+            before_main=before_main,
         )
         if self.__source is not None:
             if name in self.__source:
@@ -403,11 +442,16 @@ class TranslationUnit(object):
         tokenizer=None,
         output_side="target",
         output_delimiter=None,
+        before_main=None,
     ):
         if name is None:
             name = "main"
         ts = TranslationSide(
-            target, output_side, tokenizer=tokenizer, output_delimiter=output_delimiter
+            target,
+            output_side,
+            tokenizer=tokenizer,
+            output_delimiter=output_delimiter,
+            before_main=before_main,
         )
         if self.__target is not None:
             if name in self.__target:
