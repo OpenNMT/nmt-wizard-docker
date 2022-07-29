@@ -7,6 +7,7 @@ ENV LANG=C.UTF-8
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        cuda-minimal-build-11-2 \
         python3-pip \
         && \
     apt-get clean && \
