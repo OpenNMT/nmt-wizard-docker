@@ -307,13 +307,23 @@ class SamplerFileLoader(FileLoader):
                 yield current_tu
                 num_samples -= 1
 
-            if self._context_length is not None and (
-                self._context_labels is None
-                or self._batch_meta["label"] in self._context_labels
-            ):
-                _add_line_to_context(source_context, src_line, self._context_length)
-                if self._context_target:
-                    _add_line_to_context(target_context, tgt_line, self._context_length)
+            if self._context_length is not None:
+                batch_labels = self._batch_meta["label"]
+                if (
+                    self._context_labels is None
+                    or (
+                        isinstance(batch_labels, list)
+                        and any(
+                            [label in self._context_labels for label in batch_labels]
+                        )
+                    )
+                    or batch_labels in self._context_labels
+                ):
+                    _add_line_to_context(source_context, src_line, self._context_length)
+                    if self._context_target:
+                        _add_line_to_context(
+                            target_context, tgt_line, self._context_length
+                        )
 
 
 class SamplerFilesLoader(Loader):
