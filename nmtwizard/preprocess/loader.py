@@ -313,9 +313,7 @@ class SamplerFileLoader(FileLoader):
                     self._context_labels is None
                     or (
                         isinstance(batch_labels, list)
-                        and any(
-                            [label in self._context_labels for label in batch_labels]
-                        )
+                        and any(label in self._context_labels for label in batch_labels)
                     )
                     or batch_labels in self._context_labels
                 ):
