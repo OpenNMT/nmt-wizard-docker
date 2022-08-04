@@ -1423,7 +1423,7 @@ def test_sampler_with_context(tmpdir):
             "sample_dist": [
                 {
                     "path": corpus_dir,
-                    "distribution": [["europarl", 1, "context_label"]],
+                    "distribution": [["europarl", 1, ["context_label"]]],
                 }
             ],
             "context": {
