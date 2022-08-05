@@ -30,8 +30,12 @@ def _add_line_to_context(context, line, length):
         del context[0]
 
 
-def _add_context_to_tu(context, tu, side):
+def _add_context_to_tu(context, tu, side, meta=None):
     context_placeholder = "｟mrk_context｠"
+    if meta:
+        meta.setdefault("tokens_to_add", {})
+        meta["tokens_to_add"].setdefault(side, set())
+        meta["tokens_to_add"][side].add(context_placeholder)
     for i, c in enumerate(reversed(context)):
         if isinstance(c, bytes):
             c = c.decode("utf-8")  # Ensure Unicode string.
@@ -301,9 +305,13 @@ class SamplerFileLoader(FileLoader):
                     annotations=annot_lines,
                 )
                 if tu_source_context:
-                    _add_context_to_tu(source_context, current_tu, side="source")
+                    _add_context_to_tu(
+                        source_context, current_tu, side="source", meta=self._batch_meta
+                    )
                 if tu_target_context:
-                    _add_context_to_tu(target_context, current_tu, side="target")
+                    _add_context_to_tu(
+                        target_context, current_tu, side="target", meta=self._batch_meta
+                    )
                 yield current_tu
                 num_samples -= 1
 
