@@ -1425,6 +1425,12 @@ class Framework(utility.Utility):
         local_tok_opt.pop("replace_vocab", None)
 
         if tokens_to_add:
+            old_vocabulary = tokenizer.load_vocabulary(local_opt["path"])
+            tokens_to_add = [
+                token for token in tokens_to_add if token not in old_vocabulary
+            ]
+
+        if tokens_to_add:
             logger.info(
                 "The following tokens are added to the %s vocabulary: %s",
                 side,

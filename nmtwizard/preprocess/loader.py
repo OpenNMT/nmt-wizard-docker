@@ -30,27 +30,6 @@ def _add_line_to_context(context, line, length):
         del context[0]
 
 
-def _add_context_to_tu(context, tu, side):
-    context_placeholder = "｟mrk_context｠"
-    for i, c in enumerate(reversed(context)):
-        if isinstance(c, bytes):
-            c = c.decode("utf-8")  # Ensure Unicode string.
-        if side == "source":
-            tu.add_source(
-                c,
-                name="context_" + str(i),
-                output_delimiter=context_placeholder,
-                before_main=True,
-            )
-        elif side == "target":
-            tu.add_target(
-                c,
-                name="context_" + str(i),
-                output_delimiter=context_placeholder,
-                before_main=True,
-            )
-
-
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
@@ -61,6 +40,7 @@ class FileLoader(Loader):
         self._input_paths = {}
         self._batch_meta = batch_meta
         if context is not None:
+            self._context_placeholder = "｟mrk_context｠"
             if not isinstance(context, dict):
                 logger.warning("'context' field is not a valid object.")
             self._context_prob = context.get("prob")
@@ -68,6 +48,25 @@ class FileLoader(Loader):
             self._context_target = context.get("target")
             self._context_labels = context.get("labels")
             self._context_apply_in_inference = context.get("apply_in_inference", False)
+
+    def _add_context_to_tu(self, context, tu, side):
+        for i, c in enumerate(reversed(context)):
+            if isinstance(c, bytes):
+                c = c.decode("utf-8")  # Ensure Unicode string.
+            if side == "source":
+                tu.add_source(
+                    c,
+                    name="context_" + str(i),
+                    output_delimiter=self._context_placeholder,
+                    before_main=True,
+                )
+            elif side == "target":
+                tu.add_target(
+                    c,
+                    name="context_" + str(i),
+                    output_delimiter=self._context_placeholder,
+                    before_main=True,
+                )
 
     def register_file(self, name, path):
         if name in self._input_paths:
@@ -120,11 +119,13 @@ class PreprocessFileLoader(FileLoader):
             current_tu = tu.TranslationUnit(source=source, target=target)
             if self._context_length is not None and self._context_apply_in_inference:
                 if source_context:
-                    _add_context_to_tu(source_context, current_tu, side="source")
+                    self._add_context_to_tu(source_context, current_tu, side="source")
                 _add_line_to_context(source_context, source, self._context_length)
                 if self._context_target:
                     if target_context:
-                        _add_context_to_tu(target_context, current_tu, side="target")
+                        self._add_context_to_tu(
+                            target_context, current_tu, side="target"
+                        )
                     _add_line_to_context(target_context, target, self._context_length)
             yield current_tu
 
@@ -265,6 +266,11 @@ class SamplerFileLoader(FileLoader):
                 self.register_file(key, path)
 
     def _get_translation_units(self, files):
+        def add_context_ph_to_vocab(side):
+            self._batch_meta.setdefault("tokens_to_add", {})
+            self._batch_meta["tokens_to_add"].setdefault(side, set())
+            self._batch_meta["tokens_to_add"][side].add(self._context_placeholder)
+
         src_file = files["source"]
         tgt_file = files.get("target")
         annotations = {
@@ -301,9 +307,13 @@ class SamplerFileLoader(FileLoader):
                     annotations=annot_lines,
                 )
                 if tu_source_context:
-                    _add_context_to_tu(source_context, current_tu, side="source")
+                    self._add_context_to_tu(source_context, current_tu, side="source")
+                    if not hasattr(self, "_add_to_source_vocab"):
+                        self._add_to_source_vocab = True
                 if tu_target_context:
-                    _add_context_to_tu(target_context, current_tu, side="target")
+                    self._add_context_to_tu(target_context, current_tu, side="target")
+                    if not hasattr(self, "_add_to_target_vocab"):
+                        self._add_to_target_vocab = True
                 yield current_tu
                 num_samples -= 1
 
@@ -322,6 +332,13 @@ class SamplerFileLoader(FileLoader):
                         _add_line_to_context(
                             target_context, tgt_line, self._context_length
                         )
+
+        if hasattr(self, "_add_to_source_vocab") and self._add_to_source_vocab:
+            add_context_ph_to_vocab("source")
+            self._add_to_source_vocab = False
+        if hasattr(self, "_add_to_target_vocab") and self._add_to_target_vocab:
+            add_context_ph_to_vocab("target")
+            self._add_to_target_vocab = False
 
 
 class SamplerFilesLoader(Loader):
