@@ -251,8 +251,11 @@ class TranslationSide(object):
     @property
     def detok(self):
         if self.__detok is None:
-            if self.__tokenizer is not None and self.__tok is not None:
-                self.__detok = self.__tokenizer.detokenize(self.__tok[0])
+            if self.__tok is not None:
+                if self.__tokenizer is not None:
+                    self.__detok = self.__tokenizer.detokenize(self.__tok[0])
+                else:
+                    self.__detok = " ".join(self.__tok[0])
             else:
                 raise RuntimeError("Cannot perform detokenization.")
         return self.__detok
