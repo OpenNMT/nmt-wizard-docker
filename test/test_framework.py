@@ -848,6 +848,30 @@ def test_postprocess_file(tmpdir):
         assert output_file.read() == "Hallo Welt!\n"
 
 
+def test_postprocess_file_no_preprocess(tmpdir):
+
+    config_no_preprocess = copy.deepcopy(config_base)
+    del config_no_preprocess["preprocess"]
+
+    source_path = str(tmpdir.join("source.txt"))
+    target_path = str(tmpdir.join("target.txt"))
+    output_path = str(tmpdir.join("output.txt"))
+    with open(source_path, "w") as source_file:
+        source_file.write("Hello world ￭!\n")
+    with open(target_path, "w") as target_file:
+        target_file.write("Hallo Welt ￭!\n")
+
+    _run_framework(
+        tmpdir,
+        "postprocess",
+        "postprocess -s %s -t %s -o %s" % (source_path, target_path, output_path),
+        config=config_no_preprocess,
+    )
+
+    with open(output_path) as output_file:
+        assert output_file.read() == "Hallo Welt ￭!\n"
+
+
 def test_description(tmpdir):
     description = "A description with a non ascii character: é"
     config = copy.deepcopy(config_base)
