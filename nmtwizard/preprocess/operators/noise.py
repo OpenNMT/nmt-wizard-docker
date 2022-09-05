@@ -39,6 +39,8 @@ class Noise(prepoperator.TUOperator):
             "add_marker": {"type": "boolean"},
             "char_equivalence_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "char_equivalence_table": {"type": "object"},
+            "final_punct_add_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "final_punct_list": {"type": "array"},
         }
         schema["properties"].update(
             {
@@ -92,9 +94,14 @@ class Noise(prepoperator.TUOperator):
         self._char_equivalence_prob = config.get("char_equivalence_prob", 0)
         self._char_equivalence_table = config.get("char_equivalence_table", {})
         self._add_marker = config.get("add_marker", 0)
+        self._final_punct_add_prob = config.get("final_punct_add_prob", 0)
+        if self._final_punct_add_prob:
+            self._final_punct_list = config.get("final_punct_list") or [".", ";", ":"]
 
     def _preprocess_tu(self, tu, *args):
-        if any(char.isdigit() for char in tu.src_detok):
+        if any(char.isdigit() for char in tu.src_detok) or (
+            tu.tgt_detok and any(char.isdigit() for char in tu.tgt_detok)
+        ):
             return [tu]
         original_tokens = (
             [pyonmttok.Token(token) for token in tu.src_tok.token_objects[0]]
@@ -106,12 +113,25 @@ class Noise(prepoperator.TUOperator):
         src_tok = tu.src_tok
         tokens = src_tok.token_objects[0]
         new_tokens = self._apply_word_noise(tokens)
+        if self._final_punct_add_prob > 0 and tu.tgt_tok:
+            tgt_tok = tu.tgt_tok
+            tgt_tokens = tgt_tok.token_objects[0]
+            original_tgt_tokens = (
+                [pyonmttok.Token(token) for token in tgt_tokens]
+                if self._data_augmentation
+                else None
+            )
+            self._apply_bilingual_noise(new_tokens, tgt_tokens)
         result = [tu]
         tu.src_tok = (src_tok.tokenizer, [new_tokens])
+        if tu.tgt_tok and tgt_tokens != original_tgt_tokens:
+            tu.tgt_tok = (tgt_tok.tokenizer, [tgt_tokens])
         if original_tokens is not None and new_tokens != original_tokens:
             if self._data_augmentation:
                 original_tu = copy.deepcopy(tu)
                 original_tu.src_tok = (src_tok.tokenizer, [original_tokens])
+                if self._final_punct_add_prob > 0 and tu.tgt_tok:
+                    original_tu.tgt_tok = (tgt_tok.tokenizer, [original_tgt_tokens])
                 result.append(original_tu)
             if self._add_marker:
                 tu.replace_tokens_side("source", (0, 0, ["｟mrk_noisy｠"]))
@@ -205,6 +225,22 @@ class Noise(prepoperator.TUOperator):
             if len(token.surface) != 0:  # Delete token if empty.
                 new_tokens.append(token)
         return new_tokens
+
+    def _apply_bilingual_noise(self, src_tokens, tgt_tokens):
+        if (
+            self._final_punct_add_prob > 0
+            and random.random() <= self._final_punct_add_prob
+            and all(
+                punct not in src_tokens[-1].surface for punct in self._final_punct_list
+            )
+            and all(
+                punct not in tgt_tokens[-1].surface for punct in self._final_punct_list
+            )
+        ):
+            punct_token = pyonmttok.Token(random.choice(self._final_punct_list))
+            punct_token.join_left = True
+            src_tokens.append(punct_token)
+            tgt_tokens.append(punct_token)
 
     @staticmethod
     def get_neighbor_keys_on_qwerty(original_key):
