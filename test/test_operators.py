@@ -366,7 +366,16 @@ def test_noise(config, training, text, expected, data_augmentation):
         ),
         (
             dict(
-                final_punct_list=[","],
+                final_punct_list=[[",", ","]],
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            "Add punctuation target",
+            True,
+        ),
+        (
+            dict(
+                final_punct_list=[[" ;", ";"]],
                 data_augmentation=True,
             ),
             "Add punctuation source",
@@ -384,6 +393,7 @@ def test_bilingual_punctuation_noise(config, src_text, tgt_text, noise_applied):
         },
         {
             "op": "noise",
+            "final_punct_list": [[".","."], [";", ";"], [":", ":"]],
             "final_punct_add_prob": 1,
         },
     ]
@@ -398,12 +408,12 @@ def test_bilingual_punctuation_noise(config, src_text, tgt_text, noise_applied):
     else:
         assert tu_list_len == 1
 
-    punctuation_list = config_base[-1].get("final_punct_list") or [".", ";", ":"]
-    punctuation_list.append("")
+    punctuation_list = config_base[-1].get("final_punct_list")
+    punctuation_list.append(("", ""))
 
     if noise_applied:
-        src_expected = [src_text + punct for punct in punctuation_list]
-        tgt_expected = [tgt_text + punct for punct in punctuation_list]
+        src_expected = [src_text + punct for punct, _ in punctuation_list]
+        tgt_expected = [tgt_text + punct for _, punct in punctuation_list]
     else:
         src_expected = [src_text]
         tgt_expected = [tgt_text]

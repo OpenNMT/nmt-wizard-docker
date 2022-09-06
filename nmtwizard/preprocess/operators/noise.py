@@ -40,7 +40,7 @@ class Noise(prepoperator.TUOperator):
             "char_equivalence_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "char_equivalence_table": {"type": "object"},
             "final_punct_add_prob": {"type": "number", "minimum": 0, "maximum": 1},
-            "final_punct_list": {"type": "array"},
+            "final_punct_list": {"type": "array",  "items": {"type": "array", "minItems" : 2, "maxItems" : 2,  "items": {"type": "string"}}},
         }
         schema["properties"].update(
             {
@@ -96,7 +96,7 @@ class Noise(prepoperator.TUOperator):
         self._add_marker = config.get("add_marker", 0)
         self._final_punct_add_prob = config.get("final_punct_add_prob", 0)
         if self._final_punct_add_prob:
-            self._final_punct_list = config.get("final_punct_list") or [".", ";", ":"]
+            self._final_punct_list = config.get("final_punct_list")
 
     def _preprocess_tu(self, tu, *args):
         if any(char.isdigit() for char in tu.src_detok) or (
@@ -230,17 +230,24 @@ class Noise(prepoperator.TUOperator):
         if (
             self._final_punct_add_prob > 0
             and random.random() <= self._final_punct_add_prob
+            and src_tokens
+            and tgt_tokens
             and all(
-                punct not in src_tokens[-1].surface for punct in self._final_punct_list
+                punct.strip() not in src_tokens[-1].surface for punct, _ in self._final_punct_list
             )
             and all(
-                punct not in tgt_tokens[-1].surface for punct in self._final_punct_list
+                punct.strip() not in tgt_tokens[-1].surface for _, punct in self._final_punct_list
             )
         ):
-            punct_token = pyonmttok.Token(random.choice(self._final_punct_list))
-            punct_token.join_left = True
-            src_tokens.append(punct_token)
-            tgt_tokens.append(punct_token)
+            src_punct, tgt_punct = random.choice(self._final_punct_list)
+            src_punct_token = pyonmttok.Token(src_punct.strip())
+            if not src_punct[0].isspace():
+                src_punct_token.join_left = True
+            tgt_punct_token = pyonmttok.Token(tgt_punct.strip())
+            if not tgt_punct[0].isspace():
+                tgt_punct_token.join_left = True
+            src_tokens.append(src_punct_token)
+            tgt_tokens.append(tgt_punct_token)
 
     @staticmethod
     def get_neighbor_keys_on_qwerty(original_key):
