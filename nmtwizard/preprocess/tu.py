@@ -2,6 +2,7 @@ import copy
 import itertools
 import pyonmttok
 
+from nmtwizard import utils
 from nmtwizard.logger import get_logger
 from nmtwizard.preprocess import prepoperator
 
@@ -637,6 +638,10 @@ class TranslationUnit(object):
 
     def export(self, process_type):
         if process_type.postprocess:
+            if self.tgt_detok:
+                self.tgt_detok = self.tgt_detok.split(utils.context_placeholder)[
+                    -1
+                ].strip()
             return PreprocessOutput(
                 src=self.src_detok,
                 tgt=self.tgt_detok,

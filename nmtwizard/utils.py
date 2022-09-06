@@ -10,6 +10,8 @@ from nmtwizard.logger import get_logger
 
 logger = get_logger(__name__)
 
+context_placeholder = "｟mrk_context｠"
+
 
 class Task(enum.Enum):
     TRAINING = 0
