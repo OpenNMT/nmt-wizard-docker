@@ -954,7 +954,7 @@ class Framework(utility.Utility):
                 # we need to run postprocess because it can change scores
                 if postprocessor is not None:
                     output_path = postprocessor.process_file(
-                        source_path,
+                        preprocessed_source_path,
                         output_path,
                         metadata,
                         target_score_type=score_type,
