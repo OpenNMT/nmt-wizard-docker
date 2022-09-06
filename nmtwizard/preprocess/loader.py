@@ -25,9 +25,10 @@ class Loader(abc.ABC):
 
 
 def _add_line_to_context(context, line, length):
-    context.append(line)
-    if len(context) > length:
-        del context[0]
+    if line is not None:
+        context.append(line)
+        if len(context) > length:
+            del context[0]
 
 
 class FileLoader(Loader):
@@ -40,7 +41,6 @@ class FileLoader(Loader):
         self._input_paths = {}
         self._batch_meta = batch_meta
         if context is not None:
-            self._context_placeholder = "｟mrk_context｠"
             if not isinstance(context, dict):
                 logger.warning("'context' field is not a valid object.")
             self._context_prob = context.get("prob")
@@ -57,14 +57,14 @@ class FileLoader(Loader):
                 tu.add_source(
                     c,
                     name="context_" + str(i),
-                    output_delimiter=self._context_placeholder,
+                    output_delimiter=utils.context_placeholder,
                     before_main=True,
                 )
             elif side == "target":
                 tu.add_target(
                     c,
                     name="context_" + str(i),
-                    output_delimiter=self._context_placeholder,
+                    output_delimiter=utils.context_placeholder,
                     before_main=True,
                 )
 
@@ -269,7 +269,7 @@ class SamplerFileLoader(FileLoader):
         def add_context_ph_to_vocab(side):
             self._batch_meta.setdefault("tokens_to_add", {})
             self._batch_meta["tokens_to_add"].setdefault(side, set())
-            self._batch_meta["tokens_to_add"][side].add(self._context_placeholder)
+            self._batch_meta["tokens_to_add"][side].add(utils.context_placeholder)
 
         src_file = files["source"]
         tgt_file = files.get("target")

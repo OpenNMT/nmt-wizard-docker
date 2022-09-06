@@ -1484,9 +1484,16 @@ def test_sampler_with_context(tmpdir):
             tgt_file.write(line)
 
     processor = InferenceProcessor(config_context)
+    processor.process_file(src_path)
     pre_src_path, pre_tgt_path, metadata = processor.process_file(src_path, tgt_path)
 
     with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
         _check_context_lines(pre_src_file, src_file)
     with open(pre_tgt_path) as pre_tgt_file, open(tgt_path) as tgt_file:
         _check_context_lines(pre_tgt_file, tgt_file)
+
+    postprocessor = InferenceProcessor(config_context, postprocess=True)
+    post_tgt_path = postprocessor.process_file(pre_src_path, pre_tgt_path)
+
+    with open(tgt_path) as tgt_file, open(post_tgt_path) as post_tgt_file:
+        assert tgt_file.read() == post_tgt_file.read()
