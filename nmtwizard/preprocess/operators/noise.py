@@ -40,7 +40,15 @@ class Noise(prepoperator.TUOperator):
             "char_equivalence_prob": {"type": "number", "minimum": 0, "maximum": 1},
             "char_equivalence_table": {"type": "object"},
             "final_punct_add_prob": {"type": "number", "minimum": 0, "maximum": 1},
-            "final_punct_list": {"type": "array",  "items": {"type": "array", "minItems" : 2, "maxItems" : 2,  "items": {"type": "string"}}},
+            "final_punct_list": {
+                "type": "array",
+                "items": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {"type": "string"},
+                },
+            },
         }
         schema["properties"].update(
             {
@@ -233,10 +241,12 @@ class Noise(prepoperator.TUOperator):
             and src_tokens
             and tgt_tokens
             and all(
-                punct.strip() not in src_tokens[-1].surface for punct, _ in self._final_punct_list
+                punct.strip() not in src_tokens[-1].surface
+                for punct, _ in self._final_punct_list
             )
             and all(
-                punct.strip() not in tgt_tokens[-1].surface for _, punct in self._final_punct_list
+                punct.strip() not in tgt_tokens[-1].surface
+                for _, punct in self._final_punct_list
             )
         ):
             src_punct, tgt_punct = random.choice(self._final_punct_list)

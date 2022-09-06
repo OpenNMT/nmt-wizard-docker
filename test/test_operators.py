@@ -393,7 +393,7 @@ def test_bilingual_punctuation_noise(config, src_text, tgt_text, noise_applied):
         },
         {
             "op": "noise",
-            "final_punct_list": [[".","."], [";", ";"], [":", ":"]],
+            "final_punct_list": [[".", "."], [";", ";"], [":", ":"]],
             "final_punct_add_prob": 1,
         },
     ]
