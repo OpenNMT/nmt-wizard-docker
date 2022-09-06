@@ -12,6 +12,8 @@ from nmtwizard.utils import Task
 def _run_pipeline(config, process_type, tu_list):
     if isinstance(tu_list, str):
         tu_list = tu.TranslationUnit(tu_list)
+    if isinstance(tu_list, tuple) and len(tu_list) == 2:
+        tu_list = tu.TranslationUnit(*tu_list)
     if not isinstance(tu_list, list):
         tu_list = [tu_list]
     if isinstance(config, list):
@@ -301,6 +303,123 @@ def test_noise(config, training, text, expected, data_augmentation):
 
     for tu_res in tu_list:
         assert tu_res.src_detok in expected
+
+
+@pytest.mark.parametrize(
+    "config,src_text,tgt_text,noise_applied",
+    [
+        (
+            dict(
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            "Add punctuation target",
+            True,
+        ),
+        (
+            dict(
+                data_augmentation=True,
+            ),
+            "Add punctuation source.",
+            "Add punctuation target",
+            False,
+        ),
+        (
+            dict(
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            "Add punctuation target.",
+            False,
+        ),
+        (
+            dict(
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            None,
+            False,
+        ),
+        (
+            dict(
+                data_augmentation=False,
+            ),
+            "Add punctuation source",
+            "Add punctuation target",
+            True,
+        ),
+        (
+            dict(
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            "Digits in target: 007",
+            False,
+        ),
+        (
+            dict(
+                data_augmentation=True,
+            ),
+            "Digits in source: 007",
+            "Add punctuation target",
+            False,
+        ),
+        (
+            dict(
+                final_punct_list=[[",", ","]],
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            "Add punctuation target",
+            True,
+        ),
+        (
+            dict(
+                final_punct_list=[[" ;", ";"]],
+                data_augmentation=True,
+            ),
+            "Add punctuation source",
+            "Add punctuation target",
+            True,
+        ),
+    ],
+)
+def test_bilingual_punctuation_noise(config, src_text, tgt_text, noise_applied):
+    config_base = [
+        {
+            "op": "tokenization",
+            "source": {"mode": "conservative", "joiner_annotate": True},
+            "target": {"mode": "conservative", "joiner_annotate": True},
+        },
+        {
+            "op": "noise",
+            "final_punct_list": [[".", "."], [";", ";"], [":", ":"]],
+            "final_punct_add_prob": 1,
+        },
+    ]
+
+    config_base[-1].update(config)
+    process_type = prepoperator.ProcessType(Task.TRAINING)
+    tu_list = _run_pipeline(config_base, process_type, (src_text, tgt_text))
+
+    tu_list_len = len(tu_list)
+    if config_base[-1].get("data_augmentation") and noise_applied:
+        assert tu_list_len == 2
+    else:
+        assert tu_list_len == 1
+
+    punctuation_list = config_base[-1].get("final_punct_list")
+    punctuation_list.append(("", ""))
+
+    if noise_applied:
+        src_expected = [src_text + punct for punct, _ in punctuation_list]
+        tgt_expected = [tgt_text + punct for _, punct in punctuation_list]
+    else:
+        src_expected = [src_text]
+        tgt_expected = [tgt_text]
+    for tu_res in tu_list:
+        assert tu_res.src_detok in src_expected
+        assert tu_res.tgt_detok in tgt_expected
 
 
 def test_identity_filter():
