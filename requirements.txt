@@ -1,4 +1,4 @@
-systran-storages @ https://github.com/SYSTRAN/storages/archive/3601019941cca224e42dc1c1435355ebcb6d2cfd.tar.gz
+systran-storages @ https://github.com/SYSTRAN/storages/archive/3f3c9e1173a3a8637f0b1cdea13fdc13ddaa31d6.tar.gz
 jsonschema==3.*
 pyonmttok==1.32.0
 requests==2.*
