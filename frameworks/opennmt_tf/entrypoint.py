@@ -88,7 +88,7 @@ class OpenNMTTFFramework(Framework):
 
         # Save run configuration.
         run_config = {
-            "auto_config": options.get("auto_config", False),
+            "auto_config": options.get("auto_config", True),
             "data": {
                 "source_vocabulary": os.path.basename(src_vocab),
                 "target_vocabulary": os.path.basename(tgt_vocab),
@@ -219,8 +219,8 @@ class OpenNMTTFFramework(Framework):
         return opennmt.Runner(
             model,
             run_config,
-            auto_config=options.get("auto_config", False),
-            mixed_precision=options.get("mixed_precision", False),
+            auto_config=options.get("auto_config", True),
+            mixed_precision=options.get("mixed_precision", True),
         )
 
 
