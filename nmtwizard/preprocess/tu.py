@@ -209,6 +209,7 @@ class TranslationSide(object):
         side = TranslationSide.__new__(TranslationSide)
         side.output_side = self.output_side
         side.output_delimiter = self.output_delimiter
+        side.before_main = self.before_main
         side.__detok = self.__detok
         side.__tok = (
             [part.copy() for part in self.__tok] if self.__tok is not None else None
