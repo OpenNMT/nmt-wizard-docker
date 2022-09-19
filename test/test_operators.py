@@ -293,7 +293,7 @@ def test_noise(config, training, text, expected, data_augmentation):
     config_base[-1].update(config)
     task = Task.TRAINING if training else Task.TRANSLATION
     process_type = prepoperator.ProcessType(task)
-    tu_list = _run_pipeline(config_base, process_type, text)
+    tu_list = _run_pipeline(config_base, process_type, (text, text))
 
     tu_list_len = len(tu_list)
     if data_augmentation:
