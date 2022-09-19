@@ -132,7 +132,11 @@ class Noise(prepoperator.TUOperator):
             self._apply_bilingual_noise(new_tokens, tgt_tokens)
         result = [tu]
         tu.src_tok = (src_tok.tokenizer, [new_tokens])
-        if tu.tgt_tok and tgt_tokens != original_tgt_tokens:
+        if (
+            self._final_punct_add_prob > 0
+            and tu.tgt_tok
+            and tgt_tokens != original_tgt_tokens
+        ):
             tu.tgt_tok = (tgt_tok.tokenizer, [tgt_tokens])
         if original_tokens is not None and new_tokens != original_tokens:
             if self._data_augmentation:
