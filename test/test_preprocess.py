@@ -1152,7 +1152,7 @@ def test_extra_target(tmpdir):
             tu.add_target("Das ist ein neues Ziel.", "extra")
             assert tu.has_target("extra")
             tu.set_target_output("extra", side="source", delimiter="｟delimiter_token｠")
-            return [tu]
+            return [tu.clone()]
 
     config_extra_target = deepcopy(config_base)
 
