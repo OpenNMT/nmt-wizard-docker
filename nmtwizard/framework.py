@@ -1290,8 +1290,11 @@ class Framework(utility.Utility):
         if model_config:
             model_config = config_util.old_to_new_config(model_config)
             model_vocab_config = model_config.get("vocabulary", {})
+            model_vocab_local_config = utility.resolve_environment_variables(
+                model_vocab_config, model_dir=self._model_path
+            )
             model_vocab_local_config = utility.resolve_remote_files(
-                utility.resolve_environment_variables(model_vocab_config),
+                model_vocab_local_config,
                 self._shared_dir,
                 self._storage,
             )
@@ -1541,7 +1544,9 @@ class Framework(utility.Utility):
     def _finalize_config(self, config, training=True):
         config_util.ensure_operators_name(config)
         config = config_util.old_to_new_config(config)
-        config = utility.resolve_environment_variables(config, training=training)
+        config = utility.resolve_environment_variables(
+            config, training=training, model_dir=self._model_path
+        )
         config = self._upgrade_data_config(config, training=training)
         config = utility.resolve_remote_files(config, self._shared_dir, self._storage)
         return config

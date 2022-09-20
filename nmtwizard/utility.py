@@ -29,7 +29,7 @@ os.environ.setdefault("CORPUS_DIR", "/root/corpus")
 os.environ.setdefault("MODELS_DIR", "/root/models")
 
 
-def getenv(m, training=True):
+def getenv(m, training=True, env=None):
     var = m.group(1)
     if "TRAIN_" in var:
         if not training:
@@ -38,7 +38,11 @@ def getenv(m, training=True):
             var = "CORPUS_DIR"
         else:
             var = var.replace("TRAIN_", "")
-    value = os.getenv(var)
+    value = None
+    if env is not None:
+        value = env.get(var)
+    if value is None:
+        value = os.getenv(var)
     if value is None:
         raise ValueError("Environment variable %s is not defined" % var)
     return value
@@ -59,13 +63,16 @@ def _map_config_fn(a, fn):
         return fn(a)
 
 
-def resolve_environment_variables(config, training=True):
+def resolve_environment_variables(config, training=True, model_dir=None):
     """Returns a new configuration with all environment variables replaced."""
+    env = {}
+    if model_dir:
+        env["MODEL_DIR"] = model_dir
 
     def _map_fn(value):
         if not isinstance(value, str):
             return value
-        return ENVVAR_RE.sub(lambda m: getenv(m, training=training), value)
+        return ENVVAR_RE.sub(lambda m: getenv(m, training=training, env=env), value)
 
     return _map_config_fn(config, _map_fn)
 
@@ -388,5 +395,4 @@ def fetch_model(storage, remote_model_path, model_path, should_check_integrity_f
         directory=True,
         check_integrity_fn=check_integrity_fn,
     )
-    os.environ["MODEL_DIR"] = model_path
     return load_model_config(model_path)
