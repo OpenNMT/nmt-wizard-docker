@@ -225,7 +225,7 @@ def sample(config, source_dir, oversample_as_weights):
                         # Different paths in distribution produced files with the same name.
                         # This is not allowed since we write output files in the same folder.
                         raise RuntimeError(
-                            "Two files with the same name where sampled: '%s'.\n"
+                            "Two files with the same name were sampled: '%s'.\n"
                             "First file found in path '%s', triggered by pattern '%s'.\n"
                             "Second file found in path '%s', triggered by pattern '%s'."
                             % (
