@@ -11,12 +11,14 @@ import gzip
 import shutil
 import collections
 import traceback
+import tempfile
 
 from nmtwizard.logger import get_logger
 from nmtwizard import config as config_util
 from nmtwizard import data as data_util
 from nmtwizard import utils
 from nmtwizard import serving
+from nmtwizard.preprocess import loader
 from nmtwizard.preprocess import preprocess
 from nmtwizard.preprocess import tokenizer
 from nmtwizard import utility
@@ -99,6 +101,49 @@ class Framework(utility.Utility):
           A nmtwizard.utils.ScoreType value.
         """
         raise NotImplementedError("This framework does not support scoring")
+
+    def eval(self, config, model_path, source, target, gpuid=0):
+        """Evaluates a corpus.
+
+        Args:
+          config: The run configuration.
+          model_path: The path to the model to use.
+          source: The path to the preprocessed source file.
+          target: The path to the preprocessed target file.
+          gpuid: The GPU identifier.
+
+        Returns:
+          A tuple with the unnormalized loss and the total number of tokens.
+        """
+        output = target + ".score"
+        score_type = self.score(
+            config,
+            model_path,
+            source,
+            target,
+            output,
+            gpuid=gpuid,
+        )
+
+        global_loss = 0
+        global_num_tokens = 0
+
+        output_loader = loader.PostprocessFileLoader(
+            source,
+            output,
+            batch_size=1,
+            target_score_type=score_type,
+        )
+
+        for tu_list, _ in output_loader():
+            for tu in tu_list:
+                normalized_log_prob = tu.metadata[0]["score"]
+                num_tokens = len(tu.tgt_tok.tokens[0])
+                global_loss += -normalized_log_prob * num_tokens
+                global_num_tokens += num_tokens
+
+        os.remove(output)
+        return global_loss, global_num_tokens
 
     @abc.abstractmethod
     def trans(self, config, model_path, input, output, gpuid=0):
@@ -292,6 +337,15 @@ class Framework(utility.Utility):
             action="store_true",
             help="Do not apply postprocessing on the target files.",
         )
+
+        parser_eval = subparsers.add_parser("eval", help="Run evaluation.")
+        parser_eval.add_argument(
+            "-s", "--source", required=True, nargs="+", help="Source files"
+        )
+        parser_eval.add_argument(
+            "-t", "--target", required=True, nargs="+", help="Target files"
+        )
+        parser_eval.add_argument("-o", "--output", help="Save result to this file")
 
         parser_export = subparsers.add_parser(
             "export", help="Export a model to the original framework."
@@ -491,6 +545,21 @@ class Framework(utility.Utility):
                 args.output,
                 gpuid=self._gpuid,
                 no_postprocess=args.no_postprocess,
+            )
+        elif args.cmd == "eval":
+            if not self._stateless and (
+                parent_model is None
+                or config["modelType"] not in ("checkpoint", "standalone")
+            ):
+                raise ValueError("evaluation requires a training checkpoint")
+            return self.eval_wrapper(
+                config,
+                self._model_path,
+                self._storage,
+                args.source,
+                args.target,
+                args.output,
+                gpuid=self._gpuid,
             )
         elif args.cmd == "export":
             if not self._stateless and (
@@ -973,6 +1042,77 @@ class Framework(utility.Utility):
             if compress_output:
                 output_path = compress_file(output_path, remove=True)
             storage.push(output_path, output)
+
+    def eval_wrapper(
+        self,
+        config,
+        model_path,
+        storage,
+        sources,
+        targets,
+        output_path,
+        gpuid=0,
+    ):
+        if len(sources) != len(targets):
+            raise ValueError("There should be as many source files as target files")
+
+        local_config = self._finalize_config(config, training=False)
+        preprocessor = self._get_preprocessor(local_config, utils.Task.SCORING)
+
+        global_loss = 0
+        global_num_tokens = 0
+        results = {"files": {}}
+
+        for source, target in zip(sources, targets):
+            logger.info("Evaluating input files %s and %s", source, target)
+
+            source_path = os.path.join(self._data_dir, storage.split(source)[-1])
+            target_path = os.path.join(self._data_dir, storage.split(target)[-1])
+            storage.get_file(source, source_path)
+            storage.get_file(target, target_path)
+            source_path = decompress_file(source_path, remove=True)
+            target_path = decompress_file(target_path, remove=True)
+
+            if preprocessor is not None:
+                (
+                    preprocessed_source_path,
+                    preprocessed_target_path,
+                    _,
+                ) = preprocessor.process_file(source_path, target_path)
+            else:
+                preprocessed_source_path = source_path
+                preprocessed_target_path = target_path
+
+            loss, num_tokens = self.eval(
+                local_config,
+                model_path,
+                preprocessed_source_path,
+                preprocessed_target_path,
+                gpuid=gpuid,
+            )
+
+            global_loss += loss
+            global_num_tokens += num_tokens
+
+            file_loss = loss / num_tokens
+            logger.info("Evaluation loss for file %s: %f", target, file_loss)
+
+            results["files"][target] = dict(loss=file_loss)
+
+        global_loss /= global_num_tokens
+        logger.info("Global evaluation loss: %f", global_loss)
+
+        results["all"] = dict(loss=global_loss)
+
+        print(json.dumps(results))
+
+        if output_path:
+            with tempfile.NamedTemporaryFile("w") as tmp_file:
+                tmp_file.write(json.dumps(results))
+                tmp_file.flush()
+                storage.push(tmp_file.name, output_path)
+
+        return results
 
     def export_wrapper(
         self,
@@ -1641,6 +1781,13 @@ def decompress_file(path_input, remove=False):
         if remove:
             os.remove(path_input)
     return path_input_new
+
+
+def download_file(storage, remote_path, local_directory):
+    local_path = os.path.join(local_directory, storage.split(remote_path)[-1])
+    storage.get_file(remote_path, local_path)
+    local_path = decompress_file(local_path, remove=True)
+    return local_path
 
 
 def post_add_bt_tag(path_input):
