@@ -301,6 +301,8 @@ class Utility(abc.ABC):
                 },
             )
 
+        return stats
+
     def convert_to_local_file(self, nextval, is_dir=False):
         new_val = []
         for val in nextval:

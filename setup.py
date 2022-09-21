@@ -11,6 +11,11 @@ def _load_requirements(path):
 base_dir = os.path.dirname(os.path.abspath(__file__))
 install_requires = _load_requirements(os.path.join(base_dir, "requirements.txt"))
 tests_require = _load_requirements(os.path.join(base_dir, "test", "requirements.txt"))
+tests_require.extend(
+    _load_requirements(
+        os.path.join(base_dir, "frameworks", "opennmt_tf", "requirements.txt")
+    )
+)
 
 setup(
     name="nmt-wizard-docker",

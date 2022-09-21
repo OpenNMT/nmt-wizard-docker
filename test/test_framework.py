@@ -335,6 +335,7 @@ def _run_framework(
     env=None,
     storage_config=None,
     framework_fn=None,
+    return_output=False,
 ):
     base_environ = os.environ.copy()
     os.environ["MODELS_DIR"] = str(tmpdir.join("models"))
@@ -343,7 +344,7 @@ def _run_framework(
         os.environ["CORPUS_DIR"] = os.path.join(_test_dir(), "corpus")
     if env is not None:
         os.environ.update(env)
-    full_args = ["-t", str(task_id)]
+    full_args = ["-t", str(task_id), "-g", "-1"]
     if storage_config is not None:
         full_args += ["-s", json.dumps(storage_config)]
     if config is not None:
@@ -359,11 +360,13 @@ def _run_framework(
         framework = DummyFramework()
     else:
         framework = framework_fn()
-    framework.run(args=full_args)
+    output = framework.run(args=full_args)
     _clear_workspace(tmpdir)
     model_dir = os.path.join(os.environ["MODELS_DIR"], model_name or task_id)
     os.environ.clear()
     os.environ.update(base_environ)
+    if return_output:
+        return model_dir, output
     return model_dir
 
 
