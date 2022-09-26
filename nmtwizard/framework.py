@@ -66,6 +66,7 @@ class Framework(utility.Utility):
         example_weights_file=None,
         model_path=None,
         gpuid=0,
+        models_to_average=None,
     ):
         """Trains for one epoch.
 
@@ -79,6 +80,8 @@ class Framework(utility.Utility):
           tgt_vocab_info: Target vocabulary metadata (see _get_vocab_info).
           model_path: The path to a model to load from.
           gpuid: The GPU identifier.
+          models_to_average: If set, the model trained on this iteration will be averaged
+            with this list of models.
 
         Returns:
           A dictionary of filenames to paths of objects to save in the model package,
@@ -269,6 +272,12 @@ class Framework(utility.Utility):
             default=None,
             help="Name of the generated model. If not set, defaults to the task ID.",
         )
+        parser_train.add_argument(
+            "--average_models",
+            type=int,
+            default=0,
+            help="Number of models to average at the end of the training.",
+        )
 
         parser_trans = subparsers.add_parser("trans", help="Run a translation.")
         parser_trans.add_argument(
@@ -448,6 +457,17 @@ class Framework(utility.Utility):
         )
         self.parser = parser
 
+    def get_model(self, model_name):
+        remote_model_path = self._storage.join(self._model_storage_read, model_name)
+        local_model_path = os.path.join(self._models_dir, model_name)
+        model_config = utility.fetch_model(
+            self._storage,
+            remote_model_path,
+            local_model_path,
+            should_check_integrity,
+        )
+        return local_model_path, model_config
+
     def exec_function(self, args):
         """Main entrypoint."""
         if self._config is None and self._model is None:
@@ -457,16 +477,7 @@ class Framework(utility.Utility):
         parent_model = self._model or config.get("model")
         if parent_model is not None and not self._stateless:
             # Download model locally and merge the configuration.
-            remote_model_path = self._storage.join(
-                self._model_storage_read, parent_model
-            )
-            self._model_path = os.path.join(self._models_dir, parent_model)
-            self._model_config = utility.fetch_model(
-                self._storage,
-                remote_model_path,
-                self._model_path,
-                should_check_integrity,
-            )
+            self._model_path, self._model_config = self.get_model(parent_model)
             if "modelType" not in self._model_config:
                 if parent_model.endswith("_release"):
                     self._model_config["modelType"] = "release"
@@ -501,6 +512,7 @@ class Framework(utility.Utility):
                 model_config=self._model_config,
                 gpuid=self._gpuid,
                 push_model=not self._no_push,
+                average_models=args.average_models,
             )
         elif args.cmd == "buildvocab":
             self.build_vocab(
@@ -690,6 +702,7 @@ class Framework(utility.Utility):
         model_config=None,
         gpuid=0,
         push_model=True,
+        average_models=0,
     ):
         logger.info("Starting training model %s", model_id)
         start_time = time.time()
@@ -719,6 +732,37 @@ class Framework(utility.Utility):
 
         if parent_model_type in ("base",):
             model_path = None
+
+        models_to_average = None
+        if average_models > 0 and model_path is not None:
+            if src_vocab_info.previous or tgt_vocab_info.previous:
+                logger.warning(
+                    "Cannot average models at the end of the training because the "
+                    "vocabulary changed on this step"
+                )
+            else:
+                logger.info(
+                    "The last %d models will be averaged at the end of this training step; "
+                    "synchronizing the required models...",
+                    average_models,
+                )
+
+                models_to_average = [model_path]
+                parent_config = config
+                for _ in range(average_models - 2):
+                    parent = parent_config.get("parent_model")
+                    if parent is None:
+                        break
+                    # TODO: consider checking if the vocabulary is different in parent models.
+                    parent_path, parent_config = self.get_model(parent)
+                    models_to_average.insert(0, parent_path)
+
+                if len(models_to_average) < average_models - 1:
+                    logger.warning(
+                        "Only %d models will be averaged at the end of this training step",
+                        len(models_to_average) + 1,
+                    )
+
         objects = self.train(
             local_config,
             os.path.join(data_dir, "train.%s" % config["source"]),
@@ -729,6 +773,7 @@ class Framework(utility.Utility):
             example_weights_file=os.path.join(data_dir, "train.weights"),
             model_path=model_path,
             gpuid=gpuid,
+            models_to_average=models_to_average,
         )
         if isinstance(objects, tuple):
             objects, training_summary = objects

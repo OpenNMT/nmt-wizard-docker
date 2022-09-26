@@ -24,7 +24,11 @@ class OpenNMTPYFramework(Framework):
         example_weights_file=None,
         model_path=None,
         gpuid=0,
+        models_to_average=None,
     ):
+        if models_to_average:
+            logger.warning("Checkpoint averaging is not implemented in this framework")
+
         # Preprocess training files.
         options = config["options"].get("config", {})
         options_preprocess = options.get("preprocess", {}).copy()

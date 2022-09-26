@@ -33,6 +33,7 @@ class OpenNMTTFFramework(Framework):
         example_weights_file=None,
         model_path=None,
         gpuid=0,
+        models_to_average=None,
     ):
         if model_path is None or tf.train.latest_checkpoint(model_path) is None:
             prev_src_vocab = None
@@ -69,6 +70,23 @@ class OpenNMTTFFramework(Framework):
             return_summary=True,
             fallback_to_cpu=not isinstance(gpuid, list) and gpuid == -1,
         )
+
+        if models_to_average:
+            models_to_average.append(output_dir)
+            checkpoint_paths = [
+                tf.train.latest_checkpoint(path) for path in models_to_average
+            ]
+
+            with tf.device("cpu"):
+                average_dir = runner.average_checkpoints(
+                    os.path.join(self._output_dir, "averaged_model"),
+                    max_count=len(checkpoint_paths),
+                    checkpoint_paths=checkpoint_paths,
+                )
+
+            shutil.rmtree(output_dir)
+            output_dir = average_dir
+
         return _list_checkpoint_files(output_dir), summary
 
     def export(self, config, model_path, output_dir):
