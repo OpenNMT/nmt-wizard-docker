@@ -100,6 +100,7 @@ class DummyFramework(_TestFramework):
         example_weights_file=None,
         model_path=None,
         gpuid=0,
+        **kwargs,
     ):
         # Verify that input files exist.
         assert os.path.exists(src_file)
@@ -222,6 +223,7 @@ class ReplaceVocabChecker(_TestFramework):
         example_weights_file=None,
         model_path=None,
         gpuid=0,
+        **kwargs,
     ):
         if self.joint:
             assert src_vocab_info.current == tgt_vocab_info.current

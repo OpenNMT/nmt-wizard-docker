@@ -54,12 +54,17 @@ config_base = {
 def test_train(tmpdir):
     sample_size = config_base["data"]["sample"]
     batch_size = config_base["options"]["config"]["train"]["batch_size"]
+    num_iterations = 3
 
-    for iteration in range(2):
+    for iteration in range(num_iterations):
+        command = "train"
+        if iteration == num_iterations - 1:
+            command += " --average_models %d" % num_iterations
+
         model_dir, result = _run_framework(
             tmpdir,
             "model%d" % iteration,
-            "train",
+            command,
             parent="model%d" % (iteration - 1) if iteration > 0 else None,
             config=config_base,
             framework_fn=OpenNMTTFFramework,
