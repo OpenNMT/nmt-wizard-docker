@@ -25,10 +25,12 @@ class Loader(abc.ABC):
 
 
 def _add_line_to_context(context, line, length):
-    if line is not None:
+    if line is not None and line.strip():
         context.append(line)
         if len(context) > length:
             del context[0]
+    else:
+        context.clear()
 
 
 class FileLoader(Loader):
@@ -118,11 +120,11 @@ class PreprocessFileLoader(FileLoader):
         for source, target in zip(source_file, target_file):
             current_tu = tu.TranslationUnit(source=source, target=target)
             if self._context_length is not None and self._context_apply_in_inference:
-                if source_context:
+                if source_context and source.strip():
                     self._add_context_to_tu(source_context, current_tu, side="source")
                 _add_line_to_context(source_context, source, self._context_length)
                 if self._context_target:
-                    if target_context:
+                    if target_context and target.strip():
                         self._add_context_to_tu(
                             target_context, current_tu, side="target"
                         )
@@ -306,11 +308,11 @@ class SamplerFileLoader(FileLoader):
                     target=tgt_line,
                     annotations=annot_lines,
                 )
-                if tu_source_context:
+                if tu_source_context and src_line.strip():
                     self._add_context_to_tu(source_context, current_tu, side="source")
                     if not hasattr(self, "_add_to_source_vocab"):
                         self._add_to_source_vocab = True
-                if tu_target_context:
+                if tu_target_context and tgt_line.strip():
                     self._add_context_to_tu(target_context, current_tu, side="target")
                     if not hasattr(self, "_add_to_target_vocab"):
                         self._add_to_target_vocab = True

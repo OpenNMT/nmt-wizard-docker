@@ -1404,6 +1404,8 @@ def test_sampler_with_context(tmpdir):
         for res_line, corpus_line in zip(res_file, corpus_file):
             res_line = res_line.strip()
             corpus_line = corpus_line.strip()
+            if not corpus_line:
+                context.clear()
             context_to_print = [line for line in context if line.strip()]
             line_with_context = " ｟mrk_context｠ ".join(context_to_print + [corpus_line])
             assert res_line == line_with_context.strip()
