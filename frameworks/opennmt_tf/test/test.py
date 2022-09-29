@@ -3,14 +3,16 @@ import json
 import os
 import sys
 
-test_dir = os.path.dirname(os.path.abspath(__file__))
-framework_path = os.path.join(test_dir, "..", "frameworks", "opennmt_tf")
-sys.path.insert(0, framework_path)
-
 import tensorflow as tf
 
-from entrypoint import OpenNMTTFFramework
-from test_framework import _run_framework
+current_dir = os.path.dirname(os.path.abspath(__file__))
+test_dir = os.path.join(current_dir, "..", "..", "..", "test")
+framework_path = os.path.join(current_dir, "..")
+sys.path.insert(0, framework_path)
+sys.path.insert(0, test_dir)
+
+from entrypoint import OpenNMTTFFramework  # noqa: E402
+from test_framework import _run_framework  # noqa: E402
 
 
 config_base = {
