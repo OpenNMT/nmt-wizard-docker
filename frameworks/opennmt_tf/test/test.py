@@ -12,7 +12,7 @@ sys.path.insert(0, framework_path)
 sys.path.insert(0, test_dir)
 
 from entrypoint import OpenNMTTFFramework  # noqa: E402
-from test_framework import _run_framework  # noqa: E402
+from test_framework import _read_config, _run_framework  # noqa: E402
 
 
 config_base = {
@@ -76,6 +76,9 @@ def test_train(tmpdir):
         assert result["num_sentences"] == sample_size
         assert result["num_steps"] == sample_size // batch_size
         assert result["last_step"] == result["num_steps"] * (iteration + 1)
+
+        config = _read_config(model_dir)
+        assert "last_learning_rate" in config["build"]["trainingSummary"]
 
         assert "model_description.py" not in os.listdir(model_dir)
 
