@@ -800,6 +800,9 @@ class Framework(utility.Utility):
             "startDate": start_time,
         }
 
+        if training_summary:
+            build_info["trainingSummary"] = training_summary
+
         if parent_model_type == "preprocess" or from_standalone_preprocess:
             # Inherit distribution summary and the parent from the preprocess run.
             config["build"].update(build_info)
