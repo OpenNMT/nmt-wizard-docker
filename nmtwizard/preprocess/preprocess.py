@@ -411,9 +411,13 @@ class TrainingProcessor(Processor):
                     "both 'source' and 'target' fields."
                 )
 
+            restrict_subword_vocabulary = {}
             for side in tok_config:
                 if side not in ["source", "target", "multi"]:
                     continue
+                restrict_subword_vocabulary[side] = tok_config[side].pop(
+                    "restrict_subword_vocabulary", None
+                )
                 build_vocab = tok_config[side].get("build_vocabulary")
                 if build_vocab:
                     if tok_config[side].get("vocabulary_path", {}):
@@ -441,6 +445,13 @@ class TrainingProcessor(Processor):
             # Use vocabulary from final tokenization as vocabulary for translation framework.
             if tok_idx == len(tok_configs) - 1:
                 for side in tok_config:
+                    get_restrict_subword_vocabulary = restrict_subword_vocabulary.get(
+                        side
+                    )
+                    if get_restrict_subword_vocabulary:
+                        tok_config[side][
+                            "restrict_subword_vocabulary"
+                        ] = get_restrict_subword_vocabulary
                     if side == "source" or side == "target":
                         if "vocabulary" not in self._config:
                             self._config["vocabulary"] = {}
