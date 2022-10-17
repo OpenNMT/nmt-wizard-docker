@@ -1156,6 +1156,7 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
             assert config_checkpoint["vocabulary"][side]["path"] == vocab_file_name
 
     del os.environ["DATA_DIR"]
+    del os.environ["ALIGN_DIR"]
 
 
 def test_buildvocab(tmpdir):
