@@ -498,7 +498,6 @@ def _test_generate_vocabularies(
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
     (
-        _,
         result_preprocess_config,
         result_vocab_config,
     ) = preprocessor.generate_vocabularies()
@@ -622,7 +621,7 @@ def test_op_adding_tokens(tmpdir):
     }
 
     preprocessor = TrainingProcessor(config, "", str(tmpdir))
-    _, _, vocab_config = preprocessor.generate_vocabularies()
+    _, vocab_config = preprocessor.generate_vocabularies()
     source_vocabulary = set(vocabulary_iterator(vocab_config["source"]["path"]))
     target_vocabulary = set(vocabulary_iterator(vocab_config["target"]["path"]))
     assert source_vocabulary > set(["a", "b"])

@@ -833,9 +833,7 @@ class Framework(utility.Utility):
     ):
         start_time = time.time()
         local_config = self._finalize_config(config)
-        objects, preprocess_config, vocab_config = self._generate_vocabularies(
-            local_config
-        )
+        preprocess_config, vocab_config = self._generate_vocabularies(local_config)
         end_time = time.time()
 
         # Old PN9 tokenization / buildvocab configuration
@@ -845,14 +843,13 @@ class Framework(utility.Utility):
             )
             config["tokenization"] = preprocess_config
         elif isinstance(preprocess_config, list):
-            local_config["preprocess"] = utility.resolve_environment_variables(
-                preprocess_config
-            )
-            config["preprocess"] = preprocess_config
-            local_config["vocabulary"] = utility.resolve_environment_variables(
-                vocab_config
-            )
             config["vocabulary"] = vocab_config
+            for op_idx, (new_op, op) in enumerate(
+                zip(preprocess_config, config["preprocess"])
+            ):
+                assert new_op["op"] == op["op"]
+                if op["op"] == "tokenization":
+                    config["preprocess"][op_idx] = new_op
         else:
             raise RuntimeError(
                 'Unknown preprocess configuration after buildvocab: "{}"'.format(
@@ -869,6 +866,7 @@ class Framework(utility.Utility):
             "startDate": start_time,
         }
 
+        objects = {}
         bundle_dependencies(objects, config, local_config)
         objects_dir = os.path.join(self._models_dir, model_id)
         utility.build_model_dir(objects_dir, objects, config, should_check_integrity)
