@@ -844,12 +844,14 @@ class Framework(utility.Utility):
             config["tokenization"] = preprocess_config
         elif isinstance(preprocess_config, list):
             config["vocabulary"] = vocab_config
-            for op_idx, (new_op, op) in enumerate(
-                zip(preprocess_config, config["preprocess"])
+            local_config["vocabulary"] = vocab_config
+            for op_idx, (new_op, op, local_op) in enumerate(
+                zip(preprocess_config, config["preprocess"], local_config["preprocess"])
             ):
-                assert new_op["op"] == op["op"]
+                assert new_op["op"] == op["op"] == local_op["op"]
                 if op["op"] == "tokenization":
                     config["preprocess"][op_idx] = new_op
+                    local_config["preprocess"][op_idx] = new_op
         else:
             raise RuntimeError(
                 'Unknown preprocess configuration after buildvocab: "{}"'.format(
