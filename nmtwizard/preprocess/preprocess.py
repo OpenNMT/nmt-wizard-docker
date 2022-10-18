@@ -464,16 +464,10 @@ class TrainingProcessor(Processor):
                         if not tok_config[side].get("use_vocab_in_tok", False):
                             del tok_config[side]["vocabulary_path"]
 
-        preprocess_config = None
-        if "preprocess" in self._config:
-            preprocess_config = self._config["preprocess"]
+        preprocess_config = self._config.get("preprocess")
+        vocab_config = self._config.get("vocabulary")
 
-        vocab_config = None
-        if "vocabulary" in self._config:
-            vocab_config = self._config["vocabulary"]
-
-        # TODO V2 : why we use a copy here ?
-        return {}, preprocess_config, vocab_config
+        return preprocess_config, vocab_config
 
 
 class InferenceProcessor(Processor):

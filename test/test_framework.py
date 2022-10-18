@@ -1097,7 +1097,13 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
                 "source": {"mode": "aggressive"},
                 "target": {"mode": "aggressive"},
                 "multi": {},
-            }
+            },
+            {
+                "op": "alignment",
+                "write_alignment": True,
+                "forward": {"probs": "${ALIGN_TRAIN_DIR}/ende_forward.probs"},
+                "backward": {"probs": "${ALIGN_TRAIN_DIR}/ende_backward.probs"},
+            },
         ],
     }
 
@@ -1109,6 +1115,9 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
         }
 
     os.environ["DATA_DIR"] = os.path.join(_test_dir(), "corpus")
+    os.environ["ALIGN_DIR"] = os.path.join(
+        _test_dir(), "corpus", "resources", "alignment"
+    )
 
     model_dir = _run_framework(tmpdir, "buildvocab%d" % run_num, "buildvocab", config)
     config_buildvocab = _read_config(model_dir)
@@ -1116,6 +1125,10 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
     assert config_buildvocab["model"] == "buildvocab%d" % run_num
     assert config_buildvocab["modelType"] == "base"
     assert not os.path.isdir(os.path.join(model_dir, "data"))
+
+    # Check that we do not copy TRAIN resources into model.
+    assert not os.path.exists(os.path.join(model_dir, "ende_forward.probs"))
+    assert not os.path.exists(os.path.join(model_dir, "ende_backward.probs"))
 
     model_dir = _run_framework(
         tmpdir, "model%d" % run_num, "train", parent="buildvocab%d" % run_num
@@ -1143,6 +1156,7 @@ def _test_buildvocab(tmpdir, run_num, multi=False):
             assert config_checkpoint["vocabulary"][side]["path"] == vocab_file_name
 
     del os.environ["DATA_DIR"]
+    del os.environ["ALIGN_DIR"]
 
 
 def test_buildvocab(tmpdir):
