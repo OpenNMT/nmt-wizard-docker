@@ -1,5 +1,4 @@
 import os
-import systran_align
 
 from nmtwizard.preprocess import prepoperator
 
@@ -37,10 +36,14 @@ class Aligner(prepoperator.Operator):
 
     @staticmethod
     def get_shared_classes():
+        import systran_align
+
         return [systran_align.Aligner]
 
     @staticmethod
     def get_shared_builders(config, process_type):
+        import systran_align
+
         forward_probs_path = config.get("forward", {}).get("probs")
         backward_probs_path = config.get("backward", {}).get("probs")
         if forward_probs_path is None or backward_probs_path is None:
