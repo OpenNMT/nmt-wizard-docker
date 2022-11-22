@@ -1355,7 +1355,7 @@ class Framework(utility.Utility):
             "Finished preprocessing data in %.1f seconds", end_time - start_time
         )
 
-    def _build_standalone_data(self, data_dir, config):
+    def _build_standalone_data(self, data_dir, config, local_config):
         for filename in os.listdir(data_dir):
             compress_file(os.path.join(data_dir, filename), remove=True)
         objects = {"standalone_data": data_dir}
@@ -1370,6 +1370,8 @@ class Framework(utility.Utility):
                 }
             ],
         }
+        local_config["data"] = copy.deepcopy(config["data"])
+        local_config["data"]["sample_dist"][0]["path"] = data_dir
         return objects
 
     def preprocess_into_model(
@@ -1442,7 +1444,7 @@ class Framework(utility.Utility):
 
         # Build and push the model package.
         if parent_model_type == "checkpoint" and model_type == "standalone":
-            objects = self._build_standalone_data(data_dir, config)
+            objects = self._build_standalone_data(data_dir, config, local_config)
         else:
             objects = {"data": data_dir}
         keep_all_objects = config["modelType"] == "standalone"
