@@ -42,14 +42,13 @@ class FileLoader(Loader):
             batch_meta = {}
         self._input_paths = {}
         self._batch_meta = batch_meta
-        if context is not None:
-            if not isinstance(context, dict):
-                logger.warning("'context' field is not a valid object.")
-            self._context_prob = context.get("prob")
-            self._context_length = context.get("length")
-            self._context_target = context.get("target")
-            self._context_labels = context.get("labels")
-            self._context_apply_in_inference = context.get("apply_in_inference", False)
+        if not isinstance(context, dict):
+            context = {}
+        self._context_prob = context.get("prob")
+        self._context_length = context.get("length")
+        self._context_target = context.get("target")
+        self._context_labels = context.get("labels")
+        self._context_apply_in_inference = context.get("apply_in_inference", False)
 
     def _add_context_to_tu(self, context, tu, side):
         for i, c in enumerate(reversed(context)):
