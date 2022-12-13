@@ -492,6 +492,8 @@ class InferenceProcessor(Processor):
         source,
         target=None,
         target_name=None,
+        source_context=None,
+        target_context=None,
         metadata=None,
         config=None,
         options=None,
@@ -536,6 +538,26 @@ class InferenceProcessor(Processor):
         logger.debug(
             "[%d] %s source input:  %s", threading.current_thread().ident, proc, source
         )
+
+        if source_context is not None:
+            for sc_idx, sc in enumerate(reversed(source_context)):
+                tu.add_source(
+                    sc,
+                    name=f"context_{sc_idx}",
+                    output_delimiter=utils.context_placeholder,
+                    before_main=True,
+                )
+
+        if target_context is not None:
+            if target is None:
+                target = ""
+            for tc_idx, tc in enumerate(reversed(target_context)):
+                tu.add_target(
+                    tc,
+                    name=f"context_{tc_idx}",
+                    output_delimiter=utils.context_placeholder,
+                    before_main=True,
+                )
 
         if target is not None:
             tu.add_target(

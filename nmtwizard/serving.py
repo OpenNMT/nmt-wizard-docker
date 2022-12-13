@@ -12,6 +12,7 @@ import http.server
 
 from nmtwizard import config as config_util
 from nmtwizard.logger import get_logger
+from nmtwizard import utils
 
 logger = get_logger(__name__)
 
@@ -321,8 +322,16 @@ def preprocess_example(
         else:
             config_override = example_config_override
 
+    # List of previous source sentences (context).
+    source_context = raw_example.get("source_context")
+    if isinstance(source_context, str):
+        source_context = [source_context]
+
     target_prefix = raw_example.get("target_prefix")
     target_fuzzy = raw_example.get("fuzzy")
+    target_context = raw_example.get("target_context")
+    if isinstance(target_context, str):
+        target_context = [target_context]
     if target_prefix is not None and target_fuzzy is not None:
         raise InvalidRequest(
             "Using both a target prefix and a fuzzy target is currently unsupported"
@@ -352,6 +361,8 @@ def preprocess_example(
             source_text,
             target=target_text,
             target_name=target_name,
+            source_context=source_context,
+            target_context=target_context,
             config=config_override,
             options=options,
         )
@@ -412,7 +423,15 @@ def postprocess_output(output, example, postprocessor):
         else:
             align = None
 
+    context = None
+    if text:
+        text_split_context = text.split(utils.context_placeholder)
+        if len(text_split_context) > 1:
+            context = [c.strip() for c in text_split_context]
+            text = context.pop()
     result = {"text": text}
+    if context is not None:
+        result["context"] = context
     if score is not None:
         result["score"] = score
     if align is not None:
