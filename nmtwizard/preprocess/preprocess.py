@@ -543,7 +543,7 @@ class InferenceProcessor(Processor):
             for sc_idx, sc in enumerate(reversed(source_context)):
                 tu.add_source(
                     sc,
-                    name="context_" + str(sc_idx),
+                    name=f"context_{sc_idx}",
                     output_delimiter=utils.context_placeholder,
                     before_main=True,
                 )
