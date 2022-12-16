@@ -517,6 +517,14 @@ def test_train_chain(tmpdir):
     assert DummyCheckpoint(model_dir).index() == 1
 
 
+def test_train_invalid_inference_options(tmpdir):
+    config = config_base.copy()
+    config["inference_options"] = {"jsonSchema": {}}
+
+    with pytest.raises(ValueError, match="json_schema"):
+        _run_framework(tmpdir, "model0", "train", config=config)
+
+
 @pytest.mark.parametrize(
     "config,custom_field,new_field,mode,expected_field",
     [
