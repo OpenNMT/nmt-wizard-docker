@@ -1732,6 +1732,7 @@ class Framework(utility.Utility):
         return build_info
 
     def _finalize_config(self, config, training=True):
+        config_util.validate(config)
         config_util.ensure_operators_name(config)
         config = config_util.old_to_new_config(config)
         config = utility.resolve_environment_variables(

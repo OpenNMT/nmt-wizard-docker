@@ -224,6 +224,13 @@ def get_config_version(config):
     return 2 if is_v2_config(config) else 1
 
 
+def validate(config):
+    """Raises an exception if the configuration is incorrect."""
+    inference_options = config.get("inference_options")
+    if inference_options is not None:
+        validate_inference_options(inference_options, config)
+
+
 def ensure_operators_name(config):
     """Make sure all operators in model configuration have a unique name."""
     if is_v1_config(config):
