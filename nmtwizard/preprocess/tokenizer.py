@@ -83,7 +83,7 @@ def make_subword_learner(subword_config, subword_dir, tokenizer=None):
 
 def vocabulary_iterator(vocabulary_path):
     """Iterates over each token included in the vocabulary file."""
-    with open(vocabulary_path) as vocabulary_file:
+    with open(vocabulary_path, encoding="utf-8") as vocabulary_file:
         header = True
         for line in vocabulary_file:
             # The vocabulary file might start with some comments prefixed with '#'.
