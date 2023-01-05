@@ -1234,6 +1234,8 @@ def test_shared_state_with_overrides(num_workers):
 
         @staticmethod
         def get_shared_builders(config, process_type):
+            assert "source_lang" in config
+            assert "target_lang" in config
             return {"shared_obj": (SharedClass, (config["value"],))}
 
         def __init__(self, config, process_type, build_state, shared_state):
