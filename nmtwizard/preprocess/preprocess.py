@@ -754,7 +754,7 @@ class SharedState:
                 key = "%s_%s" % (cls.__name__, str(args))
                 if key not in existing_state:
                     logger.info(
-                        "Building %s(%s)",
+                        "Building shared instance %s(%s)",
                         cls.__name__,
                         ", ".join(repr(arg) for arg in args),
                     )
