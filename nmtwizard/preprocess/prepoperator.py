@@ -38,6 +38,8 @@ def register_operator(name):
 def operator_info_generator(
     config,
     process_type,
+    source_lang,
+    target_lang,
     override_label=None,
     inference_config=None,
     preprocess_exit_step=None,
@@ -67,6 +69,11 @@ def operator_info_generator(
         )
         if ignore_disabled and operator_params.get("disabled", False):
             continue
+
+        # Propagate source and target languages
+        _add_lang_info(operator_params, "source", source_lang)
+        _add_lang_info(operator_params, "target", target_lang)
+
         yield operator_cls, operator_params, operator_type, i
 
 
@@ -117,30 +124,24 @@ def get_operator_params(
     return config
 
 
-def _add_lang_info(operator_params, config, side):
+def _add_lang_info(operator_params, side, lang):
     side_params = operator_params.get(side)
     if side_params is not None:
-        side_params["lang"] = config[side]
+        side_params["lang"] = lang
     else:
-        operator_params["%s_lang" % side] = config[side]
+        operator_params["%s_lang" % side] = lang
 
 
 def build_operator(
     operator_type,
     operator_cls,
     operator_params,
-    global_config,
     process_type,
     build_state,
     index,
     shared_state=None,
 ):
     """Creates an operator instance from its configuration."""
-
-    # Propagate source and target languages
-    _add_lang_info(operator_params, global_config, "source")
-    _add_lang_info(operator_params, global_config, "target")
-
     args = []
     if shared_state:
         args.append(shared_state)
@@ -235,6 +236,8 @@ class Pipeline(object):
         for operator_info in operator_info_generator(
             op_list_config,
             self._process_type,
+            self._config["source"],
+            self._config["target"],
             self.override_label,
             self._inference_config,
             exit_step,
@@ -246,7 +249,6 @@ class Pipeline(object):
                 operator_type,
                 operator_cls,
                 operator_params,
-                self._config,
                 self._process_type,
                 self.build_state,
                 i,

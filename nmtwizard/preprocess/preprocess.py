@@ -712,6 +712,8 @@ class SharedState:
             for operator_cls, _, _, _ in prepoperator.operator_info_generator(
                 preprocess_config,
                 self._process_type,
+                self._config["source"],
+                self._config["target"],
                 override_label,
                 self._inference_config,
                 self._preprocess_exit_step,
@@ -730,6 +732,8 @@ class SharedState:
         for operator_cls, operator_params, _, i in prepoperator.operator_info_generator(
             preprocess_config,
             self._process_type,
+            self._config["source"],
+            self._config["target"],
             override_label,
             self._inference_config,
             self._preprocess_exit_step,
