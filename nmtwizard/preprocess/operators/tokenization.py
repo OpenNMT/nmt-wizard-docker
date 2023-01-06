@@ -83,7 +83,9 @@ class Tokenizer(prepoperator.MonolingualOperator):
             # The open source Tokenizer does not accept the custom vocabulary format
             # produced by build_vocab so we create a temporary vocabulary with a simpler
             # format.
-            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False) as vocab_file:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", delete=False
+            ) as vocab_file:
                 for token in tokenizer.load_vocabulary(vocabulary_path):
                     vocab_file.write("%s\n" % token)
                 vocab_file.flush()
