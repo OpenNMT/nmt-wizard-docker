@@ -10,7 +10,6 @@ import shutil
 import uuid
 import sys
 import requests
-import tempfile
 import functools
 
 from nmtwizard import config as config_util
@@ -118,7 +117,6 @@ class Utility(abc.ABC):
         self._output_dir = os.path.join(workspace_dir, "output")
         self._data_dir = os.path.join(workspace_dir, "data")
         self._shared_dir = os.path.join(workspace_dir, "shared")
-        self._tmp_dir = tempfile.mkdtemp()
         try:
             if not os.path.exists(self._output_dir):
                 os.makedirs(self._output_dir)

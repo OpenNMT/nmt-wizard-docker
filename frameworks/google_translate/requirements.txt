@@ -1,1 +1,1 @@
-google-cloud-translate
+google-cloud-translate==3.*

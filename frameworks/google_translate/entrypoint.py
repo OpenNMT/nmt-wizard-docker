@@ -1,7 +1,9 @@
 import os
+import json
 import time
 
 from google.cloud import translate_v2 as translate
+from google.oauth2 import service_account
 
 from nmtwizard.cloud_translation_framework import CloudTranslationFramework
 from nmtwizard.logger import get_logger
@@ -16,11 +18,12 @@ class GoogleTranslateFramework(CloudTranslationFramework):
         if credentials is None:
             raise ValueError("missing credentials")
         if credentials.startswith("{"):
-            credential_path = os.path.join(self._tmp_dir, "Gateway-Translate-API.json")
-            with open(credential_path, "w") as f:
-                f.write(credentials)
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credential_path
-        self._client = translate.Client()
+            credentials = service_account.Credentials.from_service_account_info(
+                json.loads(credentials)
+            )
+        else:
+            credentials = None
+        self._client = translate.Client(credentials=credentials)
         self.max_retry = 5
         self._GOOGLE_LIMIT_TIME = 100
 
