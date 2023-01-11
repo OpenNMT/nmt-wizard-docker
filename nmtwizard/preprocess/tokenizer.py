@@ -27,15 +27,11 @@ _ALLOWED_TOKENIZER_ARGS = set(
         "spacer_annotate",
         "spacer_new",
         "support_prior_joiners",
+        "vocabulary",
         "vocabulary_path",
         "vocabulary_threshold",
     ]
 )
-
-
-def _is_valid_language_code(lang):
-    # TODO: consider exposing this function in pyonmttok.
-    return len(lang) == 2 and lang not in ("xx", "yy")
 
 
 def build_tokenizer(args):
@@ -46,7 +42,7 @@ def build_tokenizer(args):
     if not args:
         return None
     lang = args.get("lang")
-    if lang is not None and not _is_valid_language_code(lang):
+    if lang is not None and not pyonmttok.is_valid_language(lang):
         args.pop("lang")
     return pyonmttok.Tokenizer(**args)
 
