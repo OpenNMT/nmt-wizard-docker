@@ -86,6 +86,7 @@ class OpenNMTTFFramework(Framework):
 
             shutil.rmtree(output_dir)
             output_dir = average_dir
+            summary["num_averaged_checkpoints"] = len(checkpoint_paths)
 
         return _list_checkpoint_files(output_dir), summary
 

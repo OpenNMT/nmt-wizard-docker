@@ -59,8 +59,10 @@ def test_train(tmpdir):
     num_iterations = 3
 
     for iteration in range(num_iterations):
+        last_iteration = iteration == num_iterations - 1
+
         command = "train"
-        if iteration == num_iterations - 1:
+        if last_iteration:
             command += " --average_models %d" % num_iterations
 
         model_dir, result = _run_framework(
@@ -76,6 +78,8 @@ def test_train(tmpdir):
         assert result["num_sentences"] == sample_size
         assert result["num_steps"] == sample_size // batch_size
         assert result["last_step"] == result["num_steps"] * (iteration + 1)
+        if last_iteration:
+            assert result["num_averaged_checkpoints"] == num_iterations
 
         config = _read_config(model_dir)
         assert "last_learning_rate" in config["build"]["trainingSummary"]
