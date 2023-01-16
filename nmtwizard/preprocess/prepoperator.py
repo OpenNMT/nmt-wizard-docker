@@ -4,6 +4,7 @@ import collections
 import time
 import jsonschema
 import logging
+import os
 from itertools import chain
 
 from nmtwizard.logger import get_logger
@@ -363,9 +364,25 @@ class Operator(abc.ABC):
         return self._process_type
 
     @classmethod
+    def get_custom_validator(cls):
+        def _is_file(validator, value, instance, schema):
+            if isinstance(instance, str) and not os.path.isfile(instance):
+                yield jsonschema.ValidationError("%r is not a valid file." % instance)
+
+        all_validators = jsonschema.Draft4Validator.VALIDATORS
+        all_validators["is_file"] = _is_file
+        MyValidator = jsonschema.validators.create(
+            meta_schema=jsonschema.Draft4Validator.META_SCHEMA,
+            validators=all_validators,
+        )
+        return MyValidator
+
+    @classmethod
     def validate_parameters(cls, params, name):
         try:
-            jsonschema.validate(instance=params, schema=cls._config_schema())
+            validator_cls = cls.get_custom_validator()
+            validator = validator_cls(schema=cls._config_schema())
+            validator.validate(params)
         except jsonschema.exceptions.ValidationError as err:
             raise ValueError(
                 f"Invalid configuration for '{name}' operator: {err.message}"
@@ -490,7 +507,11 @@ class MonolingualOperator(TUOperator):
         schema = super(MonolingualOperator, cls)._config_schema()
         schema["properties"].update(
             {
-                "source": {"type": "object", "additionalProperties": False},
+                "source": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "inference_block": True,
+                },
                 "target": {"type": "object", "additionalProperties": False},
             }
         )

@@ -11,7 +11,7 @@ class Aligner(prepoperator.Operator):
 
         alignment_block = {
             "type": "object",
-            "properties": {"probs": {"type": "string"}},
+            "properties": {"probs": {"type": "string", "is_file": True}},
             "additionalProperties": False,
             "required": ["probs"],
         }
