@@ -363,7 +363,6 @@ class Operator(abc.ABC):
     def process_type(self):
         return self._process_type
 
-
     @classmethod
     def get_custom_validator(cls):
         def _is_file(validator, value, instance, schema):
@@ -371,9 +370,10 @@ class Operator(abc.ABC):
                 yield jsonschema.ValidationError("%r is not a valid file." % instance)
 
         all_validators = jsonschema.Draft4Validator.VALIDATORS
-        all_validators['is_file'] = _is_file
+        all_validators["is_file"] = _is_file
         MyValidator = jsonschema.validators.create(
-            meta_schema=jsonschema.Draft4Validator.META_SCHEMA, validators=all_validators
+            meta_schema=jsonschema.Draft4Validator.META_SCHEMA,
+            validators=all_validators,
         )
         return MyValidator
 
@@ -507,7 +507,11 @@ class MonolingualOperator(TUOperator):
         schema = super(MonolingualOperator, cls)._config_schema()
         schema["properties"].update(
             {
-                "source": {"type": "object", "additionalProperties": False, "inference_block": True},
+                "source": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "inference_block": True,
+                },
                 "target": {"type": "object", "additionalProperties": False},
             }
         )
