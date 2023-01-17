@@ -79,7 +79,7 @@ class Tokenizer(prepoperator.MonolingualOperator):
                     "restrict_subword_vocabulary is set but no vocabulary is set"
                 )
 
-            config["vocabulary"] = list(tokenizer.vocabulary_iterator(vocabulary_path))
+            config["vocabulary"] = list(tokenizer.load_vocabulary(vocabulary_path))
 
         current_tokenizer = tokenizer.build_tokenizer(config)
 
