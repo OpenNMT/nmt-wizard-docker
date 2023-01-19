@@ -389,6 +389,10 @@ class Operator(abc.ABC):
             ) from None
 
     def __call__(self, tu_batch, **kwargs):
+        tu_list, _ = tu_batch
+        if not tu_list:
+            return tu_batch
+
         if self.process_type.postprocess:
             tu_batch = self._postprocess(tu_batch, **kwargs)
         else:
