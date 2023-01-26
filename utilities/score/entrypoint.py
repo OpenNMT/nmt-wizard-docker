@@ -340,21 +340,31 @@ class ScoreUtility(Utility):
                 continue
 
             if not args.keep_placeholder:
-                output = self.normalize_text(output, r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape)
+                output = self.normalize_text(
+                    output, r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape
+                )
 
             if args.norm_regex_hyp:
                 if len(args.norm_regex_hyp) == 1:
                     # if replacement is not defined, regard as deletion
                     args.norm_regex_hyp.append("")
-                LOGGER.info(f"Normalize output with regex: 's/{'/'.join(args.norm_regex_hyp)}/g'")
-                output = self.normalize_text(output, args.norm_regex_hyp[0], args.norm_regex_hyp[1])
+                LOGGER.info(
+                    f"Normalize output with regex: 's/{'/'.join(args.norm_regex_hyp)}/g'"
+                )
+                output = self.normalize_text(
+                    output, args.norm_regex_hyp[0], args.norm_regex_hyp[1]
+                )
 
             if args.norm_regex_ref:
                 if len(args.norm_regex_ref) == 1:
                     # if replacement is not defined, regard as deletion
                     args.norm_regex_ref.append("")
-                LOGGER.info(f"Normalize reference with regex: 's/{'/'.join(args.norm_regex_ref)}/g'")
-                list_ref_files = self.normalize_text(list_ref_files, args.norm_regex_ref[0], args.norm_regex_ref[1])
+                LOGGER.info(
+                    f"Normalize reference with regex: 's/{'/'.join(args.norm_regex_ref)}/g'"
+                )
+                list_ref_files = self.normalize_text(
+                    list_ref_files, args.norm_regex_ref[0], args.norm_regex_ref[1]
+                )
 
             output_tok = self.tokenize_files(output, lang_tokenizer)
             reffile_tok = self.tokenize_files(list_ref_files, lang_tokenizer)
