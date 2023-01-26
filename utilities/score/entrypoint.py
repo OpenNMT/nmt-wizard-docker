@@ -65,6 +65,16 @@ class ScoreUtility(Utility):
             nargs="+",
             help="Specify metrics to evaluate, by default ignore TER and METEOR",
         )
+        parser_score.add_argument(
+            "--norm_regex_hyp",
+            nargs="+",
+            help="Pattern and replacement used to normalize hypothesis files before scoring",
+        )
+        parser_score.add_argument(
+            "--norm_regex_ref",
+            nargs="+",
+            help="Pattern and replacement used to normalize reference files before scoring",
+        )
 
     def check_supported_metric(self, lang, allmetrics):
         metric_supported = []
@@ -95,15 +105,20 @@ class ScoreUtility(Utility):
         obj = obj.replace("％0020", " ")
         return obj
 
-    def remove_ph(self, filename):
-        outfile = tempfile.NamedTemporaryFile(delete=False)
-        with open(filename, "r", encoding="utf-8") as input_file, open(
-            outfile.name, "w", encoding="utf-8"
-        ) as output_file:
-            for line in input_file:
-                line = re.sub(r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape, line)
-                output_file.write(line)
-        return outfile.name
+    def normalize_text(self, filelist, pattern, repl):
+        filelist_norm = []
+        pattern = re.compile(pattern)
+        for filename in filelist:
+            outfile = tempfile.NamedTemporaryFile(delete=False)
+            with open(filename, "r", encoding="utf-8") as input_file, open(
+                outfile.name, "w", encoding="utf-8"
+            ) as output_file:
+                for line in input_file:
+                    line = re.sub(pattern, repl, line)
+                    output_file.write(line)
+            filelist_norm.append(outfile.name)
+
+        return filelist_norm
 
     def tokenize_file(self, tokenizer, input, output):
         if not tokenizer:
@@ -135,7 +150,7 @@ class ScoreUtility(Utility):
         return p.stdout.read()
 
     def eval_BLEU(self, tgtfile, reffile):
-        reffile = [f'"{f}"' for f in reffile.split(",")]
+        reffile = [f'"{f}"' for f in reffile]
         result = self.exec_command_with_timeout(
             "/usr/bin/perl %s %s < %s"
             % (
@@ -263,7 +278,6 @@ class ScoreUtility(Utility):
         return 0
 
     def eval_METEOR(self, tgtfile, reffile, lang):
-        reffile = reffile.split(",")
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as file_ref:
             file_handles = []
             for ref in reffile:
@@ -321,13 +335,28 @@ class ScoreUtility(Utility):
         score = {}
         for i, output in enumerate(list_output):
             list_ref_files = list_ref[i].split(",")
-            if not self.check_file_exist([output] + list_ref_files):
+            output = [output]
+            if not self.check_file_exist(output + list_ref_files):
                 continue
 
             if not args.keep_placeholder:
-                output = self.remove_ph(output)
+                output = self.normalize_text(output, r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape)
 
-            output_tok = self.tokenize_files([output], lang_tokenizer)
+            if args.norm_regex_hyp:
+                if len(args.norm_regex_hyp) == 1:
+                    # if replacement is not defined, regard as deletion
+                    args.norm_regex_hyp.append("")
+                LOGGER.info(f"Normalize output with regex: 's/{'/'.join(args.norm_regex_hyp)}/g'")
+                output = self.normalize_text(output, args.norm_regex_hyp[0], args.norm_regex_hyp[1])
+
+            if args.norm_regex_ref:
+                if len(args.norm_regex_ref) == 1:
+                    # if replacement is not defined, regard as deletion
+                    args.norm_regex_ref.append("")
+                LOGGER.info(f"Normalize reference with regex: 's/{'/'.join(args.norm_regex_ref)}/g'")
+                list_ref_files = self.normalize_text(list_ref_files, args.norm_regex_ref[0], args.norm_regex_ref[1])
+
+            output_tok = self.tokenize_files(output, lang_tokenizer)
             reffile_tok = self.tokenize_files(list_ref_files, lang_tokenizer)
 
             print("Starting to evaluate ... %s" % args.output[i])
@@ -335,7 +364,7 @@ class ScoreUtility(Utility):
             for metric in metric_supported:
                 if metric == "BLEU":
                     thread_list[metric] = self.pool.apply_async(
-                        self.eval_BLEU, (output, list_ref[i])
+                        self.eval_BLEU, (output[0], list_ref_files)
                     )
                 if metric == "TER":
                     thread_list[metric] = self.pool.apply_async(
@@ -352,7 +381,7 @@ class ScoreUtility(Utility):
                 if metric == "Meteor":
                     # for Meteor, we use inner option "-norm" to Tokenize / normalize punctuation and lowercase
                     thread_list[metric] = self.pool.apply_async(
-                        self.eval_METEOR, (output, list_ref[i], args.lang)
+                        self.eval_METEOR, (output[0], list_ref_files, args.lang)
                     )
 
             score[args.output[i]] = {}
