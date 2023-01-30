@@ -105,16 +105,19 @@ class ScoreUtility(Utility):
         obj = obj.replace("％0020", " ")
         return obj
 
-    def normalize_text(self, filelist, pattern, repl):
+    def normalize_text(self, filelist, regex_list):
+        if len(regex_list) % 2 == 1:
+            # if replacement is not defined, regard as deletion
+            regex_list.append("")
         filelist_norm = []
-        pattern = re.compile(pattern)
         for filename in filelist:
             outfile = tempfile.NamedTemporaryFile(delete=False)
             with open(filename, "r", encoding="utf-8") as input_file, open(
                 outfile.name, "w", encoding="utf-8"
             ) as output_file:
                 for line in input_file:
-                    line = re.sub(pattern, repl, line)
+                    for pattern, repl in zip(regex_list[0::2], regex_list[1::2]):
+                        line = re.sub(pattern, repl, line)
                     output_file.write(line)
             filelist_norm.append(outfile.name)
 
@@ -341,29 +344,21 @@ class ScoreUtility(Utility):
 
             if not args.keep_placeholder:
                 output = self.normalize_text(
-                    output, r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape
+                    output, [r"｟([^｟]*?：){1,2}(.+?)｠", self.remove_ph_escape]
                 )
 
             if args.norm_regex_hyp:
-                if len(args.norm_regex_hyp) == 1:
-                    # if replacement is not defined, regard as deletion
-                    args.norm_regex_hyp.append("")
                 LOGGER.info(
-                    f"Normalize output with regex: 's/{'/'.join(args.norm_regex_hyp)}/g'"
+                    f"Normalize hypothesis file with regex: s/{'/'.join(args.norm_regex_hyp)}/g"
                 )
-                output = self.normalize_text(
-                    output, args.norm_regex_hyp[0], args.norm_regex_hyp[1]
-                )
+                output = self.normalize_text(output, args.norm_regex_hyp)
 
             if args.norm_regex_ref:
-                if len(args.norm_regex_ref) == 1:
-                    # if replacement is not defined, regard as deletion
-                    args.norm_regex_ref.append("")
                 LOGGER.info(
-                    f"Normalize reference with regex: 's/{'/'.join(args.norm_regex_ref)}/g'"
+                    f"Normalize reference file with regex: s/{'/'.join(args.norm_regex_ref)}/g"
                 )
                 list_ref_files = self.normalize_text(
-                    list_ref_files, args.norm_regex_ref[0], args.norm_regex_ref[1]
+                    list_ref_files, args.norm_regex_ref
                 )
 
             output_tok = self.tokenize_files(output, lang_tokenizer)
