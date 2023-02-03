@@ -1,5 +1,6 @@
 import abc
 import itertools
+import os
 import random
 
 from nmtwizard import utils
@@ -31,6 +32,21 @@ def _add_line_to_context(context, line, length):
             del context[0]
     else:
         context.clear()
+
+
+def _open_and_check_unicode(path, encoding="utf-8"):
+    with utils.open_file(path, "rb") as f:
+        for line in f:
+            try:
+                yield line.decode(encoding)
+            except UnicodeError as e:
+                raise RuntimeError(
+                    "Invalid Unicode character (shown as � below) in file '%s' on line:\n%s"
+                    % (
+                        os.path.basename(path),
+                        line.decode(encoding, errors="replace").strip(),
+                    )
+                ) from e
 
 
 class FileLoader(Loader):
@@ -83,7 +99,8 @@ class FileLoader(Loader):
         if not self._input_paths:
             raise RuntimeError("No files have been registered")
         files = {
-            name: utils.open_file(path) for name, path in self._input_paths.items()
+            name: _open_and_check_unicode(path)
+            for name, path in self._input_paths.items()
         }
 
         try:
@@ -280,11 +297,11 @@ class SamplerFileLoader(FileLoader):
         source_context = []
         target_context = []
         for i in range(self._file.lines_count):
-            src_line = src_file.readline()
-            tgt_line = tgt_file.readline() if tgt_file else None
+            src_line = next(src_file)
+            tgt_line = next(tgt_file) if tgt_file else None
             annot_lines = {}
             for key, annot_file in annotations.items():
-                annot_lines[key] = annot_file.readline()
+                annot_lines[key] = next(annot_file)
 
             num_samples = self._file.random_sample.get(i, 0)
             if num_samples == 0:
