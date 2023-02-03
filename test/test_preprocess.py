@@ -276,6 +276,45 @@ def test_sampler(tmpdir, batch_size, num_threads):
     del os.environ["NB_CPU"]
 
 
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_invalid_unicode_character(tmpdir, num_workers):
+    with open(str(tmpdir.join("text.en")), "wb") as f:
+        f.write(b"code\n")
+    with open(str(tmpdir.join("text.es")), "wb") as f:
+        f.write(b"c\xf3digo\n")
+
+    config = {
+        "source": "en",
+        "target": "es",
+        "data": {
+            "batch_size": 1,
+            "sample": 1,
+            "sample_dist": [
+                {
+                    "path": str(tmpdir),
+                    "distribution": [["text", 1]],
+                }
+            ],
+        },
+        "preprocess": [
+            {
+                "op": "tokenization",
+                "source": {"mode": "space"},
+                "target": {"mode": "space"},
+            }
+        ],
+    }
+
+    preprocessor = TrainingProcessor(config, "", str(tmpdir), num_workers=num_workers)
+
+    with pytest.raises(RuntimeError) as exception_info:
+        preprocessor.generate_preprocessed_data()
+
+    error_message = str(exception_info.value)
+    assert "text.es" in error_message
+    assert "c�digo" in error_message
+
+
 @prepoperator.register_operator("slow_operator")
 class _SlowOperator(prepoperator.Operator):
     def _preprocess(self, tu_batch):
