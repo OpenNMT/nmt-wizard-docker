@@ -6,6 +6,7 @@ import random
 import glob
 import time
 import requests_mock
+import itertools
 
 from nmtwizard import beat_service
 from nmtwizard import utils
@@ -1438,21 +1439,71 @@ def test_inference_preprocess_file_with_target(tmpdir):
         assert pre_tgt_file.read().strip() == "Hallo Welt ￭!"
 
 
-def test_sampler_with_context(tmpdir):
-    def _check_context_lines(res_file, corpus_file):
-        context = []
-        for res_line, corpus_line in zip(res_file, corpus_file):
-            res_line = res_line.strip()
-            corpus_line = corpus_line.strip()
-            if not corpus_line:
-                context.clear()
-            context_to_print = [line for line in context if line.strip()]
-            line_with_context = " ｟mrk_context｠ ".join(context_to_print + [corpus_line])
-            assert res_line == line_with_context.strip()
-            context.append(corpus_line)
-            if len(context) > 2:
+def _check_context_lines(
+    context_size,
+    random_context,
+    res_src_file,
+    corpus_src_file,
+    res_tgt_file=[],
+    corpus_tgt_file=[],
+):
+    context = []
+    max_context_size = context_size
+    context_sizes = set()
+    for (
+        src_res_line,
+        src_corpus_line,
+        tgt_res_line,
+        tgt_corpus_line,
+    ) in itertools.zip_longest(
+        res_src_file, corpus_src_file, res_tgt_file, corpus_tgt_file
+    ):
+        src_res_line = src_res_line.strip()
+        src_corpus_line = src_corpus_line.strip()
+        if random_context:
+            context_size = len(src_res_line.split("｟mrk_context｠")) - 1
+            context_sizes.add(context_size)
+        if tgt_res_line and tgt_corpus_line:
+            tgt_res_line = tgt_res_line.strip()
+            tgt_corpus_line = tgt_corpus_line.strip()
+        if not src_corpus_line or (tgt_corpus_line is not None and not tgt_corpus_line):
+            context.clear()
+        if context_size:
+            src_context_to_print = [
+                line[0] for line in context[-context_size:] if line[0].strip()
+            ]
+            src_line_with_context = " ｟mrk_context｠ ".join(
+                src_context_to_print + [src_corpus_line]
+            )
+        else:
+            src_line_with_context = src_corpus_line
+        assert src_res_line == src_line_with_context.strip()
+        if tgt_corpus_line:
+            if context_size:
+                tgt_context_to_print = [
+                    line[1] for line in context[-context_size:] if line[1].strip()
+                ]
+                tgt_line_with_context = " ｟mrk_context｠ ".join(
+                    tgt_context_to_print + [tgt_corpus_line]
+                )
+            else:
+                tgt_line_with_context = tgt_corpus_line
+            assert tgt_res_line == tgt_line_with_context.strip()
+        if src_corpus_line and (tgt_corpus_line or tgt_corpus_line is None):
+            context.append((src_corpus_line, tgt_corpus_line))
+            if len(context) > max_context_size:
                 del context[0]
+    if random_context:
+        assert context_sizes == set(range(max_context_size + 1))
 
+
+@pytest.mark.parametrize(
+    "context_size,random_context",
+    [(1, False), (2, False), (3, False), (1, True), (2, True), (3, True), (5, True)],
+)
+def test_sampler_with_context(tmpdir, context_size, random_context):
+
+    random.seed(24)
     corpus_dir = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "corpus", "train"
     )
@@ -1469,8 +1520,8 @@ def test_sampler_with_context(tmpdir):
                 }
             ],
             "context": {
-                "length": 2,
-                "prob": 1,
+                "length": context_size,
+                "prob": "random" if random_context else 1,
                 "target": True,
                 "apply_in_inference": True,
                 "labels": ["context_label"],
@@ -1491,14 +1542,19 @@ def test_sampler_with_context(tmpdir):
         str(tmpdir.join("preprocess/europarl-v7.de-en.10K.tok.en"))
     ) as res_src_file, open(
         corpus_dir + "/europarl-v7.de-en.10K.tok.en"
-    ) as corpus_src_file:
-        _check_context_lines(res_src_file, corpus_src_file)
-    with open(
+    ) as corpus_src_file, open(
         str(tmpdir.join("preprocess/europarl-v7.de-en.10K.tok.de"))
     ) as res_tgt_file, open(
         corpus_dir + "/europarl-v7.de-en.10K.tok.de"
     ) as corpus_tgt_file:
-        _check_context_lines(res_tgt_file, corpus_tgt_file)
+        _check_context_lines(
+            context_size,
+            random_context,
+            res_src_file,
+            corpus_src_file,
+            res_tgt_file,
+            corpus_tgt_file,
+        )
 
     # Test file inference.
     src_path = str(tmpdir.join("src.txt"))
@@ -1526,13 +1582,18 @@ def test_sampler_with_context(tmpdir):
             tgt_file.write(line)
 
     processor = InferenceProcessor(config_context)
-    processor.process_file(src_path)
+    pre_src_path, metadata = processor.process_file(src_path)
+    with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
+        _check_context_lines(context_size, False, pre_src_file, src_file)
+
     pre_src_path, pre_tgt_path, metadata = processor.process_file(src_path, tgt_path)
 
     with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
-        _check_context_lines(pre_src_file, src_file)
+        for pre_l, l in zip(pre_src_file, src_file):
+            assert pre_l.strip() == l.strip()
     with open(pre_tgt_path) as pre_tgt_file, open(tgt_path) as tgt_file:
-        _check_context_lines(pre_tgt_file, tgt_file)
+        for pre_l, l in zip(pre_tgt_file, tgt_file):
+            assert pre_l.strip() == l.strip()
 
     postprocessor = InferenceProcessor(config_context, postprocess=True)
     post_tgt_path = postprocessor.process_file(pre_src_path, pre_tgt_path)

@@ -132,19 +132,16 @@ class PreprocessFileLoader(FileLoader):
         source_file = files["source"]
         target_file = files.get("target", itertools.repeat(None))
         source_context = []
-        target_context = []
         for source, target in zip(source_file, target_file):
             current_tu = tu.TranslationUnit(source=source, target=target)
-            if self._context_length is not None and self._context_apply_in_inference:
+            if (
+                self._context_apply_in_inference
+                and self._context_length is not None
+                and target is None
+            ):
                 if source_context and source.strip():
                     self._add_context_to_tu(source_context, current_tu, side="source")
                 _add_line_to_context(source_context, source, self._context_length)
-                if self._context_target:
-                    if target_context and target.strip():
-                        self._add_context_to_tu(
-                            target_context, current_tu, side="target"
-                        )
-                    _add_line_to_context(target_context, target, self._context_length)
             yield current_tu
 
 
@@ -315,9 +312,24 @@ class SamplerFileLoader(FileLoader):
 
             tu_source_context = None
             tu_target_context = None
-            if self._context_prob is not None and random.random() <= self._context_prob:
-                tu_source_context = source_context
-                tu_target_context = target_context
+            context_length = len(source_context)
+            if self._context_target and context_length != len(target_context):
+                source_context = []
+                target_context = []
+                context_length = 0
+            if self._context_prob is not None and context_length:
+                if (
+                    isinstance(self._context_prob, str)
+                    and self._context_prob == "random"
+                ):
+                    context_length = random.randint(0, context_length)
+                elif random.random() > self._context_prob:
+                    context_length = 0
+                if context_length:
+                    tu_source_context = source_context[-context_length:]
+                    if self._context_target:
+                        tu_target_context = target_context[-context_length:]
+
             while num_samples > 0:
                 current_tu = tu.TranslationUnit(
                     source=src_line,
@@ -328,10 +340,12 @@ class SamplerFileLoader(FileLoader):
                     self._add_context_to_tu(source_context, current_tu, side="source")
                     if not hasattr(self, "_add_to_source_vocab"):
                         self._add_to_source_vocab = True
-                if tu_target_context and tgt_line.strip():
-                    self._add_context_to_tu(target_context, current_tu, side="target")
-                    if not hasattr(self, "_add_to_target_vocab"):
-                        self._add_to_target_vocab = True
+                    if tu_target_context and tgt_line.strip():
+                        self._add_context_to_tu(
+                            target_context, current_tu, side="target"
+                        )
+                        if not hasattr(self, "_add_to_target_vocab"):
+                            self._add_to_target_vocab = True
                 yield current_tu
                 num_samples -= 1
 
