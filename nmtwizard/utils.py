@@ -110,12 +110,23 @@ def open_file(path, *args, **kwargs):
         return open(path, *args, **kwargs)
 
 
+def open_and_check_unicode(path, encoding="utf-8"):
+    with open_file(path, "rb") as f:
+        for line in f:
+            try:
+                yield line.decode(encoding)
+            except UnicodeError as e:
+                raise RuntimeError(
+                    "Invalid Unicode character (shown as � below) in file '%s' on line:\n%s"
+                    % (
+                        os.path.basename(path),
+                        line.decode(encoding, errors="replace").strip(),
+                    )
+                ) from e
+
+
 def count_lines(path, buffer_size=65536):
-    path_new = get_file_path(path)
-    if path_new is None:
-        logger.warning("File %s not found", path)
-        return None, None
-    with open_file(path_new, "rb") as f:
+    with open_file(path, "rb") as f:
         num_lines = 0
         eol = False
         while True:
@@ -123,6 +134,6 @@ def count_lines(path, buffer_size=65536):
             if not data:
                 if not eol:
                     num_lines += 1
-                return path_new, num_lines
+                return num_lines
             num_lines += data.count(b"\n")
             eol = True if data.endswith(b"\n") else False

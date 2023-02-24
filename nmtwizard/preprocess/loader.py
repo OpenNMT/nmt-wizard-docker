@@ -34,21 +34,6 @@ def _add_line_to_context(context, line, length):
         context.clear()
 
 
-def _open_and_check_unicode(path, encoding="utf-8"):
-    with utils.open_file(path, "rb") as f:
-        for line in f:
-            try:
-                yield line.decode(encoding)
-            except UnicodeError as e:
-                raise RuntimeError(
-                    "Invalid Unicode character (shown as � below) in file '%s' on line:\n%s"
-                    % (
-                        os.path.basename(path),
-                        line.decode(encoding, errors="replace").strip(),
-                    )
-                ) from e
-
-
 class FileLoader(Loader):
     """FileLoader class creates TUs from a file or aligned files."""
 
@@ -96,10 +81,8 @@ class FileLoader(Loader):
         raise NotImplementedError()
 
     def __call__(self):
-        if not self._input_paths:
-            raise RuntimeError("No files have been registered")
         files = {
-            name: _open_and_check_unicode(path)
+            name: utils.open_and_check_unicode(path)
             for name, path in self._input_paths.items()
         }
 
@@ -174,8 +157,8 @@ class PostprocessFileLoader(FileLoader):
         self.register_file("source", source_path)
         self.register_file("target", target_path)
 
-        _, source_size = utils.count_lines(source_path)
-        _, target_size = utils.count_lines(target_path)
+        source_size = utils.count_lines(source_path)
+        target_size = utils.count_lines(target_path)
 
         self._num_hypotheses = (
             target_size // source_size
@@ -272,37 +255,17 @@ class SamplerFileLoader(FileLoader):
         super().__init__(batch_size, batch_meta=batch_meta, context=context)
         self._file = f
 
-        src_path = f.files["src"]
-        tgt_path = f.files.get("tgt")
-        annotations = f.files.get("annotations")
-
-        self.register_file("source", src_path)
-        if tgt_path is not None:
-            self.register_file("target", tgt_path)
-        if annotations is not None:
-            for key, path in annotations.items():
-                self.register_file(key, path)
-
     def _get_translation_units(self, files):
         def add_context_ph_to_vocab(side):
             self._batch_meta.setdefault("tokens_to_add", {})
             self._batch_meta["tokens_to_add"].setdefault(side, set())
             self._batch_meta["tokens_to_add"][side].add(utils.context_placeholder)
 
-        src_file = files["source"]
-        tgt_file = files.get("target")
-        annotations = {
-            key: f for key, f in files.items() if key not in ("source", "target")
-        }
         source_context = []
         target_context = []
-        for i in range(self._file.lines_count):
-            src_line = next(src_file)
-            tgt_line = next(tgt_file) if tgt_file else None
-            annot_lines = {}
-            for key, annot_file in annotations.items():
-                annot_lines[key] = next(annot_file)
+        lines = self._file.reader.read_lines()
 
+        for i, (src_line, tgt_line, annot_lines) in enumerate(lines):
             num_samples = self._file.random_sample.get(i, 0)
             if num_samples == 0:
                 continue

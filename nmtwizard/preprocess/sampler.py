@@ -1,3 +1,5 @@
+import abc
+import itertools
 import os
 import re
 import random
@@ -17,7 +19,7 @@ class SamplerFile(object):
         self,
         root,
         base_name,
-        files,
+        reader,
         lines_count,
         no_preprocess,
         src_suffix,
@@ -32,7 +34,7 @@ class SamplerFile(object):
         self.lines_kept = 0
         self.oversample = 1
         self.oversample_as_weights = False
-        self.files = files
+        self.reader = reader
         self.no_preprocess = no_preprocess
         self.src_suffix = src_suffix
         self.tgt_suffix = tgt_suffix
@@ -42,65 +44,6 @@ class SamplerFile(object):
 
 
 def sample(config, source_dir, oversample_as_weights):
-    def _count_lines(root, base_name, annotations):
-        file_path = os.path.join(root, base_name)
-        files = {}
-        logger.debug("Processing %s", file_path)
-
-        src_path = file_path + "." + src_suffix
-        tgt_path = file_path + "." + tgt_suffix if tgt_suffix else None
-
-        # Check all directions are present and aligned, open files
-        src_file, src_lines = utils.count_lines(src_path)
-        files["src"] = src_file
-
-        if src_file and src_lines and tgt_path:
-            # TODO V2 : multiple sources and targets
-            tgt_file, tgt_lines = utils.count_lines(tgt_path)
-            if tgt_file is None:
-                logger.warning(
-                    "Target file %s does not exist. The source file %s will be ignored in sampling.",
-                    tgt_path,
-                    src_path,
-                )
-                return files, 0
-            files["tgt"] = tgt_file
-            if src_lines != tgt_lines:
-                logger.warning(
-                    "Target file %s (%d lines) is not aligned with source file "
-                    "%s (%d lines). Files will be ignored in sampling.",
-                    tgt_path,
-                    tgt_lines,
-                    src_path,
-                    src_lines,
-                )
-                return files, 0
-
-        files["annotations"] = {}
-        for key, annot_path in annotations.items():
-            for suffix in ["", src_suffix, tgt_suffix]:
-                annot_file_path = os.path.join(annot_path, base_name)
-                if suffix:
-                    annot_file_path += "." + suffix
-                annot_file, annot_lines = utils.count_lines(annot_file_path)
-                if not annot_file:
-                    continue
-                if suffix:
-                    key = key + ":" + suffix
-                files["annotations"][key] = annot_file
-                if src_lines != annot_lines:
-                    logger.warning(
-                        "Annotation file %s (%d lines) is not aligned with source "
-                        "file %s (%d lines). Files will be ignored in sampling.",
-                        annot_path,
-                        annot_lines,
-                        file_path + src_suffix,
-                        src_lines,
-                    )
-                    return files, 0
-
-        return files, src_lines
-
     def _discover_files(source_dir):
 
         all_files = {}
@@ -157,6 +100,13 @@ def sample(config, source_dir, oversample_as_weights):
                     else:
                         continue
 
+                    base_path = os.path.join(root, base_name)
+                    reader = BitextReader(base_path, src_suffix, tgt_suffix)
+                    if annotations:
+                        reader = ReaderWithExternalAnnotations(
+                            reader, annotations, src_suffix, tgt_suffix
+                        )
+
                     sampler_file = None
                     # loop over patterns in distribution, check patterns are ok and file matches one
                     for rule in distribution:
@@ -187,7 +137,7 @@ def sample(config, source_dir, oversample_as_weights):
                         if pattern == "*" or re.search(pattern, base_name):
                             d_idx_pattern = str(d_idx) + "-" + pattern
                             # Check all directions are present and aligned
-                            files, size = _count_lines(root, base_name, annotations)
+                            size = reader.count_lines()
 
                             # Size is 0 if some files do not exist, cannot be aligned or empty
                             if size == 0:
@@ -197,7 +147,7 @@ def sample(config, source_dir, oversample_as_weights):
                             sampler_file = SamplerFile(
                                 root,
                                 base_name,
-                                files,
+                                reader,
                                 size,
                                 d_item.get("no_preprocess", False),
                                 src_suffix,
@@ -406,12 +356,154 @@ def sample(config, source_dir, oversample_as_weights):
                 "linecount": f.lines_count,
                 "linesampled": f.lines_kept,
                 "pattern": f.pattern,
+                **f.reader.get_summary(),
             }
-            if "annotations" in f.files:
-                summary[f.base_name]["annotations"] = list(
-                    f.files["annotations"].keys()
-                )
 
         _select_lines(f)
 
     return all_files.values(), summary
+
+
+class CorpusReader(abc.ABC):
+    """Base class for reading a corpus."""
+
+    def __init__(self, base_name):
+        self.base_name = base_name
+
+    @abc.abstractmethod
+    def count_lines(self):
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def read_lines(self):
+        raise NotImplementedError()
+
+    def get_summary(self):
+        return {}
+
+
+class BitextReader(CorpusReader):
+    """Read parallel source and target text files."""
+
+    def __init__(self, base_path, src_lang, tgt_lang):
+        super().__init__(os.path.basename(base_path))
+        self.base_path = base_path
+
+        self.src_path = "%s.%s" % (base_path, src_lang)
+        self.src_real_path = utils.get_file_path(self.src_path)
+
+        if tgt_lang:
+            self.tgt_path = "%s.%s" % (base_path, tgt_lang)
+            self.tgt_real_path = utils.get_file_path(self.tgt_path)
+        else:
+            self.tgt_path = None
+            self.tgt_real_path = None
+
+    def count_lines(self):
+        logger.debug("Counting lines in corpus %s", self.base_path)
+
+        if self.src_real_path is None:
+            logger.warning(
+                "The source file %s does not exist and will be ignored in sampling.",
+                self.src_path,
+            )
+            return 0
+
+        # Check all directions are present and aligned
+        src_lines = utils.count_lines(self.src_real_path)
+
+        if self.tgt_path is not None:
+            if self.tgt_real_path is None:
+                logger.warning(
+                    "Target file %s does not exist. The source file %s will be ignored in sampling.",
+                    self.tgt_path,
+                    self.src_path,
+                )
+                return 0
+
+            tgt_lines = utils.count_lines(self.tgt_real_path)
+
+            if src_lines != tgt_lines:
+                logger.warning(
+                    "Target file %s (%d lines) is not aligned with source file "
+                    "%s (%d lines). Files will be ignored in sampling.",
+                    self.tgt_path,
+                    tgt_lines,
+                    self.src_path,
+                    src_lines,
+                )
+                return 0
+
+        return src_lines
+
+    def read_lines(self):
+        src_lines = utils.open_and_check_unicode(self.src_real_path)
+        tgt_lines = (
+            utils.open_and_check_unicode(self.tgt_real_path)
+            if self.tgt_path is not None
+            else itertools.repeat(None)
+        )
+
+        for src_line, tgt_line in zip(src_lines, tgt_lines):
+            annotations = {}
+            yield src_line, tgt_line, annotations
+
+
+class ReaderWithExternalAnnotations(CorpusReader):
+    """Read annotations from parallel text files."""
+
+    def __init__(self, reader, annotations, src_lang, tgt_lang):
+        super().__init__(reader.base_name)
+        self.reader = reader
+        self.annotations_path = {}
+
+        for suffix in ("", src_lang, tgt_lang):
+            for key, annot_path in annotations.items():
+                annot_path = os.path.join(annot_path, self.base_name)
+
+                if suffix:
+                    annot_path += "." + suffix
+                    key = key + ":" + suffix
+
+                annot_path = utils.get_file_path(annot_path)
+                if annot_path is None:
+                    continue
+
+                self.annotations_path[key] = annot_path
+
+    def count_lines(self):
+        num_lines = self.reader.count_lines()
+
+        for annot_path in self.annotations_path.values():
+            annot_lines = utils.count_lines(annot_path)
+
+            if annot_lines != num_lines:
+                logger.warning(
+                    "Annotation file %s (%d lines) is not aligned with corpus "
+                    "%s (%d lines). Files will be ignored in sampling.",
+                    annot_path,
+                    annot_lines,
+                    self.base_name,
+                    num_lines,
+                )
+                return 0
+
+        return num_lines
+
+    def read_lines(self):
+        annotations_lines = {
+            key: utils.open_and_check_unicode(path)
+            for key, path in self.annotations_path.items()
+        }
+
+        for src_line, tgt_line, annotations in self.reader.read_lines():
+            annotations.update(
+                {key: next(lines) for key, lines in annotations_lines.items()}
+            )
+
+            yield src_line, tgt_line, annotations
+
+    def get_summary(self):
+        summary = self.reader.get_summary()
+        summary["annotations"] = list(self.annotations_path.keys())
+        return summary
