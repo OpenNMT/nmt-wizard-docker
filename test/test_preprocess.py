@@ -939,7 +939,7 @@ def test_preprocess_gzip_file(tmpdir):
     output_path, _ = processor.process_file(input_path)
 
     assert os.path.basename(output_path) == "input.en.tok"
-    assert utils.count_lines(output_path)[1] == num_lines
+    assert utils.count_lines(output_path) == num_lines
 
 
 def test_preprocess_empty_line(tmpdir):
@@ -990,7 +990,7 @@ def test_postprocess_multipart_file_loader(tmpdir):
     output_path = processor.process_file(src_input_path, tgt_input_path, meta)
 
     assert os.path.basename(output_path) == "input.de.detok"
-    assert utils.count_lines(output_path)[1] == 4
+    assert utils.count_lines(output_path) == 4
 
 
 def test_postprocess_multipart_file_loader_with_scores(tmpdir):
