@@ -4,6 +4,7 @@ import pyonmttok
 
 _ALLOWED_TOKENIZER_ARGS = set(
     [
+        "allow_isolated_marks",
         "bpe_dropout",
         "bpe_model_path",
         "case_feature",

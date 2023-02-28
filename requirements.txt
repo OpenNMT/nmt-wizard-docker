@@ -1,6 +1,6 @@
 systran-storages @ https://github.com/SYSTRAN/storages/archive/a082f0e151f07671dbb2629b416863877354e433.tar.gz
 jsonschema==3.*
-pyonmttok==1.36.0
+pyonmttok==1.37.0
 requests==2.*
 systran-align>=3.3,<4;platform_system=='Linux'
 fasttext-wheel==0.9.2
