@@ -14,7 +14,7 @@ import functools
 
 from nmtwizard import config as config_util
 from nmtwizard.beat_service import monitor_activity, start_beat_service
-from nmtwizard.utils import md5files
+from nmtwizard.utils import md5file, md5files
 from nmtwizard.logger import get_logger
 
 from systran_storages import StorageClient
@@ -330,28 +330,58 @@ def build_model_dir(model_dir, objects, config, should_check_integrity_fn):
     """Prepares the model directory based on the model package."""
     if os.path.exists(model_dir):
         raise ValueError("model directory %s already exists" % model_dir)
-    else:
-        logger.info("Building model package in %s", model_dir)
+
+    logger.info("Building model package in %s", model_dir)
     os.mkdir(model_dir)
+
     for target, source in objects.items():
         if os.path.isdir(source):
             shutil.copytree(source, os.path.join(model_dir, target))
         else:
             shutil.copyfile(source, os.path.join(model_dir, target))
-    config_path = save_model_config(model_dir, config)
-    objects[os.path.basename(config_path)] = config_path
+
+    save_model_config(model_dir, config)
+
     if "description" in config:
         readme_path = os.path.join(model_dir, "README.md")
         with open(readme_path, "w") as readme_file:
             readme_file.write(config["description"])
-        objects["README.md"] = readme_path
-    md5 = md5files((k, v) for k, v in objects.items() if should_check_integrity_fn(k))
-    with open(os.path.join(model_dir, "checksum.md5"), "w") as f:
-        f.write(md5)
+
+    # Remove any checksum/manifest file that may be copied from the parent model.
+    checksum_path = _get_checksum_path(model_dir)
+    if os.path.isfile(checksum_path):
+        os.remove(checksum_path)
+    manifest_path = _get_manifest_path(model_dir)
+    if os.path.isfile(manifest_path):
+        os.remove(manifest_path)
+
+    files = {}
+    for root, directories, filenames in os.walk(model_dir):
+        # Ignore hidden files and directories.
+        filenames = [f for f in filenames if not f.startswith(".")]
+        directories[:] = [d for d in directories if not d.startswith(".")]
+
+        for filename in filenames:
+            filepath = os.path.join(root, filename)
+            filename = os.path.relpath(filepath, model_dir)
+            md5 = md5file(filepath) if should_check_integrity_fn(filename) else None
+            files[filename] = md5
+
+    manifest = {"files": files}
+    with open(manifest_path, "w") as manifest_file:
+        json.dump(manifest, manifest_file, indent=4)
 
 
 def _get_config_path(model_dir):
     return os.path.join(model_dir, "config.json")
+
+
+def _get_manifest_path(model_dir):
+    return os.path.join(model_dir, "manifest.json")
+
+
+def _get_checksum_path(model_dir):
+    return os.path.join(model_dir, "checksum.md5")
 
 
 def save_model_config(model_dir, config):
@@ -373,10 +403,41 @@ def load_model_config(model_dir):
 def check_model_dir(should_check_integrity_fn, model_dir, force=False):
     """Compares model package MD5."""
     logger.info("Checking integrity of model package %s", model_dir)
-    md5_file = os.path.join(model_dir, "checksum.md5")
-    if not os.path.exists(md5_file):
-        return not force
-    md5ref = None
+
+    manifest_path = _get_manifest_path(model_dir)
+    if os.path.exists(manifest_path):
+        return _check_model_dir_from_manifest(model_dir, manifest_path)
+
+    checksum_path = _get_checksum_path(model_dir)
+    if os.path.exists(checksum_path):
+        return _check_model_dir_from_global_md5(
+            model_dir, checksum_path, should_check_integrity_fn
+        )
+
+    return not force
+
+
+def _check_model_dir_from_manifest(model_dir, manifest_path):
+    with open(manifest_path) as manifest_file:
+        manifest = json.load(manifest_file)
+
+    for filename, expected_md5 in manifest["files"].items():
+        path = os.path.join(model_dir, filename)
+
+        if not os.path.isfile(path):
+            logger.error("File %s does not exist in model %s", filename, model_dir)
+            return False
+
+        if expected_md5 is not None and md5file(path) != expected_md5:
+            logger.error(
+                "Checksum for file %s does not match the expected value", filename
+            )
+            return False
+
+    return True
+
+
+def _check_model_dir_from_global_md5(model_dir, md5_file, should_check_integrity_fn):
     with open(md5_file, "r") as f:
         md5ref = f.read().strip()
     files = os.listdir(model_dir)

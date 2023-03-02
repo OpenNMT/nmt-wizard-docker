@@ -26,6 +26,13 @@ class ScoreType(enum.Enum):
     NORMALIZED_NLL = 3
 
 
+def md5file(path, buffer_size=16777216):
+    """Computes the MD5 hash of the given file."""
+    md5 = hashlib.md5()
+    _update_hash(path, md5, buffer_size)
+    return md5.hexdigest()
+
+
 def md5files(files, buffer_size=16777216):
     """Computes the combined MD5 hash of multiple files, represented as a list
     of (key, path).
@@ -43,13 +50,17 @@ def md5files(files, buffer_size=16777216):
             )
             m.update(sub_md5.encode("utf-8"))
         else:
-            with open(path, "rb") as f:
-                while True:
-                    data = f.read(buffer_size)
-                    if not data:
-                        break
-                    m.update(data)
+            _update_hash(path, m, buffer_size)
     return m.hexdigest()
+
+
+def _update_hash(path, hash_object, buffer_size):
+    with open(path, "rb") as f:
+        while True:
+            data = f.read(buffer_size)
+            if not data:
+                break
+            hash_object.update(data)
 
 
 def run_cmd(cmd, cwd=None, background=False):

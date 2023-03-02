@@ -1795,14 +1795,23 @@ def bundle_dependencies(objects, config, local_config, keep_all=False):
         return config
 
 
-def should_check_integrity(f):
-    """Returns True if f should be checked for integrity."""
-    return f not in (
+def should_check_integrity(filename):
+    """Returns True if filename should be checked for integrity."""
+    if filename.startswith("."):
+        return False
+
+    ignored = (
         "README.md",
         "TRAINING_LOG",
         "checksum.md5",
         "data",
-    ) and not f.startswith(".")
+    )
+
+    directory = os.path.dirname(filename)
+    if directory:
+        return should_check_integrity(directory)
+
+    return filename not in ignored
 
 
 def file_stats(path):
