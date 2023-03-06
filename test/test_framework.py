@@ -11,6 +11,7 @@ import multiprocessing
 import requests
 import time
 import gzip
+import itertools
 
 from nmtwizard import utils
 from nmtwizard.framework import Framework
@@ -372,8 +373,20 @@ def _run_framework(
     return model_dir
 
 
-def _check_dir(directory, files):
-    assert sorted(os.listdir(directory)) == sorted(files)
+def _check_model_dir(model_dir, checked_files, non_checked_files=[]):
+    manifest_path = os.path.join(model_dir, "manifest.json")
+    with open(manifest_path) as manifest_file:
+        manifest = json.load(manifest_file)
+
+    expected_files = list(itertools.chain(checked_files, non_checked_files))
+    for filename in expected_files:
+        assert filename in manifest["files"]
+
+    for filename, md5 in manifest["files"].items():
+        path = os.path.join(model_dir, filename)
+        assert os.path.isfile(path)
+        assert filename in expected_files
+        assert (md5 is None) == (filename in non_checked_files)
 
 
 def test_train(tmpdir):
@@ -612,15 +625,15 @@ def test_release(tmpdir):
     assert config["model"] == "model1_release"
     assert config["modelType"] == "release"
     assert DummyCheckpoint(model_dir).index() == 1
-    assert os.path.isfile(
-        os.path.join(
-            model_dir, os.path.basename(config["vocabulary"]["source"]["path"])
-        )
-    )
-    assert os.path.isfile(
-        os.path.join(
-            model_dir, os.path.basename(config["vocabulary"]["target"]["path"])
-        )
+    _check_model_dir(
+        model_dir,
+        [
+            os.path.basename(config["vocabulary"]["source"]["path"]),
+            os.path.basename(config["vocabulary"]["target"]["path"]),
+            "config.json",
+            "metadata.txt",
+            "checkpoint.bin",
+        ],
     )
 
 
@@ -939,29 +952,65 @@ def test_operator_params_order(tmpdir):
 
 
 def test_preprocess_train_chain(tmpdir):
-    _run_framework(
+    model_dir = _run_framework(
         tmpdir, "preprocess0", "preprocess --build_model", config=config_base
     )
+    _check_model_dir(
+        model_dir,
+        ["de-vocab.txt", "en-vocab.txt", "config.json"],
+        ["data/train.en", "data/train.de"],
+    )
+
     model_dir = _run_framework(tmpdir, "model0", "train", parent="preprocess0")
+    _check_model_dir(
+        model_dir,
+        [
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "config.json",
+            "checkpoint.bin",
+            "metadata.txt",
+        ],
+    )
     config = _read_config(model_dir)
     assert "parent_model" not in config
     assert config["model"] == "model0"
     assert config["modelType"] == "checkpoint"
-    assert not os.path.isdir(os.path.join(model_dir, "data"))
+
     model_dir = _run_framework(
         tmpdir, "preprocess1", "preprocess --build_model", parent="model0"
+    )
+    _check_model_dir(
+        model_dir,
+        [
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "config.json",
+            "checkpoint.bin",
+            "metadata.txt",
+        ],
+        ["data/train.en", "data/train.de"],
     )
     config = _read_config(model_dir)
     assert config["model"] == "preprocess1"
     assert config["modelType"] == "preprocess"
-    assert os.path.isdir(os.path.join(model_dir, "data"))
     assert DummyCheckpoint(model_dir).index() == 0  # The checkpoints were forwarded.
+
     model_dir = _run_framework(tmpdir, "model1", "train", parent="preprocess1")
+    _check_model_dir(
+        model_dir,
+        [
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "config.json",
+            "checkpoint.bin",
+            "metadata.txt",
+        ],
+    )
     config = _read_config(model_dir)
     assert config["parent_model"] == "model0"  # The parent is the previous training.
     assert config["model"] == "model1"
     assert config["modelType"] == "checkpoint"
-    assert not os.path.isdir(os.path.join(model_dir, "data"))
     assert DummyCheckpoint(model_dir).index() == 1
 
 
@@ -1001,14 +1050,19 @@ def test_preprocess_as_standalone_model(tmpdir):
             }
         ],
     }
-    assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
+    _check_model_dir(
+        model_dir,
+        [
+            "checkpoint.bin",
+            "config.json",
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "ende_forward.probs",
+            "metadata.txt",
+            "standalone_data/train.%s.gz" % config["source"],
+            "standalone_data/train.%s.gz" % config["target"],
+        ],
     )
-    assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
-    )
-    assert not os.path.isdir(os.path.join(model_dir, "data"))
-    assert os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
     model_dir = _run_framework(
         tmpdir,
@@ -1031,19 +1085,20 @@ def test_preprocess_as_standalone_model(tmpdir):
         ],
     }
     assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
-    assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
+    _check_model_dir(
+        model_dir,
+        [
+            "checkpoint.bin",
+            "config.json",
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "ende_forward.probs",
+            "metadata.txt",
+            "standalone_data/train.%s.gz" % config["source"],
+            "standalone_data/train.%s.gz" % config["target"],
+        ],
+        ["data/train.%s" % config["source"], "data/train.%s" % config["target"]],
     )
-    assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
-    )
-    assert os.path.isfile(
-        os.path.join(model_dir, "data", "train.%s" % config["source"])
-    )
-    assert os.path.isfile(
-        os.path.join(model_dir, "data", "train.%s" % config["target"])
-    )
-    assert os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
     model_dir = _run_framework(tmpdir, "standalone2", "train", parent="standalone1")
     config = _read_config(model_dir)
@@ -1060,14 +1115,19 @@ def test_preprocess_as_standalone_model(tmpdir):
         ],
     }
     assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
-    assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["source"])
+    _check_model_dir(
+        model_dir,
+        [
+            "checkpoint.bin",
+            "config.json",
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "ende_forward.probs",
+            "metadata.txt",
+            "standalone_data/train.%s.gz" % config["source"],
+            "standalone_data/train.%s.gz" % config["target"],
+        ],
     )
-    assert os.path.isfile(
-        os.path.join(model_dir, "standalone_data", "train.%s.gz" % config["target"])
-    )
-    assert not os.path.isdir(os.path.join(model_dir, "data"))
-    assert os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
 
     _run_framework(tmpdir, "release0", "release", parent="standalone2")
     model_dir = str(tmpdir.join("models").join("standalone2_release"))
@@ -1075,9 +1135,16 @@ def test_preprocess_as_standalone_model(tmpdir):
     assert config["model"] == "standalone2_release"
     assert config["modelType"] == "release"
     assert config["additional_files"] == ["${MODEL_TRAIN_DIR}/ende_forward.probs"]
-    assert not os.path.isdir(os.path.join(model_dir, "standalone_data"))
-    assert not os.path.isdir(os.path.join(model_dir, "data"))
-    assert not os.path.isfile(os.path.join(model_dir, "ende_forward.probs"))
+    _check_model_dir(
+        model_dir,
+        [
+            "checkpoint.bin",
+            "config.json",
+            "de-vocab.txt",
+            "en-vocab.txt",
+            "metadata.txt",
+        ],
+    )
 
 
 def _test_buildvocab(tmpdir, run_num, multi=False):
@@ -1277,9 +1344,9 @@ def test_replace_vocab_new(tmpdir):
     config["vocabulary"]["source"]["replace_vocab"] = True
     config["vocabulary"]["target"]["replace_vocab"] = True
     model_dir = run_fn()
-    _check_dir(
+    _check_model_dir(
         model_dir,
-        [new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt", "checksum.md5"],
+        [new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt"],
     )
     assert filecmp.cmp(
         os.path.join(model_dir, new_src_vocab),
@@ -1334,9 +1401,9 @@ def test_replace_vocab_old_to_new(tmpdir):
     config["vocabulary"]["source"]["replace_vocab"] = True
     config["vocabulary"]["target"]["replace_vocab"] = True
     model_dir = run_fn()
-    _check_dir(
+    _check_model_dir(
         model_dir,
-        [new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt", "checksum.md5"],
+        [new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt"],
     )
     assert filecmp.cmp(
         os.path.join(model_dir, new_src_vocab),
@@ -1381,18 +1448,17 @@ def test_replace_vocab_in_preprocess(tmpdir):
         env={"TMP_DIR": str(tmpdir)},
         framework_fn=framework_fn,
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             new_src_vocab,
             new_tgt_vocab,
             "config.json",
-            "data",
             "checkpoint.txt",
-            "checksum.md5",
             "previous-source-vocab.txt",
             "previous-target-vocab.txt",
         ],
+        ["data/train.en", "data/train.de"],
     )
     assert filecmp.cmp(
         os.path.join(model_dir, new_src_vocab),
@@ -1431,9 +1497,9 @@ def test_replace_vocab_in_preprocess(tmpdir):
     model_dir = _run_framework(
         tmpdir, "model1", "train", parent="preprocess1", framework_fn=framework_fn
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
-        [new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt", "checksum.md5"],
+        [new_src_vocab, new_tgt_vocab, "config.json", "checkpoint.txt"],
     )
     assert filecmp.cmp(
         os.path.join(model_dir, new_src_vocab),
@@ -1462,14 +1528,13 @@ def test_add_new_tokens(tmpdir):
     model_dir = _run_framework(
         tmpdir, "model1", "train", parent="model0", framework_fn=framework_fn
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             "en-vocab.txt.v2",
             "de-vocab.txt.v2",
             "config.json",
             "checkpoint.txt",
-            "checksum.md5",
         ],
     )
     config = _read_config(model_dir)
@@ -1479,14 +1544,13 @@ def test_add_new_tokens(tmpdir):
     model_dir = _run_framework(
         tmpdir, "model2", "train", parent="model1", framework_fn=framework_fn
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             "en-vocab.txt.v3",
             "de-vocab.txt.v2",
             "config.json",
             "checkpoint.txt",
-            "checksum.md5",
         ],
     )
     config = _read_config(model_dir)
@@ -1510,7 +1574,7 @@ def test_add_new_tokens_in_preprocess(tmpdir):
         parent="model0",
         framework_fn=framework_fn,
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             "en-vocab.txt",
@@ -1519,9 +1583,8 @@ def test_add_new_tokens_in_preprocess(tmpdir):
             "de-vocab.txt.v2",
             "config.json",
             "checkpoint.txt",
-            "checksum.md5",
-            "data",
         ],
+        ["data/train.en", "data/train.de"],
     )
     _check_vocab(
         os.path.join(model_dir, "en-vocab.txt.v2"),
@@ -1548,14 +1611,13 @@ def test_add_new_tokens_in_preprocess(tmpdir):
     model_dir = _run_framework(
         tmpdir, "model1", "train", parent="preprocess1", framework_fn=framework_fn
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             "en-vocab.txt.v2",
             "de-vocab.txt.v2",
             "config.json",
             "checkpoint.txt",
-            "checksum.md5",
         ],
     )
     config = _read_config(model_dir)
@@ -1585,7 +1647,7 @@ def test_add_new_tokens_joint_vocab(tmpdir, src_to_add, tgt_to_add, vocab_name):
     model_dir = _run_framework(
         tmpdir, "model1", "train", parent="model0", framework_fn=framework_fn
     )
-    _check_dir(model_dir, [vocab_name, "config.json", "checkpoint.txt", "checksum.md5"])
+    _check_model_dir(model_dir, [vocab_name, "config.json", "checkpoint.txt"])
     config = _read_config(model_dir)
     assert config["vocabulary"]["source"]["path"] == "${MODEL_DIR}/%s" % vocab_name
     assert config["vocabulary"]["target"]["path"] == "${MODEL_DIR}/%s" % vocab_name
@@ -1597,16 +1659,15 @@ def test_add_new_tokens_joint_vocab(tmpdir, src_to_add, tgt_to_add, vocab_name):
         parent="model0",
         framework_fn=framework_fn,
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             initial_vocab_name,
             vocab_name,
             "config.json",
             "checkpoint.txt",
-            "checksum.md5",
-            "data",
         ],
+        ["data/train.en", "data/train.de"],
     )
     config = _read_config(model_dir)
     assert (
@@ -1652,14 +1713,13 @@ def test_replace_vocab_and_add_new_tokens(tmpdir):
         env={"TMP_DIR": str(tmpdir)},
         framework_fn=framework_fn,
     )
-    _check_dir(
+    _check_model_dir(
         model_dir,
         [
             "%s.v2" % new_src_vocab,
             "%s.v2" % new_tgt_vocab,
             "config.json",
             "checkpoint.txt",
-            "checksum.md5",
         ],
     )
 
