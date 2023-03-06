@@ -112,14 +112,15 @@ def open_file(path, *args, **kwargs):
 
 def open_and_check_unicode(path, encoding="utf-8"):
     with open_file(path, "rb") as f:
-        for line in f:
+        for index, line in enumerate(f):
             try:
                 yield line.decode(encoding)
             except UnicodeError as e:
                 raise RuntimeError(
-                    "Invalid Unicode character (shown as � below) in file '%s' on line:\n%s"
+                    "Invalid Unicode character (shown as � below) in file '%s' on line %d:\n%s"
                     % (
                         os.path.basename(path),
+                        index + 1,
                         line.decode(encoding, errors="replace").strip(),
                     )
                 ) from e
