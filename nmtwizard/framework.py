@@ -747,15 +747,18 @@ class Framework(utility.Utility):
                     average_models,
                 )
 
-                models_to_average = [model_path]
-                parent_config = config
-                for _ in range(average_models - 2):
-                    parent = parent_config.get("parent_model")
-                    if parent is None:
-                        break
+                models_to_average = (
+                    [model_path] if config["modelType"] != "preprocess" else []
+                )
+                parent = config.get("parent_model")
+
+                while (
+                    parent is not None and len(models_to_average) < average_models - 1
+                ):
                     # TODO: consider checking if the vocabulary is different in parent models.
                     parent_path, parent_config = self.get_model(parent)
                     models_to_average.insert(0, parent_path)
+                    parent = parent_config.get("parent_model")
 
                 if len(models_to_average) < average_models - 1:
                     logger.warning(
