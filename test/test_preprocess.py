@@ -1446,6 +1446,7 @@ def _check_context_lines(
     corpus_src_file,
     res_tgt_file=[],
     corpus_tgt_file=[],
+    separator=" ｟mrk_context｠ ",
 ):
     context = []
     max_context_size = context_size
@@ -1461,7 +1462,7 @@ def _check_context_lines(
         src_res_line = src_res_line.strip()
         src_corpus_line = src_corpus_line.strip()
         if random_context:
-            context_size = len(src_res_line.split("｟mrk_context｠")) - 1
+            context_size = len(src_res_line.split(separator)) - 1
             context_sizes.add(context_size)
         if tgt_res_line and tgt_corpus_line:
             tgt_res_line = tgt_res_line.strip()
@@ -1472,7 +1473,7 @@ def _check_context_lines(
             src_context_to_print = [
                 line[0] for line in context[-context_size:] if line[0].strip()
             ]
-            src_line_with_context = " ｟mrk_context｠ ".join(
+            src_line_with_context = separator.join(
                 src_context_to_print + [src_corpus_line]
             )
         else:
@@ -1483,7 +1484,7 @@ def _check_context_lines(
                 tgt_context_to_print = [
                     line[1] for line in context[-context_size:] if line[1].strip()
                 ]
-                tgt_line_with_context = " ｟mrk_context｠ ".join(
+                tgt_line_with_context = separator.join(
                     tgt_context_to_print + [tgt_corpus_line]
                 )
             else:
@@ -1498,10 +1499,17 @@ def _check_context_lines(
 
 
 @pytest.mark.parametrize(
-    "context_size,random_context",
-    [(1, False), (2, False), (3, False), (1, True), (2, True), (3, True), (5, True)],
+    "context_size,random_context,no_separator,apply_in_inference",
+    list(
+        itertools.product(
+            *[[1, 2, 3, 5], [False, True], [False], [None, False, True, "split"]]
+        )
+    )
+    + list(itertools.product(*[[1, 2, 3, 5], [False], [True], [True]])),
 )
-def test_sampler_with_context(tmpdir, context_size, random_context):
+def test_sampler_with_context(
+    tmpdir, context_size, random_context, no_separator, apply_in_inference
+):
 
     random.seed(24)
     corpus_dir = os.path.join(
@@ -1523,12 +1531,14 @@ def test_sampler_with_context(tmpdir, context_size, random_context):
                 "length": context_size,
                 "prob": "random" if random_context else 1,
                 "target": True,
-                "apply_in_inference": True,
+                "apply_in_inference": apply_in_inference,
+                "no_separator": no_separator,
                 "labels": ["context_label"],
             },
         },
     }
 
+    separator = " " if no_separator else " ｟mrk_context｠ "
     preprocessor = TrainingProcessor(config_context, "", str(tmpdir))
     (
         data_path,
@@ -1554,6 +1564,7 @@ def test_sampler_with_context(tmpdir, context_size, random_context):
             corpus_src_file,
             res_tgt_file,
             corpus_tgt_file,
+            separator=separator,
         )
 
     # Test file inference.
@@ -1581,11 +1592,50 @@ def test_sampler_with_context(tmpdir, context_size, random_context):
         ]:
             tgt_file.write(line)
 
+    # Test inference preprocess without target.
     processor = InferenceProcessor(config_context)
     pre_src_path, metadata = processor.process_file(src_path)
-    with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
-        _check_context_lines(context_size, False, pre_src_file, src_file)
 
+    with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
+        if apply_in_inference and not no_separator:
+            if apply_in_inference == "split":
+                context_list = []
+                for line in src_file:
+                    line = line.strip()
+                    if line:
+                        if len(context_list) < context_size:
+                            context_list.append(line)
+                            continue
+                        else:
+                            line = separator.join(context_list) + separator + line
+                    else:
+                        if context_list:
+                            context_line = separator.join(context_list)
+                            assert context_line == pre_src_file.readline().strip()
+                    context_list = []
+                    assert line == pre_src_file.readline().strip()
+                if context_list:
+                    assert (
+                        separator.join(context_list) == pre_src_file.readline().strip()
+                    )
+            else:
+                _check_context_lines(
+                    context_size, False, pre_src_file, src_file, separator=separator
+                )
+        else:
+            for pre_line, line in zip(pre_src_file, src_file):
+                assert pre_line.strip() == line.strip()
+
+    # Test postprocess. For simplicity, use source as target.
+    postprocessor = InferenceProcessor(config_context, postprocess=True)
+    post_src_path = postprocessor.process_file(pre_src_path, pre_src_path)
+
+    if not no_separator:
+        with open(src_path) as src_file, open(post_src_path) as post_src_file:
+            for source_line, postprocessed_line in zip(src_file, post_src_file):
+                assert source_line.strip() == postprocessed_line.strip()
+
+    # Test inference preprocess with target.
     pre_src_path, pre_tgt_path, metadata = processor.process_file(src_path, tgt_path)
 
     with open(pre_src_path) as pre_src_file, open(src_path) as src_file:
@@ -1594,9 +1644,3 @@ def test_sampler_with_context(tmpdir, context_size, random_context):
     with open(pre_tgt_path) as pre_tgt_file, open(tgt_path) as tgt_file:
         for pre_l, l in zip(pre_tgt_file, tgt_file):
             assert pre_l.strip() == l.strip()
-
-    postprocessor = InferenceProcessor(config_context, postprocess=True)
-    post_tgt_path = postprocessor.process_file(pre_src_path, pre_tgt_path)
-
-    with open(tgt_path) as tgt_file, open(post_tgt_path) as post_tgt_file:
-        assert tgt_file.read() == post_tgt_file.read()

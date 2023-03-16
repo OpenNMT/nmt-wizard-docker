@@ -4,7 +4,6 @@ import pyonmttok
 
 from nmtwizard import utils
 from nmtwizard.logger import get_logger
-from nmtwizard.preprocess import prepoperator
 
 logger = get_logger(__name__)
 
@@ -639,16 +638,22 @@ class TranslationUnit(object):
 
     def export(self, process_type):
         if process_type.postprocess:
-            if self.tgt_detok:
-                self.tgt_detok = self.tgt_detok.split(utils.context_placeholder)[
-                    -1
-                ].strip()
-            return PreprocessOutput(
-                src=self.src_detok,
-                tgt=self.tgt_detok,
-                metadata=self.metadata[0],
-                alignment=None,
-            )
+            meta = self.__metadata[0]
+            split_context = meta.get("context_split") if meta is not None else None
+            src = self.src_detok.split(utils.context_placeholder)
+            tgt = self.tgt_detok.split(utils.context_placeholder)
+            if not split_context or len(src) != len(tgt):
+                src = [src[-1].strip()]
+                tgt = [tgt[-1].strip()]
+            return [
+                PreprocessOutput(
+                    src=s.strip(),
+                    tgt=t.strip(),
+                    metadata=self.metadata[0],
+                    alignment=None,
+                )
+                for s, t in zip(src, tgt)
+            ]
 
         src = self.src_tok.tokens
         if src is None:
@@ -661,12 +666,14 @@ class TranslationUnit(object):
             if tgt is None:
                 tgt = self.tgt_detok
 
-        return PreprocessOutput(
-            src=src,
-            tgt=tgt,
-            metadata=self.metadata,
-            alignment=self.alignment,
-        )
+        return [
+            PreprocessOutput(
+                src=src,
+                tgt=tgt,
+                metadata=self.metadata,
+                alignment=self.alignment,
+            )
+        ]
 
     @property
     def metadata(self):
