@@ -7,6 +7,7 @@ import glob
 import time
 import requests_mock
 import itertools
+import json
 
 from nmtwizard import beat_service
 from nmtwizard import utils
@@ -22,36 +23,107 @@ from nmtwizard.preprocess.tu import TranslationUnit
 from nmtwizard.preprocess import prepoperator
 
 
+def generate_lines(size, name):
+    for i in range(size):
+        yield "%s %d" % (name, i)
+
+
 def generate_pseudo_corpus(corpus_dir, size, name, suffix):
     path = str(corpus_dir.join(name + "." + suffix))
-    with utils.open_file(path, "wb") as f:
-        for i in range(size):
-            f.write((name + " " + str(i) + "\n").encode("utf-8"))
+    with utils.open_file(path, "wt") as f:
+        for line in generate_lines(size, name):
+            f.write("%s\n" % line)
+    return path
+
+
+def generate_parallel_corpus(corpus_dir, size, name, src, tgt, corpus_format="bitext"):
+    if corpus_format == "json":
+        generate_json_corpus(corpus_dir, size, name, src, tgt)
+    else:
+        generate_bitext_corpus(corpus_dir, size, name, src, tgt)
+
+
+def generate_bitext_corpus(corpus_dir, size, name, src, tgt):
+    generate_pseudo_corpus(corpus_dir, size, name, src)
+    generate_pseudo_corpus(corpus_dir, size, name, tgt)
+
+
+def generate_json_corpus(corpus_dir, size, name, src, tgt):
+    path = str(corpus_dir.join(name))
+    src_lines = generate_lines(size, name)
+    tgt_lines = generate_lines(size, name)
+    return save_corpus_as_json(path, src, tgt, zip(src_lines, tgt_lines))
+
+
+def save_corpus_as_json(path, src, tgt, segments):
+    segments = list(segments)
+
+    dirname, basename = os.path.split(path)
+    basename = os.path.splitext(basename)[0]
+
+    metadata_path = os.path.join(dirname, ".%s.metadata" % basename)
+    metadata = {"files": [{"nbSegments": len(segments)}]}
+    with open(metadata_path, "w") as metadata_file:
+        json.dump(metadata, metadata_file)
+
+    all_segments = []
+
+    for fields in segments:
+        src_line = fields[0]
+        tgt_line = fields[1]
+        extra_fields = {"metadata": fields[2]} if len(fields) > 2 else {}
+
+        segment = {
+            "language": src,
+            "seg": src_line,
+            "tgts": [
+                {
+                    "language": tgt,
+                    "seg": tgt_line,
+                    **extra_fields,
+                }
+            ],
+        }
+
+        all_segments.append(segment)
+
+    data = {"bidirectional": False, "segments": all_segments}
+    path = path + ".json"
+
+    with open(path, "w") as json_file:
+        json.dump(data, json_file)
+
     return path
 
 
 @pytest.mark.parametrize("batch_size,num_threads", [(10, 1), (10, 2), (10000, 1)])
-def test_sampler(tmpdir, batch_size, num_threads):
+@pytest.mark.parametrize("corpus_format", ["bitext", "json"])
+def test_sampler(tmpdir, batch_size, num_threads, corpus_format):
     os.environ["NB_CPU"] = str(num_threads)
 
     corpus_dir = tmpdir.join("corpus")
     corpus_dir.mkdir()
 
-    generate_pseudo_corpus(corpus_dir, 800, "corpus_specific1", "en")
-    generate_pseudo_corpus(corpus_dir, 800, "corpus_specific1", "de")
-    generate_pseudo_corpus(corpus_dir, 2000, "corpus_specific2", "en")
-    generate_pseudo_corpus(corpus_dir, 2000, "corpus_specific2", "de")
-    generate_pseudo_corpus(corpus_dir, 50, "generic_added", "en")
-    generate_pseudo_corpus(corpus_dir, 50, "generic_added", "de")
-    generate_pseudo_corpus(corpus_dir, 100, "generic_corpus", "en")
-    generate_pseudo_corpus(corpus_dir, 100, "generic_corpus", "de")
-    generate_pseudo_corpus(corpus_dir, 200, "IT", "en")
-    generate_pseudo_corpus(corpus_dir, 200, "IT", "de")
-    generate_pseudo_corpus(corpus_dir, 3000, "news_pattern", "en")
-    generate_pseudo_corpus(corpus_dir, 3000, "news_pattern", "de")
-    generate_pseudo_corpus(corpus_dir, 10, "unaligned", "en")
-    generate_pseudo_corpus(corpus_dir, 10, "generic_to_ignore", "en")
-    generate_pseudo_corpus(corpus_dir, 10, "generic_to_ignore", "de")
+    generate_parallel_corpus(
+        corpus_dir, 800, "corpus_specific1", "en", "de", corpus_format
+    )
+    generate_parallel_corpus(
+        corpus_dir, 2000, "corpus_specific2", "en", "de", corpus_format
+    )
+    generate_parallel_corpus(corpus_dir, 50, "generic_added", "en", "de", corpus_format)
+    generate_parallel_corpus(
+        corpus_dir, 100, "generic_corpus", "en", "de", corpus_format
+    )
+    generate_parallel_corpus(corpus_dir, 200, "IT", "en", "de", corpus_format)
+    generate_parallel_corpus(
+        corpus_dir, 3000, "news_pattern", "en", "de", corpus_format
+    )
+    generate_parallel_corpus(
+        corpus_dir, 10, "generic_to_ignore", "en", "de", corpus_format
+    )
+
+    if corpus_format == "bitext":
+        generate_pseudo_corpus(corpus_dir, 10, "unaligned", "en")
 
     config = {
         "source": "en",
