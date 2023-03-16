@@ -1,8 +1,11 @@
 import abc
+import json
 import itertools
 import os
 import re
 import random
+
+import json_stream
 
 from nmtwizard import utils
 from nmtwizard.logger import get_logger
@@ -93,15 +96,21 @@ def sample(config, source_dir, oversample_as_weights):
                     # check if filename is regular, matches main source direction and get base_name
                     if not (os.path.isfile(src_file)):
                         continue
-                    if f.endswith(src_suffix):
-                        base_name = f[: -len(src_suffix) - 1]
-                    elif f.endswith(src_suffix + ".gz"):
-                        base_name = f[: -len(src_suffix) - 4]
+
+                    base_name = f
+                    if utils.is_gzip_file(base_name):
+                        base_name = os.path.splitext(base_name)[0]
+
+                    if base_name.endswith(".json"):
+                        base_name = os.path.splitext(base_name)[0]
+                        reader = JsonReader(root, base_name)
+                    elif base_name.endswith(src_suffix):
+                        base_name = os.path.splitext(base_name)[0]
+                        base_path = os.path.join(root, base_name)
+                        reader = BitextReader(base_path, src_suffix, tgt_suffix)
                     else:
                         continue
 
-                    base_path = os.path.join(root, base_name)
-                    reader = BitextReader(base_path, src_suffix, tgt_suffix)
                     if annotations:
                         reader = ReaderWithExternalAnnotations(
                             reader, annotations, src_suffix, tgt_suffix
@@ -380,6 +389,30 @@ class CorpusReader(abc.ABC):
 
     def get_summary(self):
         return {}
+
+
+class JsonReader(CorpusReader):
+    """Read segments from a JSON file with a custom structure."""
+
+    def __init__(self, root, base_name):
+        super().__init__(base_name)
+        self.json_path = os.path.join(root, "%s.json" % base_name)
+        self.metadata_path = os.path.join(root, ".%s.metadata" % base_name)
+
+    def count_lines(self):
+        with open(self.metadata_path) as metadata_file:
+            metadata = json.load(metadata_file)
+            return sum(int(f["nbSegments"]) for f in metadata["files"])
+
+    def read_lines(self):
+        with utils.open_file(self.json_path, "rt") as json_file:
+            data = json_stream.load(json_file)
+
+            for segment in data["segments"].persistent():
+                src_line = segment["seg"]
+                tgt_line = segment["tgts"][0]["seg"]
+                annotations = segment["tgts"][0].get("metadata", {})
+                yield src_line, tgt_line, annotations
 
 
 class BitextReader(CorpusReader):
