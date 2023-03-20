@@ -412,7 +412,7 @@ class JsonReader(CorpusReader):
                 src_line = segment["seg"]
                 tgt_line = segment["tgts"][0]["seg"]
                 annotations = segment["tgts"][0].get("metadata", {})
-                yield src_line, tgt_line, {**annotations}
+                yield src_line, tgt_line, json_stream.to_standard_types(annotations)
 
 
 class BitextReader(CorpusReader):

@@ -271,7 +271,7 @@ class SamplerFileLoader(FileLoader):
             if tgt_line:
                 tgt_line = tgt_line.strip()
             for key, line in annot_lines.items():
-                annot_lines[key] = line.strip()
+                annot_lines[key] = line.strip() if isinstance(line, str) else line
 
             tu_source_context = None
             tu_target_context = None
