@@ -1499,16 +1499,22 @@ def _check_context_lines(
 
 
 @pytest.mark.parametrize(
-    "context_size,random_context,no_separator,apply_in_inference",
+    "context_size,random_context,no_separator,apply_in_inference,as_main",
     list(
         itertools.product(
-            *[[1, 2, 3, 5], [False, True], [False], [None, False, True, "split"]]
+            *[
+                [1, 2, 3, 5],
+                [False, True],
+                [False],
+                [None, False, True, "split"],
+                [False, True],
+            ]
         )
     )
-    + list(itertools.product(*[[1, 2, 3, 5], [False], [True], [True]])),
+    + list(itertools.product(*[[1, 2, 3, 5], [False], [True], [True], [False, True]])),
 )
 def test_sampler_with_context(
-    tmpdir, context_size, random_context, no_separator, apply_in_inference
+    tmpdir, context_size, random_context, no_separator, apply_in_inference, as_main
 ):
 
     random.seed(24)
@@ -1532,6 +1538,7 @@ def test_sampler_with_context(
                 "prob": "random" if random_context else 1,
                 "target": True,
                 "apply_in_inference": apply_in_inference,
+                "as_main": as_main,
                 "no_separator": no_separator,
                 "labels": ["context_label"],
             },

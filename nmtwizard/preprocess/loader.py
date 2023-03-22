@@ -50,28 +50,45 @@ class FileLoader(Loader):
         self._context_target = context.get("target")
         self._context_labels = context.get("labels")
         self._context_apply_in_inference = context.get("apply_in_inference")
+        self._context_as_main = context.get("as_main")
         self._context_placeholder = (
             None if context.get("no_separator") else utils.context_placeholder
         )
 
     def _add_context_to_tu(self, context, tu, side):
+        detok = ""
+        context_placeholder = (
+            " " + self._context_placeholder + " "
+            if self._context_placeholder is not None
+            else " "
+        )
         for i, c in enumerate(reversed(context)):
             if isinstance(c, bytes):
                 c = c.decode("utf-8")  # Ensure Unicode string.
+            c = c.strip()
+            if self._context_as_main:
+                if c:
+                    detok = c + context_placeholder + detok
+            else:
+                if side == "source":
+                    tu.add_source(
+                        c,
+                        name="context_" + str(i),
+                        output_delimiter=self._context_placeholder,
+                        before_main=True,
+                    )
+                elif side == "target":
+                    tu.add_target(
+                        c,
+                        name="context_" + str(i),
+                        output_delimiter=self._context_placeholder,
+                        before_main=True,
+                    )
+        if detok:
             if side == "source":
-                tu.add_source(
-                    c,
-                    name="context_" + str(i),
-                    output_delimiter=self._context_placeholder,
-                    before_main=True,
-                )
+                tu.src_detok = detok + tu.src_detok
             elif side == "target":
-                tu.add_target(
-                    c,
-                    name="context_" + str(i),
-                    output_delimiter=self._context_placeholder,
-                    before_main=True,
-                )
+                tu.tgt_detok = detok + tu.tgt_detok
 
     def register_file(self, name, path):
         if name in self._input_paths:
