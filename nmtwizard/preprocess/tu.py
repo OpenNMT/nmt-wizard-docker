@@ -464,6 +464,14 @@ class TranslationUnit(object):
         else:
             self.__target = {name: ts}
 
+    def remove_source(self, name):
+        if self.__source is not None:
+            self.__source.pop(name)
+
+    def remove_target(self, name):
+        if self.__target is not None:
+            self.__target.pop(name)
+
     @property
     def num_sources(self):
         return len(self.__source)
@@ -642,9 +650,15 @@ class TranslationUnit(object):
             split_context = meta.get("context_split") if meta is not None else None
             src = self.src_detok.split(utils.context_placeholder)
             tgt = self.tgt_detok.split(utils.context_placeholder)
-            if not split_context or len(src) != len(tgt):
+            if not split_context:
                 src = [src[-1].strip()]
                 tgt = [tgt[-1].strip()]
+            len_src = len(src)
+            len_tgt = len(tgt)
+            if len_src != len_tgt:
+                logger.warning(
+                    f"Context length is not equal in source ({len_src} tokens) and in target ({len_tgt} tokens).\tSRC : {self.src_detok}.\tTGT : {self.tgt_detok}"
+                )
             return [
                 PreprocessOutput(
                     src=s.strip(),
@@ -652,7 +666,7 @@ class TranslationUnit(object):
                     metadata=self.metadata[0],
                     alignment=None,
                 )
-                for s, t in zip(src, tgt)
+                for s, t in itertools.zip_longest(src, tgt, fillvalue="")
             ]
 
         src = self.src_tok.tokens
