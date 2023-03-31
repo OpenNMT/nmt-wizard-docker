@@ -144,9 +144,12 @@ class PreprocessFileLoader(FileLoader):
                 and target is None
             ):
                 if self._context_apply_in_inference == "split":
+                    meta = [{"context_split": True}]
                     if source.strip():
                         if len(source_context) == self._context_length:
-                            current_tu = tu.TranslationUnit(source=source, target=None)
+                            current_tu = tu.TranslationUnit(
+                                source=source, target=None, metadata=meta
+                            )
                             self._add_context_to_tu(
                                 source_context, current_tu, side="source"
                             )
@@ -159,7 +162,7 @@ class PreprocessFileLoader(FileLoader):
                     else:
                         if source_context:
                             current_tu = tu.TranslationUnit(
-                                source=source_context[-1], target=None
+                                source=source_context[-1], target=None, metadata=meta
                             )
                             if len(source_context) > 1:
                                 self._add_context_to_tu(
@@ -167,7 +170,9 @@ class PreprocessFileLoader(FileLoader):
                                 )
                             yield current_tu
                             source_context = []
-                        yield tu.TranslationUnit(source=source, target=None)
+                        yield tu.TranslationUnit(
+                            source=source, target=None, metadata=meta
+                        )
                 else:
                     current_tu = tu.TranslationUnit(source=source, target=target)
                     if source_context and source.strip():
@@ -249,7 +254,7 @@ class PostprocessFileLoader(FileLoader):
                 and self._context_apply_in_inference == "split"
             ):
                 context = {"context_split": True}
-                meta = [context if m is None else m.update(context) for m in meta]
+                meta = [context if m is None else dict(m, **context) for m in meta]
             yield tu.TranslationUnit(
                 source=src_lines,
                 target=tgt_lines,
