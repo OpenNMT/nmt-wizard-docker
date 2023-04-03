@@ -49,26 +49,46 @@ class FileLoader(Loader):
         self._context_length = context.get("length")
         self._context_target = context.get("target")
         self._context_labels = context.get("labels")
-        self._context_apply_in_inference = context.get("apply_in_inference", False)
+        self._context_apply_in_inference = context.get("apply_in_inference")
+        self._context_as_main = context.get("as_main")
+        self._context_placeholder = (
+            None if context.get("no_separator") else utils.context_placeholder
+        )
 
     def _add_context_to_tu(self, context, tu, side):
+        detok = ""
+        context_placeholder = (
+            " " + self._context_placeholder + " "
+            if self._context_placeholder is not None
+            else " "
+        )
         for i, c in enumerate(reversed(context)):
             if isinstance(c, bytes):
                 c = c.decode("utf-8")  # Ensure Unicode string.
+            c = c.strip()
+            if self._context_as_main:
+                if c:
+                    detok = c + context_placeholder + detok
+            else:
+                if side == "source":
+                    tu.add_source(
+                        c,
+                        name="context_" + str(i),
+                        output_delimiter=self._context_placeholder,
+                        before_main=True,
+                    )
+                elif side == "target":
+                    tu.add_target(
+                        c,
+                        name="context_" + str(i),
+                        output_delimiter=self._context_placeholder,
+                        before_main=True,
+                    )
+        if detok:
             if side == "source":
-                tu.add_source(
-                    c,
-                    name="context_" + str(i),
-                    output_delimiter=utils.context_placeholder,
-                    before_main=True,
-                )
+                tu.src_detok = detok + tu.src_detok
             elif side == "target":
-                tu.add_target(
-                    c,
-                    name="context_" + str(i),
-                    output_delimiter=utils.context_placeholder,
-                    before_main=True,
-                )
+                tu.tgt_detok = detok + tu.tgt_detok
 
     def register_file(self, name, path):
         if name in self._input_paths:
@@ -115,16 +135,57 @@ class PreprocessFileLoader(FileLoader):
         source_file = files["source"]
         target_file = files.get("target", itertools.repeat(None))
         source_context = []
+
         for source, target in zip(source_file, target_file):
-            current_tu = tu.TranslationUnit(source=source, target=target)
             if (
                 self._context_apply_in_inference
                 and self._context_length is not None
+                and self._context_placeholder is not None
                 and target is None
             ):
-                if source_context and source.strip():
-                    self._add_context_to_tu(source_context, current_tu, side="source")
-                _add_line_to_context(source_context, source, self._context_length)
+                if self._context_apply_in_inference == "split":
+                    meta = [{"context_split": True}]
+                    if source.strip():
+                        if len(source_context) == self._context_length:
+                            current_tu = tu.TranslationUnit(
+                                source=source, target=None, metadata=meta
+                            )
+                            self._add_context_to_tu(
+                                source_context, current_tu, side="source"
+                            )
+                            yield current_tu
+                            source_context = []
+                        else:
+                            _add_line_to_context(
+                                source_context, source, self._context_length
+                            )
+                    else:
+                        if source_context:
+                            current_tu = tu.TranslationUnit(
+                                source=source_context[-1], target=None, metadata=meta
+                            )
+                            if len(source_context) > 1:
+                                self._add_context_to_tu(
+                                    source_context[:-1], current_tu, side="source"
+                                )
+                            yield current_tu
+                            source_context = []
+                        yield tu.TranslationUnit(
+                            source=source, target=None, metadata=meta
+                        )
+                else:
+                    current_tu = tu.TranslationUnit(source=source, target=target)
+                    if source_context and source.strip():
+                        self._add_context_to_tu(
+                            source_context, current_tu, side="source"
+                        )
+                    yield current_tu
+                    _add_line_to_context(source_context, source, self._context_length)
+            else:
+                yield tu.TranslationUnit(source=source, target=target)
+        if self._context_apply_in_inference == "split" and source_context:
+            current_tu = tu.TranslationUnit(source=source_context[-1], target=None)
+            self._add_context_to_tu(source_context[:-1], current_tu, side="source")
             yield current_tu
 
 
@@ -144,8 +205,9 @@ class PostprocessFileLoader(FileLoader):
         start_state=None,
         batch_size=None,
         target_score_type=None,
+        context=None,
     ):
-        super().__init__(batch_size)
+        super().__init__(batch_size, context=context)
         if start_state is None:
             start_state = {}
         self._source_tokenizer = start_state.get("src_tokenizer")
@@ -187,6 +249,12 @@ class PostprocessFileLoader(FileLoader):
                 score = _extract_score(tgt_lines, self._target_score_type)
                 meta = [{"score": score}]
 
+            if (
+                self._context_length is not None
+                and self._context_apply_in_inference == "split"
+            ):
+                context = {"context_split": True}
+                meta = [context if m is None else dict(m, **context) for m in meta]
             yield tu.TranslationUnit(
                 source=src_lines,
                 target=tgt_lines,
@@ -256,7 +324,8 @@ class SamplerFileLoader(FileLoader):
         def add_context_ph_to_vocab(side):
             self._batch_meta.setdefault("tokens_to_add", {})
             self._batch_meta["tokens_to_add"].setdefault(side, set())
-            self._batch_meta["tokens_to_add"][side].add(utils.context_placeholder)
+            if self._context_placeholder:
+                self._batch_meta["tokens_to_add"][side].add(self._context_placeholder)
 
         source_context = []
         target_context = []

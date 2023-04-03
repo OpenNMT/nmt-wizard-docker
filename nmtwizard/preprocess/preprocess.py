@@ -102,7 +102,10 @@ def _process_batch(
             " from %s" % base_name if base_name is not None else "",
         )
 
-    outputs = [tu.export(pipeline.process_type) for tu in tu_list]
+    outputs = []
+    for tu in tu_list:
+        outputs.extend(tu.export(pipeline.process_type))
+
     return (outputs, batch_meta), pipeline
 
 
@@ -539,12 +542,16 @@ class InferenceProcessor(Processor):
             "[%d] %s source input:  %s", threading.current_thread().ident, proc, source
         )
 
-        if source_context is not None:
+        context = self._config.get("data", {}).get("context", {})
+        if source_context is not None and context:
+            context_placeholder = (
+                None if context.get("no_separator") else utils.context_placeholder
+            )
             for sc_idx, sc in enumerate(reversed(source_context)):
                 tu.add_source(
                     sc,
                     name=f"context_{sc_idx}",
-                    output_delimiter=utils.context_placeholder,
+                    output_delimiter=context_placeholder,
                     before_main=True,
                 )
 
@@ -555,7 +562,7 @@ class InferenceProcessor(Processor):
                 tu.add_target(
                     tc,
                     name=f"context_{tc_idx}",
-                    output_delimiter=utils.context_placeholder,
+                    output_delimiter=context_placeholder,
                     before_main=True,
                 )
 
@@ -633,6 +640,7 @@ class InferenceProcessor(Processor):
             return "%s.%s" % (path, suffix)
 
         batch_size = self._config.get("data", {}).get("batch_size", 100000)
+        context = self._config.get("data", {}).get("context", {})
         if self._postprocess:
             file_loader = loader.PostprocessFileLoader(
                 source_file,
@@ -641,12 +649,12 @@ class InferenceProcessor(Processor):
                 start_state=self._pipeline.start_state,
                 batch_size=batch_size,
                 target_score_type=target_score_type,
+                context=context,
             )
             file_consumer = consumer.PostprocessFileWriter(
                 _build_output_path(target_file, "detok")
             )
         else:
-            context = self._config.get("data", {}).get("context", {})
             file_loader = loader.PreprocessFileLoader(
                 source_file, target_file, batch_size=batch_size, context=context
             )

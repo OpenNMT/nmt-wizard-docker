@@ -4,7 +4,6 @@ import pyonmttok
 
 from nmtwizard import utils
 from nmtwizard.logger import get_logger
-from nmtwizard.preprocess import prepoperator
 
 logger = get_logger(__name__)
 
@@ -465,6 +464,14 @@ class TranslationUnit(object):
         else:
             self.__target = {name: ts}
 
+    def remove_source(self, name):
+        if self.__source is not None:
+            self.__source.pop(name)
+
+    def remove_target(self, name):
+        if self.__target is not None:
+            self.__target.pop(name)
+
     @property
     def num_sources(self):
         return len(self.__source)
@@ -639,16 +646,28 @@ class TranslationUnit(object):
 
     def export(self, process_type):
         if process_type.postprocess:
-            if self.tgt_detok:
-                self.tgt_detok = self.tgt_detok.split(utils.context_placeholder)[
-                    -1
-                ].strip()
-            return PreprocessOutput(
-                src=self.src_detok,
-                tgt=self.tgt_detok,
-                metadata=self.metadata[0],
-                alignment=None,
-            )
+            meta = self.__metadata[0]
+            split_context = meta.get("context_split") if meta is not None else None
+            src = self.src_detok.split(utils.context_placeholder)
+            tgt = self.tgt_detok.split(utils.context_placeholder)
+            if not split_context:
+                src = [src[-1].strip()]
+                tgt = [tgt[-1].strip()]
+            len_src = len(src)
+            len_tgt = len(tgt)
+            if len_src != len_tgt:
+                logger.warning(
+                    f"Context length is not equal in source ({len_src} tokens) and in target ({len_tgt} tokens).\tSRC : {self.src_detok}.\tTGT : {self.tgt_detok}"
+                )
+            return [
+                PreprocessOutput(
+                    src=s.strip(),
+                    tgt=t.strip(),
+                    metadata=self.metadata[0],
+                    alignment=None,
+                )
+                for s, t in itertools.zip_longest(src, tgt, fillvalue="")
+            ]
 
         src = self.src_tok.tokens
         if src is None:
@@ -661,12 +680,14 @@ class TranslationUnit(object):
             if tgt is None:
                 tgt = self.tgt_detok
 
-        return PreprocessOutput(
-            src=src,
-            tgt=tgt,
-            metadata=self.metadata,
-            alignment=self.alignment,
-        )
+        return [
+            PreprocessOutput(
+                src=src,
+                tgt=tgt,
+                metadata=self.metadata,
+                alignment=self.alignment,
+            )
+        ]
 
     @property
     def metadata(self):
