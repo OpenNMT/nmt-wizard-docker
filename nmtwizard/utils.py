@@ -25,6 +25,19 @@ class ScoreType(enum.Enum):
     NORMALIZED_LL = 2
     NORMALIZED_NLL = 3
 
+    @classmethod
+    def to_cumulated_ll(cls, score, score_type, length):
+        if score_type == cls.CUMULATED_LL:
+            return score
+        elif score_type == cls.CUMULATED_NLL:
+            return -score
+        elif score_type == cls.NORMALIZED_NLL:
+            return -score * length
+        elif score_type == cls.NORMALIZED_LL:
+            return score * length
+        else:
+            raise ValueError("Invalid score type value: %s" % str(score_type))
+
 
 def md5file(path, buffer_size=16777216):
     """Computes the MD5 hash of the given file."""

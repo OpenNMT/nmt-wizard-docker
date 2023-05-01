@@ -288,15 +288,7 @@ def _extract_score(tokens, score_type, separator="|||"):
 
         length = len(tokens_part)
         total_length += length
-
-        # The returned score is the normalized log likelihood.
-        if score_type == utils.ScoreType.NORMALIZED_NLL:
-            score *= -length
-        elif score_type == utils.ScoreType.NORMALIZED_LL:
-            score *= length
-        elif score_type == utils.ScoreType.CUMULATED_NLL:
-            score = -score
-        total_score += score
+        total_score += utils.ScoreType.to_cumulated_ll(score, score_type, length)
 
     return total_score / total_length if total_length != 0 else 0
 
